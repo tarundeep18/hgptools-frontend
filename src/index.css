@@ -1,0 +1,649 @@
+@import "tailwindcss";
+
+.nav-link {
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+  color: #1d4ed8;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+/* Add these animations to your existing CSS file */
+
+/* Custom Animations for Discount Popup */
+@keyframes gradient-x {
+  0%,
+  100% {
+    background-size: 200% 200%;
+    background-position: left center;
+  }
+  50% {
+    background-size: 200% 200%;
+    background-position: right center;
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-right {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes success-scale {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes success-icon {
+  0% {
+    transform: rotate(0deg) scale(0);
+  }
+  60% {
+    transform: rotate(180deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes bounce-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(-5px);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@keyframes color-change {
+  0%,
+  100% {
+    color: #9333ea;
+  }
+  50% {
+    color: #ec4899;
+  }
+}
+
+@keyframes pulse-code {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+/* Animation Classes */
+.animate-gradient-x {
+  animation: gradient-x 3s ease infinite;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out;
+}
+
+.animate-slide-right {
+  animation: slide-right 0.5s ease-out;
+}
+
+.animate-success-pop {
+  animation: success-pop 0.5s ease-out;
+}
+
+.animate-success-scale {
+  animation: success-scale 0.6s ease-out forwards;
+}
+
+.animate-success-icon {
+  animation: success-icon 0.8s ease-out;
+}
+
+.animate-bounce-soft {
+  animation: bounce-soft 2s infinite;
+}
+
+.animate-color-change {
+  animation: color-change 2s infinite;
+}
+
+.animate-pulse-code {
+  animation: pulse-code 1.5s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-bounce-slow {
+  animation: bounce 3s infinite;
+}
+
+/* Delay Utilities */
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+/* Count up animation */
+@keyframes count-up {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-count-up {
+  animation: count-up 1s ease-out;
+}
+
+/* Text slide animation */
+@keyframes slide-text {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+.animate-slide-text {
+  animation: slide-text 10s linear infinite;
+}
+
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-in {
+  animation: zoom-in 0.2s ease-out;
+}
+
+.slide-in-from-bottom-2 {
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: #2563eb;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+  background: #1d4ed8;
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.custom-scrollbar:hover {
+  scrollbar-color: #2563eb transparent;
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .sticky,
+  .fixed {
+    display: none !important;
+  }
+
+  .bg-white\/95,
+  .backdrop-blur,
+  .shadow-sm {
+    display: none !important;
+    box-shadow: none !important;
+  }
+
+  button {
+    display: none !important;
+  }
+
+  /* Hide the Generated Report header */
+  .bg-blue-50.border.rounded-lg.p-4 {
+    display: none !important;
+  }
+
+  .min-h-screen {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: auto !important;
+  }
+
+  .max-w-\[1180px\] {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .space-y-6 {
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .space-y-6 > * {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Show ALL report pages in print - REMOVED the :not(:first-of-type) rule */
+  .report-page {
+    min-height: 297mm;
+    width: 210mm;
+    margin: 0 auto !important;
+    padding: 10mm 9mm 14mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    display: block !important;
+    page-break-after: always;
+    overflow: visible !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+ 
+  .report-page:last-child {
+    page-break-after: auto;
+  }
+
+  .print-page-break {
+    break-before: page;
+  }
+
+  /* Ensure all report content is visible */
+  .report-page,
+  .report-page * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+  }
+
+  .report-brand-row,
+  .report-info-grid,
+  .report-section-title,
+  .report-table,
+  .disposition-panel,
+  .signature-block,
+  .combined-chart-shell,
+  .report-footer {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  .report-table {
+    page-break-inside: avoid;
+    width: 100% !important;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 2px 3px !important;
+    font-size: 7px !important;
+  }
+
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+
+  .report-footer {
+    position: absolute !important;
+    bottom: 5mm !important;
+    left: 9mm !important;
+    right: 9mm !important;
+    width: auto !important;
+  }
+
+  .report-brand-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1.55fr 0.72fr !important;
+    border: 1px solid #334155 !important;
+    background: white !important;
+  }
+
+  .report-info-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    border: 1px solid #94a3b8 !important;
+    border-top: none !important;
+  }
+
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-gray-50,
+  .bg-gray-100 {
+    background: white !important;
+  }
+
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600 {
+    color: #475569 !important;
+  }
+
+  .text-slate-700,
+  .text-slate-800,
+  .text-slate-900 {
+    color: #0f172a !important;
+  }
+
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .max-h-\[200px\],
+  .max-h-\[300px\],
+  .max-h-\[400px\] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .h-\[215px\],
+  .h-\[170px\] {
+    height: auto !important;
+    min-height: 150px !important;
+  }
+
+  .bg-white.p-6.shadow-sm {
+    background: white !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  /* Hide the Generated Report header and controls in print */
+  .bg-blue-50.border.border-blue-200.rounded-lg.p-4 {
+    display: none !important;
+  }
+
+  .space-y-6 > .bg-blue-50.border.border-blue-200.rounded-lg.p-4 {
+    display: none !important;
+  }
+
+  .bg-blue-50 .flex.items-center.justify-between {
+    display: none !important;
+  }
+
+  .bg-blue-50 .text-lg.font-bold.text-blue-900 {
+    display: none !important;
+  }
+
+  /* Ensure all report pages are visible */
+  .space-y-6 > .report-page {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Hide scrollbars */
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+}
+
+/* Print mode styles */
+body.print-mode .no-print {
+  display: none !important;
+}
+
+body.print-mode .bg-slate-100 {
+  background: white !important;
+}
+
+body.print-mode .max-w-\[1180px\] {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+body.print-mode .sticky {
+  display: none !important;
+}
+
+body.print-mode .shadow-sm {
+  box-shadow: none !important;
+}
+
+body.print-mode .border {
+  border: none !important;
+}
+
+body.print-mode .report-page {
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 10mm 9mm 14mm !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body.print-mode .report-page + .report-page {
+  page-break-before: always !important;
+}
+
+body.print-mode .bg-blue-50.border.border-blue-200.rounded-lg.p-4 {
+  display: none !important;
+}
+
+body.print-mode .bg-blue-50 .flex.items-center.justify-between {
+  display: none !important;
+}
+
+body.print-mode .bg-blue-50 .text-lg.font-bold.text-blue-900 {
+  display: none !important;
+}
+
+body.print-mode .space-y-6 > .report-page {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
