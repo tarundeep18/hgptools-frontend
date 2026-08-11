@@ -25,3 +25,7 @@ dist-ssr
 *.sw?
 
 src/assets/steel.mp4
+
+.env
+.env.*
+!.env.example
