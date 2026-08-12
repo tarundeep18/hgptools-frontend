@@ -50,97 +50,378 @@ import {
 } from "lucide-react";
 
 // ============================================
-// SAMPLE DUMMY DATA FOR MULTIPLE COMPANIES
+// DISPATCH HISTORY BILL DETAILS COMPONENT
 // ============================================
-const generateDummyData = () => {
-  const companies = [
-    "Sahasra Electronics",
-    "TechCore Solutions",
-    "Apex Manufacturing",
-    "Global Industries",
-    "Precision Components",
-    "NovaTech Systems",
-    "Elite Engineering",
-    "Crystal Enterprises",
-    "Summit Industries",
-    "Vertex Corporation",
-  ];
+// ============================================
+// DISPATCH HISTORY BILL DETAILS COMPONENT
+// ============================================
+const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
+  const totalItems = entries.length;
+  const totalQuantity = entries.reduce((sum, entry) => sum + (entry.dispatchQty || 0), 0);
+  const dispatchDate = entries[0]?.dispatchDate;
+  const transportMode = entries[0]?.transportMode;
+  const remarks = entries[0]?.remarks;
+  const receivedBy = entries[0]?.receivedBy;
 
-  const items = [
-    'Heat Sink, Extrusion Profile, ALUMINUM FLAT SHEET, T=.080", L=144", W=48", 13 SqIn, TYPE 6061-T6',
-    "Accessory, Assembly Shield/Seal, Aluminum 3003H14, 0.100, 96 SqIn",
-    "Hardware, Plate, POSITIVE BUS BAR, TIN PLATED HALF H",
-    "Hardware, Plate, NEGATIVE BUS BAR, TIN PLATED",
-    'Accessory, Assembly Shield, Aluminium sheet, TYPE 3003-H14, .063" THICK, 48" X 120", 20 SqIn',
-    "Hardware, Plate, BUS BAR, NEGATIVE, HITEMP3, HARD ALLOY 110 COPPER, L:4.330",
-    "Hardware, Plate, BUS BAR, POWER, HITEMP3, HARD ALLOY 110 COPPER, L:4.240 inch",
-    "Hardware, Plate, BUS BAR, POSITIVE, HITEMP3, HARD ALLOY 110 COPPER, L:4.090",
-    "Hardware, Others, Bus bar, phase, PCA 66720",
-    "Hardware, Others, Bus bar connector 61877-1, ring terminal",
-    "Hardware, Others, Bus bar 61156-1, Jumper",
-    "Hardware, Plate, .032 THICK HALF HARD ALLOY 110 COPPER, 0.0002-0.0004 OF MATTE TIN",
-    "Die and tools for Bus Bar Assembly",
-    "Hardware, Plate, POSITIVE BUS BAR, HITEMP3, HARD ALLOY 110 COPPER",
-    "Hardware, Plate, NEGATIVE BUS BAR, HITEMP3, HARD ALLOY 110 COPPER",
-  ];
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto p-4" role="dialog" aria-modal="true">
+      <div className="flex min-h-screen items-center justify-center">
+        <div
+          className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        
+        <div className="relative w-full max-w-4xl overflow-hidden bg-white rounded-2xl shadow-2xl animate-fadeIn">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white">Bill Details</h3>
+                <p className="text-sm text-blue-100">Bill #: {billNumber}</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="grid h-8 w-8 place-items-center rounded-lg text-white hover:bg-white/15 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
 
-  const drawings = [
-    "60153",
-    "65322-1",
-    "65294-1",
-    "65299-1",
-    "60159",
-    "65575-1",
-    "65576-1",
-    "65574-1",
-    "66782-1",
-    "61877-1",
-    "61156-1",
-    "67103-1",
-    "67104-1",
-    "67105-1",
-  ];
+          {/* Bill Summary */}
+          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Dispatch Date</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {dispatchDate ? new Date(dispatchDate).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  }) : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Total Items</p>
+                <p className="text-sm font-semibold text-gray-800">{totalItems}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Total Quantity</p>
+                <p className="text-sm font-semibold text-gray-800">{totalQuantity}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Transport</p>
+                <p className="text-sm font-semibold text-gray-800">{transportMode || '-'}</p>
+              </div>
+            </div>
+            {receivedBy && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500">Received By</p>
+                <p className="text-sm font-semibold text-gray-800">{receivedBy}</p>
+              </div>
+            )}
+            {remarks && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500">Remarks</p>
+                <p className="text-sm text-gray-700">{remarks}</p>
+              </div>
+            )}
+          </div>
 
-  const dummyData = [];
-  const startDate = new Date("2026-01-01");
+          {/* Items List */}
+          <div className="max-h-[400px] overflow-y-auto p-4">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">#</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">PO Number</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Company</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Item</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Qty Dispatched</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Pending</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {entries.map((entry, idx) => (
+                  <tr key={idx} className="hover:bg-blue-50 transition">
+                    <td className="px-3 py-2 text-xs text-gray-500">{idx + 1}</td>
+                    <td className="px-3 py-2 font-mono text-sm font-semibold text-gray-800">
+                      {entry.po || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-700">
+                      {entry.company || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate" title={entry.item}>
+                      {entry.item || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-green-600">
+                      {entry.dispatchQty || 0}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-600">
+                      {entry.newPending || entry.pending || 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-  for (let i = 0; i < 50; i++) {
-    const company = companies[Math.floor(Math.random() * companies.length)];
-    const itemIndex = Math.floor(Math.random() * items.length);
-    const poQty = Math.floor(Math.random() * 2000) + 50;
-    const dispatched = Math.floor(Math.random() * poQty);
-    const pending = poQty - dispatched;
-    const rate = Math.floor(Math.random() * 500) + 15;
-    const total = pending * rate;
+          {/* Footer */}
+          <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}; 
 
-    // Generate random date in 2026
-    const randomDays = Math.floor(Math.random() * 180);
-    const poDate = new Date(startDate);
-    poDate.setDate(poDate.getDate() + randomDays);
+// ============================================
+// GLOBAL DISPATCH HISTORY MODAL
+// ============================================
+const GlobalDispatchHistoryModal = ({
+  isOpen,
+  onClose,
+  dispatchHistory,
+  formatCurrency,
+  formatDate,
+}) => {
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [showBillDetails, setShowBillDetails] = useState(false);
 
-    dummyData.push({
-      company: company,
-      po: `PO-${String(2026).slice(-2)}${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
-      poDate: poDate.toISOString().split("T")[0],
-      deliveryDate: new Date(
-        poDate.getTime() +
-          (Math.floor(Math.random() * 60) + 15) * 24 * 60 * 60 * 1000,
-      )
-        .toISOString()
-        .split("T")[0],
-      drawing: drawings[Math.floor(Math.random() * drawings.length)],
-      itemCode: `3011810${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
-      item: items[itemIndex],
-      poQty: poQty,
-      dispatched: dispatched,
-      pending: pending,
-      status: pending > 0 ? "Pending" : "Completed",
-      rate: rate,
-      total: total,
+  // Get all unique bills from dispatch history
+  const allBills = useMemo(() => {
+    const bills = {};
+    Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
+      history.forEach((entry) => {
+        const bill = entry.billNumber || "Unknown Bill";
+        if (!bills[bill]) {
+          bills[bill] = {
+            billNumber: bill,
+            entries: [],
+            dispatchDate: entry.dispatchDate,
+            transportMode: entry.transportMode,
+            remarks: entry.remarks,
+            receivedBy: entry.receivedBy,
+            totalItems: 0,
+            totalQuantity: 0,
+          };
+        }
+        bills[bill].entries.push({
+          ...entry,
+          itemKey,
+          po: entry.po || "Unknown PO",
+          company: entry.company || "Unknown Company",
+          item: entry.item || "Unknown Item",
+        });
+        bills[bill].totalItems += 1;
+        bills[bill].totalQuantity += entry.dispatchQty || 0;
+      });
     });
-  }
+    return Object.values(bills).sort(
+      (a, b) => new Date(b.dispatchDate) - new Date(a.dispatchDate),
+    );
+  }, [dispatchHistory]);
 
-  return dummyData;
+  const totalBills = allBills.length;
+  const totalItemsDispatched = allBills.reduce(
+    (sum, bill) => sum + bill.totalItems,
+    0,
+  );
+  const totalQuantityDispatched = allBills.reduce(
+    (sum, bill) => sum + bill.totalQuantity,
+    0,
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Bill Details Modal */}
+      {showBillDetails && selectedBill && (
+        <DispatchBillDetails
+          billNumber={selectedBill.billNumber}
+          entries={selectedBill.entries}
+          onClose={() => {
+            setShowBillDetails(false);
+            setSelectedBill(null);
+          }}
+        />
+      )}
+
+      <div
+        className="fixed inset-0 z-[70] overflow-y-auto p-2 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="global-history-modal-title"
+      >
+        <div className="flex min-h-screen items-center justify-center">
+          <div
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm transition-all duration-300"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+
+          <div className="relative w-full max-w-6xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
+            {/* Modal Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
+              <div className="absolute inset-0 opacity-10">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
+                    backgroundSize: "20px 20px",
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
+                    <History className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3
+                      id="global-history-modal-title"
+                      className="text-lg font-bold tracking-tight text-white"
+                    >
+                      Dispatch History
+                    </h3>
+                    <p className="text-sm text-blue-100">
+                      {totalBills} bills · {totalItemsDispatched} items ·{" "}
+                      {totalQuantityDispatched} units
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                  aria-label="Close history dialog"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <div className="px-4 py-5 sm:px-6">
+                {allBills.length === 0 ? (
+                  <div className="text-center py-12">
+                    <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500 text-lg">
+                      No dispatch history available
+                    </p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Dispatch some items to see history here
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {allBills.map((bill, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => {
+                          setSelectedBill(bill);
+                          setShowBillDetails(true);
+                        }}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="font-mono font-bold text-indigo-600 text-sm">
+                                #{bill.billNumber}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                              <span className="text-xs text-gray-500">
+                                {bill.dispatchDate
+                                  ? formatDate(bill.dispatchDate)
+                                  : "-"}
+                              </span>
+                              {bill.transportMode && (
+                                <>
+                                  <span className="text-gray-300">|</span>
+                                  <span className="text-xs text-gray-500">
+                                    🚚 {bill.transportMode}
+                                  </span>
+                                </>
+                              )}
+                              {bill.receivedBy && (
+                                <>
+                                  <span className="text-gray-300">|</span>
+                                  <span className="text-xs text-gray-500">
+                                    👤 {bill.receivedBy}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-gray-500">
+                              <span className="flex items-center gap-1">
+                                📦{" "}
+                                <strong className="text-gray-700">
+                                  {bill.totalItems}
+                                </strong>{" "}
+                                item{bill.totalItems > 1 ? "s" : ""}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                📊{" "}
+                                <strong className="text-gray-700">
+                                  {bill.totalQuantity}
+                                </strong>{" "}
+                                units
+                              </span>
+                              {bill.remarks && (
+                                <span className="text-gray-400">
+                                  💬{" "}
+                                  {bill.remarks.length > 30
+                                    ? bill.remarks.substring(0, 30) + "..."
+                                    : bill.remarks}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBill(bill);
+                                setShowBillDetails(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+                            >
+                              View Details
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 bg-white rounded-lg hover:bg-gray-100 transition border border-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 };
 
 // ============================================
@@ -153,7 +434,7 @@ const MultipleDispatchModal = ({
   onDispatchUpdate,
   dispatchHistory = {},
 }) => {
-  const [dispatchQty, setDispatchQty] = useState("");
+  const [individualQuantities, setIndividualQuantities] = useState({});
   const [dispatchDate, setDispatchDate] = useState(
     new Date().toISOString().split("T")[0],
   );
@@ -165,13 +446,13 @@ const MultipleDispatchModal = ({
   const [status, setStatus] = useState("Partial");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  const [dispatchMode, setDispatchMode] = useState("same"); // "same" or "individual"
-  const [processingItems, setProcessingItems] = useState([]);
+  const [selectedBillForDetails, setSelectedBillForDetails] = useState(null);
+  const [showBillDetails, setShowBillDetails] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    setDispatchQty("");
+    setIndividualQuantities({});
     setDispatchDate(new Date().toISOString().split("T")[0]);
     setBillNumber("");
     setRemarks("");
@@ -180,8 +461,8 @@ const MultipleDispatchModal = ({
     setReceivedBy("");
     setStatus("Partial");
     setErrors({});
-    setProcessingItems([]);
-    setDispatchMode("same");
+    setSelectedBillForDetails(null);
+    setShowBillDetails(false);
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -196,9 +477,37 @@ const MultipleDispatchModal = ({
     };
   }, [isOpen, onClose]);
 
-  const getMaxDispatchForItem = (item) => {
-    return item?.pending || 0;
-  };
+  // Group dispatch history by bill number
+  const groupedHistory = useMemo(() => {
+    const groups = {};
+    Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
+      history.forEach((entry) => {
+        const bill = entry.billNumber || "Unknown Bill";
+        if (!groups[bill]) {
+          groups[bill] = {
+            billNumber: bill,
+            entries: [],
+            dispatchDate: entry.dispatchDate,
+            transportMode: entry.transportMode,
+            remarks: entry.remarks,
+            receivedBy: entry.receivedBy,
+            totalItems: 0,
+            totalQuantity: 0,
+          };
+        }
+        groups[bill].entries.push({
+          ...entry,
+          itemKey,
+          po: entry.po || "Unknown PO",
+          company: entry.company || "Unknown Company",
+          item: entry.item || "Unknown Item",
+        });
+        groups[bill].totalItems += 1;
+        groups[bill].totalQuantity += entry.dispatchQty || 0;
+      });
+    });
+    return groups;
+  }, [dispatchHistory]);
 
   const getTotalPending = () => {
     return selectedItems.reduce((sum, item) => sum + (item.pending || 0), 0);
@@ -206,20 +515,27 @@ const MultipleDispatchModal = ({
 
   const validate = () => {
     const newErrors = {};
-    const quantity = Number(dispatchQty);
+    let hasValidQuantity = false;
+    const invalidItems = [];
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      newErrors.dispatchQty = "Please enter a valid dispatch quantity";
-    }
+    selectedItems.forEach((item) => {
+      const itemKey = getItemKey(item);
+      const qty = Number(individualQuantities[itemKey]) || 0;
+      const pending = item.pending || 0;
 
-    // If using same quantity for all, check if any item has less pending
-    if (dispatchMode === "same") {
-      const insufficientItems = selectedItems.filter(
-        (item) => (item.pending || 0) < quantity,
-      );
-      if (insufficientItems.length > 0) {
-        newErrors.dispatchQty = `Some items have pending quantity less than ${quantity}. Please reduce the quantity or use individual mode.`;
+      if (qty > 0 && qty <= pending) {
+        hasValidQuantity = true;
+      } else if (qty > 0 && qty > pending) {
+        invalidItems.push(`${item.po} (max: ${pending})`);
       }
+    });
+
+    if (!hasValidQuantity) {
+      newErrors.dispatchQty =
+        "Please enter valid quantities for at least one item";
+    }
+    if (invalidItems.length > 0) {
+      newErrors.dispatchQty = `Invalid quantities for: ${invalidItems.join(", ")}`;
     }
 
     if (!dispatchDate) {
@@ -237,10 +553,8 @@ const MultipleDispatchModal = ({
     if (!validate()) return;
 
     setIsSubmitting(true);
-    const quantity = Number(dispatchQty);
 
     const dispatchEntry = {
-      dispatchQty: quantity,
       dispatchDate,
       billNumber: billNumber.trim(),
       remarks: remarks.trim(),
@@ -254,11 +568,12 @@ const MultipleDispatchModal = ({
     };
 
     // Process each selected item
-    const updatePromises = selectedItems.map((item) => {
-      const qtyToDispatch =
-        dispatchMode === "same"
-          ? quantity
-          : Math.min(quantity, item.pending || 0);
+    const updates = selectedItems.map((item) => {
+      const itemKey = getItemKey(item);
+      const qtyToDispatch = Math.min(
+        Number(individualQuantities[itemKey]) || 0,
+        item.pending || 0,
+      );
 
       if (qtyToDispatch <= 0) {
         return {
@@ -268,7 +583,7 @@ const MultipleDispatchModal = ({
           status: item.status,
           dispatchEntry: null,
           skipped: true,
-          reason: "No pending quantity",
+          reason: "No valid quantity specified",
         };
       }
 
@@ -279,9 +594,10 @@ const MultipleDispatchModal = ({
       const itemDispatchEntry = {
         ...dispatchEntry,
         dispatchQty: qtyToDispatch,
-        itemKey: getItemKey(item),
+        itemKey: itemKey,
         po: item.po,
         company: item.company,
+        item: item.item,
         originalPending: currentPending,
         newPending: newPending,
       };
@@ -297,8 +613,8 @@ const MultipleDispatchModal = ({
     });
 
     // Apply updates
-    const successfulUpdates = updatePromises.filter((u) => !u.skipped);
-    const failedUpdates = updatePromises.filter((u) => u.skipped);
+    const successfulUpdates = updates.filter((u) => !u.skipped);
+    const failedUpdates = updates.filter((u) => u.skipped);
 
     // Update the state
     const updateData = {
@@ -317,16 +633,11 @@ const MultipleDispatchModal = ({
     }, 350);
   };
 
-  const applyQuickQuantity = (fraction) => {
-    const totalPending = getTotalPending();
-    const quantity =
-      fraction === 1
-        ? totalPending
-        : Math.min(
-            totalPending,
-            Math.max(1, Math.ceil(totalPending * fraction)),
-          );
-    setDispatchQty(String(quantity));
+  const handleIndividualQuantityChange = (itemKey, value) => {
+    setIndividualQuantities((prev) => ({
+      ...prev,
+      [itemKey]: value,
+    }));
     if (errors.dispatchQty) {
       setErrors((current) => ({ ...current, dispatchQty: "" }));
     }
@@ -341,399 +652,466 @@ const MultipleDispatchModal = ({
     return selectedItems.reduce((sum, item) => sum + (item.total || 0), 0);
   };
 
+  // Truncate text function
+  const truncateText = (text, maxLength = 60) => {
+    if (!text) return "-";
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
   if (!isOpen || selectedItems.length === 0) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto p-2 sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="multiple-dispatch-modal-title"
-    >
-      <style>
-        {`
-          @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-          }
-          @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-          .animate-slideIn {
-            animation: slideIn 0.3s ease-out;
-          }
-        `}
-      </style>
-
-      <div className="flex min-h-screen items-center justify-center">
-        <div
-          className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm transition-all duration-300"
-          onClick={onClose}
-          aria-hidden="true"
+    <>
+      {/* Bill Details Modal */}
+      {showBillDetails && selectedBillForDetails && (
+        <DispatchBillDetails
+          billNumber={selectedBillForDetails.billNumber}
+          entries={selectedBillForDetails.entries}
+          onClose={() => {
+            setShowBillDetails(false);
+            setSelectedBillForDetails(null);
+          }}
         />
+      )}
 
-        <div className="relative w-full max-w-5xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
-          {/* Modal Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
-            <div className="absolute inset-0 opacity-10">
-              <div
-                className="absolute inset-0"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
-                  backgroundSize: "20px 20px",
-                }}
-              />
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto p-2 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="multiple-dispatch-modal-title"
+      >
+        <style>
+          {`
+            @keyframes fadeIn {
+              from { opacity: 0; transform: scale(0.95); }
+              to { opacity: 1; transform: scale(1); }
+            }
+            @keyframes slideIn {
+              from { opacity: 0; transform: translateX(-20px); }
+              to { opacity: 1; transform: translateX(0); }
+            }
+            .animate-slideIn {
+              animation: slideIn 0.3s ease-out;
+            }
+          `}
+        </style>
+
+        <div className="flex min-h-screen items-center justify-center">
+          <div
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm transition-all duration-300"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+
+          <div className="relative w-full max-w-5xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
+            {/* Modal Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
+              <div className="absolute inset-0 opacity-10">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
+                    backgroundSize: "20px 20px",
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
+                    <Layers className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3
+                      id="multiple-dispatch-modal-title"
+                      className="text-lg font-bold tracking-tight text-white"
+                    >
+                      Multiple Dispatch
+                    </h3>
+                    <p className="text-sm text-blue-100">
+                      {selectedItems.length} items selected for dispatch
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                  aria-label="Close dispatch dialog"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
-                  <Layers className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3
-                    id="multiple-dispatch-modal-title"
-                    className="text-lg font-bold tracking-tight text-white"
-                  >
-                    Multiple Dispatch
-                  </h3>
-                  <p className="text-sm text-blue-100">
-                    {selectedItems.length} items selected for dispatch
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
-                aria-label="Close dispatch dialog"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-
-          <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-7rem)] overflow-y-auto">
-            <div className="px-4 py-5 sm:px-6">
-              {/* Selected Items Summary */}
-              <div className="mb-5 rounded-2xl border border-purple-100 bg-white p-4 shadow-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-purple-100 rounded-lg">
-                      <Package className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total Items</p>
-                      <p className="font-medium text-gray-800">
-                        {selectedItems.length} POs
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-rose-100 rounded-lg">
-                      <Clock3 className="w-4 h-4 text-rose-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total Pending</p>
-                      <p className="font-medium text-gray-800">
-                        {getTotalPending().toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-emerald-100 rounded-lg">
-                      <IndianRupee className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Total Value</p>
-                      <p className="font-medium text-gray-800">
-                        {new Intl.NumberFormat("en-IN", {
-                          style: "currency",
-                          currency: "INR",
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0,
-                        }).format(getTotalPendingValue())}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dispatch Mode Selection */}
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dispatch Mode
-                </label>
-                <div className="flex gap-3">
-                  
-                  <button
-                    type="button"
-                    onClick={() => setDispatchMode("individual")}
-                    className={`flex-1 rounded-xl border-2 p-3 transition-all ${
-                      dispatchMode === "individual"
-                        ? "border-purple-600 bg-purple-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="text-center">
-                      <Layers
-                        className={`w-5 h-5 mx-auto mb-1 ${
-                          dispatchMode === "individual"
-                            ? "text-purple-600"
-                            : "text-gray-400"
-                        }`}
-                      />
-                      <p
-                        className={`text-sm font-semibold ${
-                          dispatchMode === "individual"
-                            ? "text-purple-700"
-                            : "text-gray-600"
-                        }`}
-                      >
-                        Individual
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Set quantity per item (min will be applied)
-                      </p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Selected Items List */}
-              <div className="mb-5 max-h-40 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-3">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Selected Items
-                </div>
-                <div className="space-y-2">
-                  {selectedItems.map((item, idx) => {
-                    const itemKey = getItemKey(item);
-                    const historyCount = dispatchHistory[itemKey]?.length || 0;
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-mono font-semibold text-gray-600">
-                            {item.po}
-                          </span>
-                          <span className="text-gray-400">|</span>
-                          <span className="text-gray-700 truncate">
-                            {item.company}
-                          </span>
-                          <span className="text-gray-400">|</span>
-                          <span className="text-gray-500 text-xs">
-                            Pending: {item.pending}
-                          </span>
-                          {historyCount > 0 && (
-                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                              {historyCount} dispatches
-                            </span>
-                          )}
-                        </div>
-                        {dispatchMode === "individual" && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">Qty:</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max={item.pending}
-                              value={dispatchQty}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setDispatchQty(val);
-                              }}
-                              className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              placeholder={`Max ${item.pending}`}
-                            />
-                          </div>
-                        )}
+            <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-7rem)] overflow-y-auto">
+              <div className="px-4 py-5 sm:px-6">
+                {/* Selected Items Summary */}
+                <div className="mb-5 rounded-2xl border border-purple-100 bg-white p-4 shadow-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-purple-100 rounded-lg">
+                        <Package className="w-4 h-4 text-purple-600" />
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Dispatch Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="transform transition-all hover:scale-[1.01]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                      <span className="text-red-500">*</span>
-                      {dispatchMode === "same"
-                        ? "Dispatch Quantity"
-                        : "Max Quantity"}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={dispatchQty}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setDispatchQty(val);
-                          if (errors.dispatchQty)
-                            setErrors({ ...errors, dispatchQty: "" });
-                        }}
-                        placeholder={
-                          dispatchMode === "same"
-                            ? `Max: ${getTotalPending()}`
-                            : "Enter max per item"
-                        }
-                        className={`w-full px-3 py-2 border ${errors.dispatchQty ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                        min="1"
-                        max={
-                          dispatchMode === "same"
-                            ? getTotalPending()
-                            : undefined
-                        }
-                        step="1"
-                      />
-                      {dispatchMode === "same" && (
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
-                          / {getTotalPending()}
-                        </div>
-                      )}
+                      <div>
+                        <p className="text-xs text-gray-500">Total Items</p>
+                        <p className="font-medium text-gray-800">
+                          {selectedItems.length} POs
+                        </p>
+                      </div>
                     </div>
-                    {dispatchMode === "same" && (
-                      <div className="mt-2 flex items-center gap-1.5">
-                        {[0.25, 0.5, 1].map((fraction) => (
-                          <button
-                            key={fraction}
-                            type="button"
-                            onClick={() => applyQuickQuantity(fraction)}
-                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-rose-100 rounded-lg">
+                        <Clock3 className="w-4 h-4 text-rose-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Total Pending</p>
+                        <p className="font-medium text-gray-800">
+                          {getTotalPending().toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-emerald-100 rounded-lg">
+                        <IndianRupee className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Total Value</p>
+                        <p className="font-medium text-gray-800">
+                          {new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          }).format(getTotalPendingValue())}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dispatch History Section */}
+                {Object.keys(groupedHistory).length > 0 && (
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Dispatch History (Bill-wise)
+                      </label>
+                      <span className="text-xs text-gray-500">
+                        {Object.keys(groupedHistory).length} bills
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <div className="space-y-2">
+                        {Object.values(groupedHistory).map((group, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:border-indigo-200 transition-colors cursor-pointer"
+                            onClick={() => {
+                              setSelectedBillForDetails(group);
+                              setShowBillDetails(true);
+                            }}
                           >
-                            {fraction === 1 ? "Max" : `${fraction * 100}%`}
-                          </button>
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-mono font-semibold text-indigo-600 text-sm">
+                                    #{group.billNumber}
+                                  </span>
+                                  <span className="text-gray-300">|</span>
+                                  <span className="text-xs text-gray-500">
+                                    {group.dispatchDate
+                                      ? new Date(
+                                          group.dispatchDate,
+                                        ).toLocaleDateString("en-IN", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                      : "-"}
+                                  </span>
+                                  {group.transportMode && (
+                                    <>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-xs text-gray-500">
+                                        🚚 {group.transportMode}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                  <span>
+                                    📦 {group.totalItems} item
+                                    {group.totalItems > 1 ? "s" : ""}
+                                  </span>
+                                  <span>📊 {group.totalQuantity} units</span>
+                                  {group.receivedBy && (
+                                    <span>👤 {group.receivedBy}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-indigo-600 font-medium">
+                                  View Details
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                              </div>
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    )}
-                    {errors.dispatchQty && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.dispatchQty}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="transform transition-all hover:scale-[1.01]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                      <span className="text-red-500">*</span>
-                      Dispatch Date
-                    </label>
-                    <input
-                      type="date"
-                      value={dispatchDate}
-                      onChange={(e) => {
-                        setDispatchDate(e.target.value);
-                        if (errors.dispatchDate)
-                          setErrors({ ...errors, dispatchDate: "" });
-                      }}
-                      className={`w-full px-3 py-2 border ${errors.dispatchDate ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                    />
-                    {errors.dispatchDate && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.dispatchDate}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="transform transition-all hover:scale-[1.01]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                      <span className="text-red-500">*</span>
-                      Bill Number
-                    </label>
-                    <input
-                      type="text"
-                      value={billNumber}
-                      onChange={(e) => {
-                        setBillNumber(e.target.value);
-                        if (errors.billNumber)
-                          setErrors({ ...errors, billNumber: "" });
-                      }}
-                      placeholder="Enter bill number"
-                      className={`w-full px-3 py-2 border ${errors.billNumber ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                    />
-                    {errors.billNumber && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.billNumber}
-                      </p>
-                    )}
-                  </div>
-
-               
-                </div>
-
-              
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Remarks
-                  </label>
-                  <textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Additional notes, special instructions, etc."
-                    rows="2"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all"
-                  />
-                </div>
-
-                {/* Dispatch Summary */}
-                <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
-                  <div className="flex items-center gap-2 text-sm text-blue-800">
-                    <div className="p-1.5 bg-blue-100 rounded-lg">
-                      <ShieldCheck className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">Bulk Dispatch Summary</p>
-                      <p className="text-xs text-blue-600">
-                        This will dispatch {dispatchQty || "selected"} units
-                        across {selectedItems.length} items.
-                        {dispatchMode === "same"
-                          ? " All items will receive the same quantity."
-                          : " Each item will receive up to the specified quantity."}
-                      </p>
                     </div>
                   </div>
+                )}
+
+                {/* Individual Quantities Section */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Set Quantity Per Item
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      Enter quantity for each item below
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <div className="space-y-3">
+                      {selectedItems.map((item, idx) => {
+                        const itemKey = getItemKey(item);
+                        const historyCount =
+                          dispatchHistory[itemKey]?.length || 0;
+                        const individualQty =
+                          individualQuantities[itemKey] || "";
+                        const maxQty = item.pending || 0;
+
+                        return (
+                          <div
+                            key={idx}
+                            className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:border-purple-200 transition-colors"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                              {/* Item Info - Left Side */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="font-mono font-semibold text-gray-600 text-sm">
+                                    {item.po}
+                                  </span>
+                                  <span className="text-gray-300">|</span>
+                                  <span className="text-gray-700 text-sm font-medium">
+                                    {item.company}
+                                  </span>
+                                  {historyCount > 0 && (
+                                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                      {historyCount} dispatches
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Item Description */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                  <span
+                                    className="text-gray-500 truncate max-w-[200px] sm:max-w-[300px]"
+                                    title={item.item}
+                                  >
+                                    📦 {truncateText(item.item, 50)}
+                                  </span>
+                                  {item.drawing && (
+                                    <>
+                                      <span className="text-gray-300">|</span>
+                                      <span
+                                        className="text-gray-500 font-mono"
+                                        title={item.drawing}
+                                      >
+                                        📐 {item.drawing}
+                                      </span>
+                                    </>
+                                  )}
+                                  {item.itemCode && (
+                                    <>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-gray-400 font-mono text-[10px]">
+                                        Code: {item.itemCode}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Pending Quantity */}
+                                <div className="mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    Pending:{" "}
+                                    <span className="font-semibold text-rose-600">
+                                      {maxQty}
+                                    </span>
+                                    {item.poQty && (
+                                      <span className="text-gray-400">
+                                        {" "}
+                                        (Total: {item.poQty})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Quantity Input - Right Side */}
+                              <div className="flex items-center gap-2 sm:ml-4">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  Qty:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={maxQty}
+                                  value={individualQty}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    handleIndividualQuantityChange(
+                                      itemKey,
+                                      val,
+                                    );
+                                  }}
+                                  className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                  placeholder="Enter qty"
+                                />
+                                <span className="text-xs text-gray-400 whitespace-nowrap">
+                                  / {maxQty}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {errors.dispatchQty && (
+                    <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {errors.dispatchQty}
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all transform hover:scale-105"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        Dispatch All
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+                {/* Dispatch Form */}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="transform transition-all hover:scale-[1.01]">
+                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                        <span className="text-red-500">*</span>
+                        Dispatch Date
+                      </label>
+                      <input
+                        type="date"
+                        value={dispatchDate}
+                        onChange={(e) => {
+                          setDispatchDate(e.target.value);
+                          if (errors.dispatchDate)
+                            setErrors({ ...errors, dispatchDate: "" });
+                        }}
+                        className={`w-full px-3 py-2 border ${errors.dispatchDate ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      />
+                      {errors.dispatchDate && (
+                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.dispatchDate}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="transform transition-all hover:scale-[1.01]">
+                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                        <span className="text-red-500">*</span>
+                        Bill Number
+                      </label>
+                      <input
+                        type="text"
+                        value={billNumber}
+                        onChange={(e) => {
+                          setBillNumber(e.target.value);
+                          if (errors.billNumber)
+                            setErrors({ ...errors, billNumber: "" });
+                        }}
+                        placeholder="Enter bill number"
+                        className={`w-full px-3 py-2 border ${errors.billNumber ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      />
+                      {errors.billNumber && (
+                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.billNumber}
+                        </p>
+                      )}
+                    </div>
+
+                   
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Remarks
+                    </label>
+                    <textarea
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                      placeholder="Additional notes, special instructions, etc."
+                      rows="2"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all"
+                    />
+                  </div>
+
+                  {/* Dispatch Summary */}
+                  <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
+                    <div className="flex items-center gap-2 text-sm text-blue-800">
+                      <div className="p-1.5 bg-blue-100 rounded-lg">
+                        <ShieldCheck className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Bulk Dispatch Summary</p>
+                        <p className="text-xs text-blue-600">
+                          This will dispatch specified quantities across{" "}
+                          {selectedItems.length} items.
+                          {Object.values(individualQuantities).some(
+                            (qty) => Number(qty) > 0,
+                          )
+                            ? ` Total items with quantity: ${Object.values(individualQuantities).filter((qty) => Number(qty) > 0).length}`
+                            : " Please enter quantities for items you want to dispatch."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all transform hover:scale-105"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          Dispatch All
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1617,10 +1995,8 @@ const StatCard = ({
 // MAIN COMPONENT
 // ============================================
 const GeneratePendingList = () => {
-  const [data, setData] = useState(() => generateDummyData());
-  const [manager, setManager] = useState(
-    () => new PendingPOManager(generateDummyData()),
-  );
+  const [data, setData] = useState([]);
+  const [manager, setManager] = useState(null);
   const [filteredData, setFilteredData] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1648,7 +2024,7 @@ const GeneratePendingList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [showAnalytics, setShowAnalytics] = useState(true);
-  const [showDummyData, setShowDummyData] = useState(true);
+  const [isGlobalHistoryOpen, setIsGlobalHistoryOpen] = useState(false);
 
   const getCategory = (description = "") => {
     const value = String(description).toLowerCase();
@@ -1663,7 +2039,7 @@ const GeneratePendingList = () => {
   };
 
   const filteredManager = useMemo(
-    () => new PendingPOManager(filteredData),
+    () => (filteredData.length > 0 ? new PendingPOManager(filteredData) : null),
     [filteredData],
   );
 
@@ -1852,7 +2228,6 @@ const GeneratePendingList = () => {
         setSortConfig({ key: null, direction: "asc" });
         setCurrentPage(1);
         clearFilters();
-        setShowDummyData(false);
 
         setCompanies(["all", ...Object.keys(newManager.companyStats)]);
         setCategories(["all", ...newManager.itemCategories]);
@@ -2071,6 +2446,10 @@ const GeneratePendingList = () => {
     setSelectedItemForDispatch(null);
   }, []);
 
+  const openGlobalHistory = () => {
+    setIsGlobalHistoryOpen(true);
+  };
+
   const showNotification = (message, type = "info") => {
     setNotification({ message, type });
   };
@@ -2286,33 +2665,6 @@ const GeneratePendingList = () => {
 
   const handlePrint = () => window.print();
 
-  const resetAll = () => {
-    const dummyData = generateDummyData();
-    setData(dummyData);
-    setManager(new PendingPOManager(dummyData));
-    setFilteredData([]);
-    setCompanies([
-      "all",
-      ...Object.keys(new PendingPOManager(dummyData).companyStats),
-    ]);
-    setCategories(["all", ...new PendingPOManager(dummyData).itemCategories]);
-    setSelectedCompany("all");
-    setSearchTerm("");
-    setDebouncedSearchTerm("");
-    setSelectedStatus("all");
-    setSelectedCategory("all");
-    setMinPending("");
-    setMaxPending("");
-    setDateRange({ start: "", end: "" });
-    setUploadedFile(null);
-    setCurrentPage(1);
-    setSortConfig({ key: null, direction: "asc" });
-    setSelectedItems(new Set());
-    setDispatchHistory({});
-    setShowDummyData(true);
-    showNotification("Reset to dummy data", "info");
-  };
-
   // Render notification
   const renderNotification = () => {
     if (!notification) return null;
@@ -2418,6 +2770,15 @@ const GeneratePendingList = () => {
         dispatchHistory={dispatchHistory}
       />
 
+      {/* Global Dispatch History Modal */}
+      <GlobalDispatchHistoryModal
+        isOpen={isGlobalHistoryOpen}
+        onClose={() => setIsGlobalHistoryOpen(false)}
+        dispatchHistory={dispatchHistory}
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+      />
+
       <div className="mx-auto max-w-[1600px]">
         {/* Header */}
         <header className=" relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
@@ -2463,6 +2824,16 @@ const GeneratePendingList = () => {
 
               {uploadedFile && (
                 <>
+                  {/* View Dispatch History Button */}
+                  <button
+                    type="button"
+                    onClick={openGlobalHistory}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+                  >
+                    <History className="h-4 w-4" />
+                    View History
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => exportRows(filteredData, "filtered")}
@@ -2470,15 +2841,6 @@ const GeneratePendingList = () => {
                   >
                     <Download className="h-4 w-4" />
                     Export
-                  </button>
-                 
-                  <button
-                    onClick={resetAll}
-                    className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm transition hover:bg-rose-500/30"
-                    title="Reset workspace"
-                    aria-label="Reset workspace"
-                  >
-                    <RotateCcw className="h-4 w-4" />
                   </button>
                 </>
               )}
@@ -3155,20 +3517,24 @@ const GeneratePendingList = () => {
                     {sortedData.length}
                   </strong>
                 </span>
-                <span>
-                  Pending{" "}
-                  <strong className="text-rose-600">
-                    {filteredManager.summary.totalPending.toLocaleString(
-                      "en-IN",
-                    )}
-                  </strong>
-                </span>
-                <span>
-                  Outstanding{" "}
-                  <strong className="text-slate-800">
-                    {formatCurrency(filteredManager.summary.totalValue)}
-                  </strong>
-                </span>
+                {filteredManager && (
+                  <>
+                    <span>
+                      Pending{" "}
+                      <strong className="text-rose-600">
+                        {filteredManager.summary.totalPending.toLocaleString(
+                          "en-IN",
+                        )}
+                      </strong>
+                    </span>
+                    <span>
+                      Outstanding{" "}
+                      <strong className="text-slate-800">
+                        {formatCurrency(filteredManager.summary.totalValue)}
+                      </strong>
+                    </span>
+                  </>
+                )}
               </div>
 
               <div className="no-print flex flex-wrap items-center gap-2">
