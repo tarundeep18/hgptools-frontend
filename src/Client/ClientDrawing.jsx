@@ -1333,311 +1333,324 @@ const ClientDrawing = () => {
       </div>
       {/* Upload Modal - Same as before */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto ">
-          <div className="bg-white rounded-2xl max-w-2xl w-full my-8 shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 transform transition-all duration-300 scale-100 ease-out">
-            {/* Sticky Header */}
-            <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-6 py-5 flex justify-between items-center z-10 rounded-t-2xl">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 tracking-tight">
-                  Upload Drawings
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Upload technical blueprints, designs, and supporting
-                  documentation
-                </p>
-              </div>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                aria-label="Close modal"
+        <div
+  className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/60 sm:items-center sm:p-4"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="upload-drawings-title"
+  aria-describedby="upload-drawings-description"
+>
+  <div className="flex max-h-screen max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-gray-100 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out sm:max-h-[calc(100vh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl sm:rounded-2xl">
+    {/* Responsive Header */}
+    <div className="z-10 flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-white/95 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-6 sm:py-5">
+      <div className="min-w-0 flex-1">
+        <h2
+          id="upload-drawings-title"
+          className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl"
+        >
+          Upload Drawings
+        </h2>
+        <p
+          id="upload-drawings-description"
+          className="mt-1 max-w-xl text-xs leading-5 text-gray-500 sm:mt-0.5"
+        >
+          Upload technical blueprints, designs, and supporting documentation
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowUploadModal(false)}
+        className="-mr-1 shrink-0 rounded-lg p-2 text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:mr-0"
+        aria-label="Close modal"
+      >
+        <X className="h-5 w-5" aria-hidden="true" />
+      </button>
+    </div>
+
+    {/* Form Content */}
+    <form
+      onSubmit={handleUploadDrawings}
+      className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6"
+    >
+      {/* Responsive Grid Inputs */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Title <span className="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={uploadFormData.title}
+            onChange={(e) =>
+              setUploadFormData({
+                ...uploadFormData,
+                title: e.target.value,
+              })
+            }
+            required
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
+            placeholder="e.g., Main Assembly View"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Drawing Number
+          </label>
+          <input
+            type="text"
+            value={uploadFormData.drawingNumber}
+            onChange={(e) =>
+              setUploadFormData({
+                ...uploadFormData,
+                drawingNumber: e.target.value,
+              })
+            }
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
+            placeholder="e.g., DWG-001"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Revision
+          </label>
+          <input
+            type="text"
+            value={uploadFormData.revision}
+            onChange={(e) =>
+              setUploadFormData({
+                ...uploadFormData,
+                revision: e.target.value,
+              })
+            }
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
+            placeholder="00"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Folder
+          </label>
+          <div className="relative">
+            <select
+              value={uploadFormData.folderId}
+              onChange={(e) =>
+                setUploadFormData({
+                  ...uploadFormData,
+                  folderId: e.target.value,
+                })
+              }
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none appearance-none"
+            >
+              <option value="">Select folder (optional)</option>
+              {folders.map((folder) => (
+                <option key={folder._id} value={folder._id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Form Content */}
-            <form onSubmit={handleUploadDrawings} className="p-6 space-y-5">
-              {/* Responsive Grid Inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Title <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadFormData.title}
-                    onChange={(e) =>
-                      setUploadFormData({
-                        ...uploadFormData,
-                        title: e.target.value,
-                      })
-                    }
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
-                    placeholder="e.g., Main Assembly View"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Drawing Number
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadFormData.drawingNumber}
-                    onChange={(e) =>
-                      setUploadFormData({
-                        ...uploadFormData,
-                        drawingNumber: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
-                    placeholder="e.g., DWG-001"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Revision
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadFormData.revision}
-                    onChange={(e) =>
-                      setUploadFormData({
-                        ...uploadFormData,
-                        revision: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
-                    placeholder="00"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Folder
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={uploadFormData.folderId}
-                      onChange={(e) =>
-                        setUploadFormData({
-                          ...uploadFormData,
-                          folderId: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none appearance-none"
-                    >
-                      <option value="">Select folder (optional)</option>
-                      {folders.map((folder) => (
-                        <option key={folder._id} value={folder._id}>
-                          {folder.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Material
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadFormData.material}
-                    onChange={(e) =>
-                      setUploadFormData({
-                        ...uploadFormData,
-                        material: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
-                    placeholder="e.g., Stainless Steel"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Dimensions
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadFormData.dimensions}
-                    onChange={(e) =>
-                      setUploadFormData({
-                        ...uploadFormData,
-                        dimensions: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
-                    placeholder="e.g., 100x50x20 mm"
-                  />
-                </div>
-              </div>
-
-              {/* Description Field */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Description
-                </label>
-                <textarea
-                  value={uploadFormData.description}
-                  onChange={(e) =>
-                    setUploadFormData({
-                      ...uploadFormData,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none resize-none"
-                  placeholder="Provide engineering notes or specifications..."
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M19 9l-7 7-7-7"
                 />
-              </div>
-
-              {/* Enhanced Drag and Drop Zone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Files <span className="text-rose-500">*</span>
-                </label>
-                <div className="border-2 border-dashed border-gray-200 bg-gray-50/30 rounded-xl p-8 hover:border-blue-500 hover:bg-blue-50/10 transition-all duration-200 group">
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="file-upload"
-                    accept=".pdf,.jpg,.jpeg,.png,.dwg,.dxf,.step,.stp"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer flex flex-col items-center justify-center text-center"
-                  >
-                    <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100 mb-3 group-hover:scale-110 group-hover:text-blue-600 transition-transform duration-200 text-gray-400">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-medium text-gray-700">
-                      Click to upload or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1 max-w-xs leading-relaxed">
-                      PDF, DWG, DXF, STEP, STP, Images up to 20MB each
-                    </p>
-                  </label>
-                </div>
-                {/* Uploaded Files Queue List */}
-                {uploadFormData.files.length > 0 && (
-                  <div className="mt-4 border border-gray-100 rounded-xl divide-y divide-gray-100 max-h-48 overflow-y-auto shadow-inner bg-gray-50/30">
-                    {uploadFormData.files.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div className="truncate">
-                            <p className="text-sm font-medium text-gray-700 truncate">
-                              {file.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {formatFileSize(file.size)}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFile(index)}
-                          className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Refined Progress Bar */}
-              {uploadProgress > 0 && (
-                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-gray-600">
-                      Uploading documents...
-                    </span>
-                    <span className="font-bold text-blue-600">
-                      {uploadProgress}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200/70 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-blue-600 rounded-full h-full transition-all duration-300 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-
-              {/* Footer Actions */}
-              <div className="flex gap-3 pt-3 border-t border-gray-50">
-                <button
-                  type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || uploadFormData.files.length === 0}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <svg
-                        className="animate-spin h-5 w-5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      <span>Uploading...</span>
-                    </>
-                  ) : (
-                    "Upload Drawings"
-                  )}
-                </button>
-              </div>
-            </form>
+              </svg>
+            </div>
           </div>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Material
+          </label>
+          <input
+            type="text"
+            value={uploadFormData.material}
+            onChange={(e) =>
+              setUploadFormData({
+                ...uploadFormData,
+                material: e.target.value,
+              })
+            }
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
+            placeholder="e.g., Stainless Steel"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Dimensions
+          </label>
+          <input
+            type="text"
+            value={uploadFormData.dimensions}
+            onChange={(e) =>
+              setUploadFormData({
+                ...uploadFormData,
+                dimensions: e.target.value,
+              })
+            }
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none"
+            placeholder="e.g., 100x50x20 mm"
+          />
+        </div>
+      </div>
+
+      {/* Description Field */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Description
+        </label>
+        <textarea
+          value={uploadFormData.description}
+          onChange={(e) =>
+            setUploadFormData({
+              ...uploadFormData,
+              description: e.target.value,
+            })
+          }
+          rows={3}
+          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50 text-gray-900 placeholder:text-gray-400 transition-all duration-200 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none resize-none"
+          placeholder="Provide engineering notes or specifications..."
+        />
+      </div>
+
+      {/* Enhanced Drag and Drop Zone */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Files <span className="text-rose-500">*</span>
+        </label>
+        <div className="group rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/30 p-5 transition-all duration-200 hover:border-blue-500 hover:bg-blue-50/10 sm:p-8">
+          <input
+            type="file"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+            id="file-upload"
+            accept=".pdf,.jpg,.jpeg,.png,.dwg,.dxf,.step,.stp"
+          />
+          <label
+            htmlFor="file-upload"
+            className="cursor-pointer flex flex-col items-center justify-center text-center"
+          >
+            <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100 mb-3 group-hover:scale-110 group-hover:text-blue-600 transition-transform duration-200 text-gray-400">
+              <Upload className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">
+              Click to upload or drag and drop
+            </p>
+            <p className="text-xs text-gray-400 mt-1 max-w-xs leading-relaxed">
+              PDF, DWG, DXF, STEP, STP, Images up to 20MB each
+            </p>
+          </label>
+        </div>
+        {/* Uploaded Files Queue List */}
+        {uploadFormData.files.length > 0 && (
+          <div className="mt-4 border border-gray-100 rounded-xl divide-y divide-gray-100 max-h-48 overflow-y-auto shadow-inner bg-gray-50/30">
+            {uploadFormData.files.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="truncate">
+                    <p className="text-sm font-medium text-gray-700 truncate">
+                      {file.name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {formatFileSize(file.size)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeFile(index)}
+                  className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Refined Progress Bar */}
+      {uploadProgress > 0 && (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 space-y-1.5">
+          <div className="flex justify-between items-center text-xs">
+            <span className="font-medium text-gray-600">
+              Uploading documents...
+            </span>
+            <span className="font-bold text-blue-600">{uploadProgress}%</span>
+          </div>
+          <div className="w-full bg-gray-200/70 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-blue-600 rounded-full h-full transition-all duration-300 ease-out"
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Actions */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 border-t border-gray-100 bg-white/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:static sm:mx-0 sm:mb-0 sm:flex-row sm:gap-3 sm:border-gray-50 sm:bg-white sm:px-0 sm:pb-0 sm:pt-3 sm:backdrop-blur-none">
+        <button
+          type="button"
+          onClick={() => setShowUploadModal(false)}
+          className="w-full rounded-xl border border-gray-200 px-4 py-2.5 font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:bg-gray-100 sm:flex-1"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={loading || uploadFormData.files.length === 0}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 hover:shadow-md active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+        >
+          {loading ? (
+            <>
+              <svg
+                className="animate-spin h-5 w-5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <span>Uploading...</span>
+            </>
+          ) : (
+            "Upload Drawings"
+          )}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
       )}
 
       {/* Create Folder Modal - Admin Only or client both */}
