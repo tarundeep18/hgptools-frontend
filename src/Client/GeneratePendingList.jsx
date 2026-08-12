@@ -57,21 +57,28 @@ import {
 // ============================================
 const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
   const totalItems = entries.length;
-  const totalQuantity = entries.reduce((sum, entry) => sum + (entry.dispatchQty || 0), 0);
+  const totalQuantity = entries.reduce(
+    (sum, entry) => sum + (entry.dispatchQty || 0),
+    0,
+  );
   const dispatchDate = entries[0]?.dispatchDate;
   const transportMode = entries[0]?.transportMode;
   const remarks = entries[0]?.remarks;
   const receivedBy = entries[0]?.receivedBy;
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto p-4" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto p-4"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="flex min-h-screen items-center justify-center">
         <div
           className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
           onClick={onClose}
           aria-hidden="true"
         />
-        
+
         <div className="relative w-full max-w-4xl overflow-hidden bg-white rounded-2xl shadow-2xl animate-fadeIn">
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-6 py-4">
@@ -95,30 +102,40 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
               <div>
                 <p className="text-xs text-gray-500">Dispatch Date</p>
                 <p className="text-sm font-semibold text-gray-800">
-                  {dispatchDate ? new Date(dispatchDate).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                  }) : '-'}
+                  {dispatchDate
+                    ? new Date(dispatchDate).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "-"}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Total Items</p>
-                <p className="text-sm font-semibold text-gray-800">{totalItems}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {totalItems}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Total Quantity</p>
-                <p className="text-sm font-semibold text-gray-800">{totalQuantity}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {totalQuantity}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Transport</p>
-                <p className="text-sm font-semibold text-gray-800">{transportMode || '-'}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {transportMode || "-"}
+                </p>
               </div>
             </div>
             {receivedBy && (
               <div className="mt-2">
                 <p className="text-xs text-gray-500">Received By</p>
-                <p className="text-sm font-semibold text-gray-800">{receivedBy}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {receivedBy}
+                </p>
               </div>
             )}
             {remarks && (
@@ -134,26 +151,43 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">#</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">PO Number</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Company</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Item</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Qty Dispatched</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Pending</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    #
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    PO Number
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    Company
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    Item
+                  </th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
+                    Qty Dispatched
+                  </th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
+                    Pending
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {entries.map((entry, idx) => (
                   <tr key={idx} className="hover:bg-blue-50 transition">
-                    <td className="px-3 py-2 text-xs text-gray-500">{idx + 1}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">
+                      {idx + 1}
+                    </td>
                     <td className="px-3 py-2 font-mono text-sm font-semibold text-gray-800">
-                      {entry.po || '-'}
+                      {entry.po || "-"}
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-700">
-                      {entry.company || '-'}
+                      {entry.company || "-"}
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate" title={entry.item}>
-                      {entry.item || '-'}
+                    <td
+                      className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate"
+                      title={entry.item}
+                    >
+                      {entry.item || "-"}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-green-600">
                       {entry.dispatchQty || 0}
@@ -180,7 +214,7 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
       </div>
     </div>
   );
-}; 
+};
 
 // ============================================
 // GLOBAL DISPATCH HISTORY MODAL
@@ -1041,8 +1075,6 @@ const MultipleDispatchModal = ({
                         </p>
                       )}
                     </div>
-
-                   
                   </div>
 
                   <div>
