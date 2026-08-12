@@ -2137,7 +2137,7 @@ const GeneratePendingList = () => {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-bold text-slate-900">
-                    Purchase order register
+                    Purchase order 
                   </h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                     {filteredData.length.toLocaleString("en-IN")} of{" "}
@@ -2245,7 +2245,7 @@ const GeneratePendingList = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {paginatedData.map((item,index) => {
+                    {paginatedData.map((item, index) => {
                       const itemKey = getItemKey(item);
                       const historyCount =
                         dispatchHistory[itemKey]?.length || 0;
@@ -2258,8 +2258,8 @@ const GeneratePendingList = () => {
                         <tr
                           key={itemKey}
                           className={`hover:bg-blue-50 ${
-                      index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                    }`}
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          }`}
                           onMouseEnter={() => setIsHovered(itemKey)}
                           onMouseLeave={() => setIsHovered(null)}
                         >
