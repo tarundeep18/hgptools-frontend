@@ -59,6 +59,7 @@ import CAPAHistoryPage from "./Client/Qc/CapaHistoryTable";
 import CAPAHistoryTable from "./Client/Qc/CapaHistoryTable";
 import GeneratePdiReport from "./Client/Qc/GeneratePdiReport";
 import QCGuide from "./Client/Qc/QCGuide";
+import GeneratePendingList from "./Client/GeneratePendingList";
 
 /* =========================
    Lazy-loaded Route Pages
@@ -625,6 +626,14 @@ const App = () => {
                 element={
                   <ProtectedRoute allowedRoles={["admin"]}>
                     <QCGuide />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/generate/pendinglist"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <GeneratePendingList />
                   </ProtectedRoute>
                 }
               />

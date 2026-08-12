@@ -170,6 +170,13 @@ const menuItems = [
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
   },
+  {
+    title: "Generate Pendinglist",
+    icon: <PenTool size={18} />,
+    path: "/generate/pendinglist",
+    roles: ["client", "admin","qc"],
+    group: "Engineering & Quality",
+  },
 
   // {
   //   title: "Drawing & Documents",
