@@ -3639,6 +3639,7 @@ const GeneratePendingList = () => {
               <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-600/25">
                 <FileSpreadsheet className="h-9 w-9" />
               </div>
+              
               <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
                 Start with your source file
               </p>
