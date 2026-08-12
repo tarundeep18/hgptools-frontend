@@ -1694,25 +1694,25 @@ const GeneratePendingList = () => {
 
       <div className="mx-auto max-w-[1600px]">
         {/* Header */}
-        <header className="premium-grid relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 p-5 shadow-[0_24px_70px_-32px_rgba(30,64,175,0.75)] animate-fadeInUp sm:p-6 lg:p-7">
+        <header className=" relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-indigo-300/20 blur-3xl" />
 
           <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
             <div className="flex min-w-0 items-start gap-4">
               <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/15 shadow-inner backdrop-blur-sm sm:h-14 sm:w-14">
-                <LayoutDashboard className="h-6 w-6 text-black sm:h-7 sm:w-7" />
+                <LayoutDashboard className="h-6 w-6 text-white sm:h-7 sm:w-7" />
               </div>
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center  gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 backdrop-blur-sm">
+                  <span className="inline-flex items-center  gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
                     <Sparkles className="h-3 w-3" /> Operations workspace
                   </span>
                 </div>
-                <h1 className="truncate text-2xl font-bold tracking-tight text-black sm:text-3xl">
+                <h1 className="truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
                   Pending PO
                 </h1>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-700">
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-white">
                   Track commitments, prioritize pending quantities, and record
                   every dispatch from one responsive workspace.
                 </p>
@@ -1946,46 +1946,6 @@ const GeneratePendingList = () => {
                     })}
                   </div>
                 </article>
-
-                {/* <article className="print-card rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-900 to-blue-950 p-5 text-white shadow-[0_18px_45px_-24px_rgba(15,23,42,0.75)] xl:col-span-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold">Action queue</p>
-                      <p className="mt-0.5 text-xs text-slate-300">
-                        Priority signals
-                      </p>
-                    </div>
-                    <Activity className="h-5 w-5 text-blue-300" />
-                  </div>
-                  <div className="mt-4 space-y-2.5">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-2xl font-bold">
-                        {manager.summary.highRiskItems}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-300">
-                        High-pending line items
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-lg font-bold">
-                          {manager.summary.partialItems}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-300">
-                          In progress
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-lg font-bold">
-                          {manager.summary.completedItems}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-300">
-                          Completed
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </article> */}
               </div>
             )}
           </section>
@@ -2231,11 +2191,11 @@ const GeneratePendingList = () => {
 
             {/* Table View */}
             {viewMode === "table" && (
-              <div className="print-table thin-scrollbar overflow-x-auto">
-                <table className="w-full min-w-[1420px] table-auto">
-                  <thead className="border-b border-slate-200 bg-slate-50/90">
+              <div className="bg-white border border-gray-300 overflow-auto">
+                <table className="w-full border-collapse text-sm text-center">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="w-12 px-4 py-3 text-center">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={
@@ -2249,43 +2209,43 @@ const GeneratePendingList = () => {
                           aria-label="Select all records on this page"
                         />
                       </th>
-                      <th className="min-w-[190px] px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Company", "company")}
                       </th>
-                      <th className="min-w-[160px] px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("PO details", "po")}
                       </th>
-                      <th className="min-w-[260px] px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Item / drawing", "item")}
                       </th>
-                      <th className="min-w-[150px] px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Progress", "pending")}
                       </th>
-                      <th className="w-24 px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("PO qty", "poQty", "right")}
                       </th>
-                      <th className="w-28 px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Dispatched", "dispatched", "right")}
                       </th>
-                      <th className="w-24 px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Pending", "pending", "right")}
                       </th>
-                      <th className="w-28 px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Unit rate", "rate", "right")}
                       </th>
-                      <th className="w-36 px-3 py-3">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         {renderSortHeader("Pending value", "total", "right")}
                       </th>
-                      <th className="w-36 px-3 py-3 text-left text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         Priority
                       </th>
-                      <th className="w-28 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                         Action
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {paginatedData.map((item) => {
+                  <tbody className="divide-y divide-gray-100">
+                    {paginatedData.map((item,index) => {
                       const itemKey = getItemKey(item);
                       const historyCount =
                         dispatchHistory[itemKey]?.length || 0;
@@ -2297,15 +2257,13 @@ const GeneratePendingList = () => {
                       return (
                         <tr
                           key={itemKey}
-                          className={`transition-colors ${
-                            isSelected
-                              ? "bg-blue-50/70"
-                              : "hover:bg-slate-50/80"
-                          }`}
+                          className={`hover:bg-blue-50 ${
+                      index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                    }`}
                           onMouseEnter={() => setIsHovered(itemKey)}
                           onMouseLeave={() => setIsHovered(null)}
                         >
-                          <td className="px-4 py-3.5 text-center">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -2314,7 +2272,7 @@ const GeneratePendingList = () => {
                               aria-label={`Select ${item.po} ${item.item}`}
                             />
                           </td>
-                          <td className="px-3 py-3.5">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <div className="flex items-center gap-2.5">
                               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
                                 {(item.company || "?").charAt(0).toUpperCase()}
@@ -2332,7 +2290,7 @@ const GeneratePendingList = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3.5">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <p className="font-mono text-sm font-semibold text-slate-800">
                               {item.po || "—"}
                             </p>
@@ -2341,7 +2299,7 @@ const GeneratePendingList = () => {
                               {formatDate(item.poDate)}
                             </p>
                           </td>
-                          <td className="px-3 py-3.5">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <p
                               className="max-w-[240px] truncate text-sm font-medium text-slate-800"
                               title={item.item}
@@ -2354,7 +2312,7 @@ const GeneratePendingList = () => {
                               <span>{item.drawing || "No drawing"}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-3.5">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <div className="mb-1.5 flex items-center justify-between text-[11px]">
                               <span className="font-semibold text-slate-600">
                                 {completion.toFixed(0)}%
@@ -2368,26 +2326,26 @@ const GeneratePendingList = () => {
                               />
                             </div>
                           </td>
-                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-slate-700">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             {Number(item.poQty || 0).toLocaleString("en-IN")}
                           </td>
-                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-emerald-600">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             {Number(item.dispatched || 0).toLocaleString(
                               "en-IN",
                             )}
                           </td>
                           <td
-                            className={`px-3 py-3.5 text-right text-sm font-bold ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
+                            className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
                           >
                             {Number(item.pending || 0).toLocaleString("en-IN")}
                           </td>
-                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-slate-600">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             {formatCurrency(item.rate)}
                           </td>
-                          <td className="px-3 py-3.5 text-right text-sm font-bold text-slate-800">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             {formatCurrency(item.total)}
                           </td>
-                          <td className="px-3 py-3.5">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <span
                               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
                             >
@@ -2397,7 +2355,7 @@ const GeneratePendingList = () => {
                               {risk.label}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-center">
+                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                             <button
                               onClick={() => openDispatchModal(item)}
                               className={`relative mx-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
