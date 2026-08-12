@@ -1,128 +1,149 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
-  Upload,
-  FileSpreadsheet,
-  Search,
-  Filter,
-  Edit2,
-  Save,
-  X,
-  TrendingUp,
-  Package,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Building,
-  DollarSign,
-  RefreshCw,
-  Download,
-  ChevronDown,
-  ChevronRight,
-  PieChart,
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   BarChart3,
-  Calendar,
-  Truck,
-  AlertTriangle,
-  CheckSquare,
-  Square,
+  Building2,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  CircleAlert,
+  CircleCheckBig,
+  Clock3,
+  Download,
   Eye,
   EyeOff,
-  Settings,
-  Printer,
-  Mail,
-  MoreVertical,
-  Plus,
-  Minus,
-  Zap,
-  Shield,
-  Globe,
-  Award,
-  History,
+  FileDown,
+  FileSpreadsheet,
   FileText,
-  User,
-  MapPin,
-  Phone,
-  Mail as MailIcon,
-  Calendar as CalendarIcon,
-  Info,
-  Check,
-  AlertOctagon,
-  FileCheck,
-  ClipboardList,
-  Send,
-  Printer as PrinterIcon,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
+  Gauge,
+  Grid2X2,
+  History,
+  IndianRupee,
+  LayoutDashboard,
   Maximize2,
   Minimize2,
+  Package,
+  Printer,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Send,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Table2,
+  Truck,
+  Upload,
+  X,
+  AlertCircle,
 } from "lucide-react";
+
+// ============================================
+// SAMPLE DUMMY DATA FOR MULTIPLE COMPANIES
+// ============================================
+const generateDummyData = () => {
+  const companies = [
+    "Sahasra Electronics",
+    "TechCore Solutions",
+    "Apex Manufacturing",
+    "Global Industries",
+    "Precision Components",
+    "NovaTech Systems",
+    "Elite Engineering",
+    "Crystal Enterprises",
+    "Summit Industries",
+    "Vertex Corporation",
+  ];
+
+  const items = [
+    'Heat Sink, Extrusion Profile, ALUMINUM FLAT SHEET, T=.080", L=144", W=48", 13 SqIn, TYPE 6061-T6',
+    "Accessory, Assembly Shield/Seal, Aluminum 3003H14, 0.100, 96 SqIn",
+    "Hardware, Plate, POSITIVE BUS BAR, TIN PLATED HALF H",
+    "Hardware, Plate, NEGATIVE BUS BAR, TIN PLATED",
+    'Accessory, Assembly Shield, Aluminium sheet, TYPE 3003-H14, .063" THICK, 48" X 120", 20 SqIn',
+    "Hardware, Plate, BUS BAR, NEGATIVE, HITEMP3, HARD ALLOY 110 COPPER, L:4.330",
+    "Hardware, Plate, BUS BAR, POWER, HITEMP3, HARD ALLOY 110 COPPER, L:4.240 inch",
+    "Hardware, Plate, BUS BAR, POSITIVE, HITEMP3, HARD ALLOY 110 COPPER, L:4.090",
+    "Hardware, Others, Bus bar, phase, PCA 66720",
+    "Hardware, Others, Bus bar connector 61877-1, ring terminal",
+    "Hardware, Others, Bus bar 61156-1, Jumper",
+    "Hardware, Plate, .032 THICK HALF HARD ALLOY 110 COPPER, 0.0002-0.0004 OF MATTE TIN",
+    "Die and tools for Bus Bar Assembly",
+    "Hardware, Plate, POSITIVE BUS BAR, HITEMP3, HARD ALLOY 110 COPPER",
+    "Hardware, Plate, NEGATIVE BUS BAR, HITEMP3, HARD ALLOY 110 COPPER",
+  ];
+
+  const drawings = [
+    "60153",
+    "65322-1",
+    "65294-1",
+    "65299-1",
+    "60159",
+    "65575-1",
+    "65576-1",
+    "65574-1",
+    "66782-1",
+    "61877-1",
+    "61156-1",
+    "67103-1",
+    "67104-1",
+    "67105-1",
+  ];
+
+  const dummyData = [];
+  const startDate = new Date("2026-01-01");
+
+  for (let i = 0; i < 50; i++) {
+    const company = companies[Math.floor(Math.random() * companies.length)];
+    const itemIndex = Math.floor(Math.random() * items.length);
+    const poQty = Math.floor(Math.random() * 2000) + 50;
+    const dispatched = Math.floor(Math.random() * poQty);
+    const pending = poQty - dispatched;
+    const rate = Math.floor(Math.random() * 500) + 15;
+    const total = pending * rate;
+
+    // Generate random date in 2026
+    const randomDays = Math.floor(Math.random() * 180);
+    const poDate = new Date(startDate);
+    poDate.setDate(poDate.getDate() + randomDays);
+
+    dummyData.push({
+      company: company,
+      po: `PO-${String(2026).slice(-2)}${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
+      poDate: poDate.toISOString().split("T")[0],
+      deliveryDate: new Date(
+        poDate.getTime() +
+          (Math.floor(Math.random() * 60) + 15) * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .split("T")[0],
+      drawing: drawings[Math.floor(Math.random() * drawings.length)],
+      itemCode: `3011810${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
+      item: items[itemIndex],
+      poQty: poQty,
+      dispatched: dispatched,
+      pending: pending,
+      status: pending > 0 ? "Pending" : "Completed",
+      rate: rate,
+      total: total,
+    });
+  }
+
+  return dummyData;
+};
 
 // ============================================
 // DISPATCH HISTORY ITEM COMPONENT
 // ============================================
-const DispatchHistoryItem = ({ entry, index }) => {
-  const statusColors = {
-    Completed: "bg-green-100 text-green-800",
-    Partial: "bg-yellow-100 text-yellow-800",
-    Pending: "bg-red-100 text-red-800",
-    "In Transit": "bg-blue-100 text-blue-800",
-    Delivered: "bg-purple-100 text-purple-800",
-  };
-
-  const statusIcons = {
-    Completed: <CheckCircle className="w-3 h-3" />,
-    Partial: <AlertCircle className="w-3 h-3" />,
-    Pending: <Clock className="w-3 h-3" />,
-    "In Transit": <Truck className="w-3 h-3" />,
-    Delivered: <Package className="w-3 h-3" />,
-  };
-
-  return (
-    <div className="border-l-4 border-blue-400 pl-4 py-2 hover:bg-gray-50 transition-colors animate-slideIn">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-700">
-            #{index + 1}
-          </span>
-          <span className="text-sm font-semibold text-gray-800">
-            {entry.dispatchQty} units
-          </span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 ${statusColors[entry.status] || "bg-gray-100 text-gray-800"}`}
-          >
-            {statusIcons[entry.status]}
-            {entry.status || "Pending"}
-          </span>
-        </div>
-        <div className="flex items-center gap-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1">
-            <CalendarIcon className="w-3 h-3" />
-            {entry.dispatchDate || "N/A"}
-          </span>
-          {entry.billNumber && (
-            <span className="flex items-center gap-1">
-              <FileText className="w-3 h-3" />
-              Bill: {entry.billNumber}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {entry.remarks && (
-        <p className="text-sm text-gray-600 mt-1 ml-1">{entry.remarks}</p>
-      )}
-
-      <div className="flex items-center gap-4 mt-1 text-xs text-gray-400 flex-wrap">
-        {entry.transportMode && <span>🚚 {entry.transportMode}</span>}
-        {entry.trackingNumber && (
-          <span>📦 Tracking: {entry.trackingNumber}</span>
-        )}
-        {entry.receivedBy && <span>👤 Received by: {entry.receivedBy}</span>}
-      </div>
-    </div>
-  );
-};
 
 // ============================================
 // DISPATCH MODAL COMPONENT WITH ANIMATIONS
@@ -145,19 +166,47 @@ const DispatchModal = ({
   const [receivedBy, setReceivedBy] = useState("");
   const [status, setStatus] = useState("Partial");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [errors, setErrors] = useState({});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState("dispatch");
-  const [animation, setAnimation] = useState("fadeIn");
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    setDispatchQty("");
+    setDispatchDate(new Date().toISOString().split("T")[0]);
+    setBillNumber("");
+    setRemarks("");
+    setTransportMode("");
+    setTrackingNumber("");
+    setReceivedBy("");
+    setStatus("Partial");
+    setErrors({});
+    setActiveTab((Number(item?.pending) || 0) > 0 ? "dispatch" : "history");
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, item, onClose]);
 
   const validate = () => {
     const newErrors = {};
-    if (!dispatchQty || parseFloat(dispatchQty) <= 0) {
+    const quantity = Number(dispatchQty);
+    const pending = Number(item?.pending) || 0;
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       newErrors.dispatchQty = "Please enter a valid dispatch quantity";
     }
-    if (parseFloat(dispatchQty) > (item?.pending || 0)) {
-      newErrors.dispatchQty = `Cannot dispatch more than pending quantity (${item?.pending})`;
+    if (quantity > pending) {
+      newErrors.dispatchQty = `Cannot dispatch more than pending quantity (${pending.toLocaleString("en-IN")})`;
     }
     if (!dispatchDate) {
       newErrors.dispatchDate = "Please select a dispatch date";
@@ -174,63 +223,79 @@ const DispatchModal = ({
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setAnimation("fadeOut");
+    const quantity = Number(dispatchQty);
+    const currentPending = Number(item?.pending) || 0;
+    const newPending = Math.max(0, currentPending - quantity);
+    const newDispatched = (Number(item?.dispatched) || 0) + quantity;
 
     const dispatchEntry = {
-      dispatchQty: parseFloat(dispatchQty),
+      dispatchQty: quantity,
       dispatchDate,
       billNumber: billNumber.trim(),
       remarks: remarks.trim(),
       transportMode: transportMode.trim(),
       trackingNumber: trackingNumber.trim(),
       receivedBy: receivedBy.trim(),
-      status: status,
+      status: newPending === 0 ? "Completed" : status,
       timestamp: new Date().toISOString(),
     };
-
-    // Calculate new pending quantity
-    const newPending = (item?.pending || 0) - parseFloat(dispatchQty);
-    const newDispatched = (item?.dispatched || 0) + parseFloat(dispatchQty);
 
     const updateData = {
       dispatched: newDispatched,
       pending: newPending,
       status: newPending === 0 ? "Completed" : "Partial",
-      dispatchHistory: [...(dispatchHistory || []), dispatchEntry],
+      dispatchEntry,
       lastDispatch: dispatchEntry,
     };
 
-    // Simulate API call
     setTimeout(() => {
       onDispatchUpdate(updateData);
       setIsSubmitting(false);
       onClose();
-      setAnimation("fadeIn");
-    }, 500);
+    }, 350);
   };
 
   const getMaxDispatch = () => {
     return item?.pending || 0;
   };
 
+  const applyQuickQuantity = (fraction) => {
+    const maximum = Number(getMaxDispatch()) || 0;
+    const quantity =
+      fraction === 1
+        ? maximum
+        : Math.min(maximum, Math.max(1, Math.ceil(maximum * fraction)));
+    setDispatchQty(String(quantity));
+    if (errors.dispatchQty) {
+      setErrors((current) => ({ ...current, dispatchQty: "" }));
+    }
+  };
+
   const getPendingPercentage = () => {
     if (!item) return 0;
-    return ((item.pending / item.poQty) * 100).toFixed(1);
+    const total = Number(item.poQty) || 0;
+    if (total <= 0) return 0;
+    return Math.min(
+      100,
+      Math.max(0, ((Number(item.pending) || 0) / total) * 100),
+    );
   };
 
   const getProgressColor = () => {
     const percentage = getPendingPercentage();
-    if (percentage > 50) return "bg-red-500";
-    if (percentage > 25) return "bg-yellow-500";
-    return "bg-green-500";
+    if (percentage > 50) return "bg-rose-500";
+    if (percentage > 25) return "bg-amber-500";
+    return "bg-emerald-500";
   };
 
   if (!isOpen || !item) return null;
 
   return (
     <div
-      className={`fixed inset-0 z-50 overflow-y-auto ${isFullscreen ? "p-0" : "p-4"}`}
-      style={{ animation: `${animation} 0.3s ease-in-out` }}
+      className={`fixed inset-0 z-50 overflow-y-auto ${isFullscreen ? "p-0" : "p-2 sm:p-4"}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dispatch-modal-title"
     >
       <style>
         {`
@@ -250,42 +315,31 @@ const DispatchModal = ({
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
           }
-          @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-          }
           .animate-slideIn {
             animation: slideIn 0.3s ease-out;
           }
           .animate-pulse-slow {
             animation: pulse 2s infinite;
           }
-          .shimmer {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-          }
         `}
       </style>
 
-      <div className="flex items-center justify-center min-h-screen">
-        {/* Backdrop with blur */}
+      <div className="flex min-h-screen items-center justify-center">
         <div
-          className={`fixed inset-0 transition-all duration-300 ${isOpen ? "bg-black/50 backdrop-blur-sm" : "bg-black/0"}`}
+          className={`fixed inset-0 transition-all duration-300 ${isOpen ? "bg-slate-950/65 backdrop-blur-sm" : "bg-slate-950/0"}`}
           onClick={onClose}
-        ></div>
+          aria-hidden="true"
+        />
 
-        {/* Modal Container */}
         <div
-          className={`relative bg-white rounded-2xl shadow-2xl transition-all duration-300 transform ${
-            isFullscreen ? "w-full h-full rounded-none" : "w-full max-w-4xl"
+          className={`relative overflow-hidden bg-white shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 ${
+            isFullscreen
+              ? "h-full w-full rounded-none"
+              : "w-full max-w-5xl rounded-3xl"
           } ${isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
         >
-          {/* Modal Header with gradient */}
-          <div
-            className={`bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 ${isFullscreen ? "rounded-none" : "rounded-t-2xl"} relative overflow-hidden`}
-          >
-            {/* Animated background pattern */}
+          {/* Modal Header */}
+          <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 px-5 py-4 sm:px-6">
             <div className="absolute inset-0 opacity-10">
               <div
                 className="absolute inset-0"
@@ -299,11 +353,14 @@ const DispatchModal = ({
 
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg animate-pulse-slow">
-                  <Truck className="w-6 h-6 text-white" />
+                <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
+                  <Truck className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3
+                    id="dispatch-modal-title"
+                    className="text-lg font-bold tracking-tight text-white"
+                  >
                     Dispatch Management
                   </h3>
                   <p className="text-sm text-blue-100">
@@ -313,19 +370,9 @@ const DispatchModal = ({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  className="text-white hover:text-gray-200 transition-colors p-1 hover:bg-white/20 rounded-lg"
-                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="w-5 h-5" />
-                  ) : (
-                    <Maximize2 className="w-5 h-5" />
-                  )}
-                </button>
-                <button
                   onClick={onClose}
-                  className="text-white hover:text-gray-200 transition-colors p-1 hover:bg-white/20 rounded-lg"
+                  className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                  aria-label="Close dispatch dialog"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -334,11 +381,11 @@ const DispatchModal = ({
           </div>
 
           <div
-            className={`${isFullscreen ? "h-[calc(100vh-80px)] overflow-y-auto" : ""}`}
+            className={`thin-scrollbar bg-slate-50 ${isFullscreen ? "h-[calc(100vh-72px)] overflow-y-auto" : "max-h-[calc(100vh-7rem)] overflow-y-auto"}`}
           >
-            <div className="px-6 py-4">
-              {/* Item Summary with animated progress */}
-              <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 mb-6 border border-blue-100 shadow-inner">
+            <div className="px-4 py-5 sm:px-6">
+              {/* Item Summary */}
+              <div className="mb-5 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-blue-100 rounded-lg">
@@ -351,7 +398,7 @@ const DispatchModal = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-purple-100 rounded-lg">
-                      <Building className="w-4 h-4 text-purple-600" />
+                      <Building2 className="w-4 h-4 text-purple-600" />
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Company</p>
@@ -367,40 +414,44 @@ const DispatchModal = ({
                     <div>
                       <p className="text-xs text-gray-500">Status</p>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                           item?.pending === 0
                             ? "bg-green-100 text-green-800"
                             : "bg-yellow-100 text-yellow-800"
                         }`}
                       >
-                        {item?.pending === 0 ? "✓ Completed" : "⏳ Pending"}
+                        {item?.pending === 0 ? (
+                          <CheckCircle2 className="h-3 w-3" />
+                        ) : (
+                          <Clock3 className="h-3 w-3" />
+                        )}
+                        {item?.pending === 0 ? "Completed" : "Pending"}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-red-100 rounded-lg">
-                      <Clock className="w-4 h-4 text-red-600" />
+                      <Clock3 className="w-4 h-4 text-red-600" />
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Pending %</p>
                       <p className="font-medium text-gray-800">
-                        {getPendingPercentage()}%
+                        {getPendingPercentage().toFixed(1)}%
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Progress Bar with animation */}
                 <div className="mt-3">
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
                     <span>Progress</span>
-                    <span>{getPendingPercentage()}% remaining</span>
+                    <span>{getPendingPercentage().toFixed(1)}% remaining</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div
                       className={`h-2 rounded-full transition-all duration-1000 ${getProgressColor()}`}
                       style={{
-                        width: `${100 - parseFloat(getPendingPercentage())}%`,
+                        width: `${100 - getPendingPercentage()}%`,
                         transition: "width 1s ease-in-out",
                       }}
                     ></div>
@@ -409,13 +460,14 @@ const DispatchModal = ({
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex border-b border-gray-200 mb-4">
+              <div className="mb-4 inline-flex rounded-xl bg-slate-200/70 p-1">
                 <button
                   onClick={() => setActiveTab("dispatch")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                  disabled={(Number(item?.pending) || 0) <= 0}
+                  className={`relative inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                     activeTab === "dispatch"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   <Truck className="w-4 h-4 inline mr-2" />
@@ -423,23 +475,23 @@ const DispatchModal = ({
                 </button>
                 <button
                   onClick={() => setActiveTab("history")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                  className={`relative inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     activeTab === "history"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   <History className="w-4 h-4 inline mr-2" />
                   History ({dispatchHistory.length})
                   {dispatchHistory.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
                   )}
                 </button>
               </div>
 
               {/* Dispatch History */}
               {activeTab === "history" && (
-                <div className="bg-gray-50 rounded-lg p-4 mb-6 max-h-60 overflow-y-auto border border-gray-200">
+                <div className="thin-scrollbar mb-6 max-h-[440px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-100/70 p-4">
                   {dispatchHistory && dispatchHistory.length > 0 ? (
                     <div className="space-y-3">
                       {dispatchHistory.map((entry, index) => (
@@ -482,10 +534,23 @@ const DispatchModal = ({
                           className={`w-full px-3 py-2 border ${errors.dispatchQty ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                           min="1"
                           max={getMaxDispatch()}
+                          step="1"
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
                           / {getMaxDispatch()}
                         </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {[0.25, 0.5, 1].map((fraction) => (
+                          <button
+                            key={fraction}
+                            type="button"
+                            onClick={() => applyQuickQuantity(fraction)}
+                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
+                          >
+                            {fraction === 1 ? "Max" : `${fraction * 100}%`}
+                          </button>
+                        ))}
                       </div>
                       {errors.dispatchQty && (
                         <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
@@ -542,61 +607,6 @@ const DispatchModal = ({
                       )}
                     </div>
 
-                    <div className="transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Status
-                      </label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      >
-                        <option value="Partial">🔄 Partial Dispatch</option>
-                        <option value="Completed">✅ Completed</option>
-                        <option value="In Transit">🚚 In Transit</option>
-                        <option value="Delivered">📦 Delivered</option>
-                      </select>
-                    </div>
-
-                    <div className="transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Transport Mode
-                      </label>
-                      <input
-                        type="text"
-                        value={transportMode}
-                        onChange={(e) => setTransportMode(e.target.value)}
-                        placeholder="e.g., Road, Air, Sea"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    <div className="transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tracking Number
-                      </label>
-                      <input
-                        type="text"
-                        value={trackingNumber}
-                        onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="Enter tracking number"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-
-                    <div className="transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Received By
-                      </label>
-                      <input
-                        type="text"
-                        value={receivedBy}
-                        onChange={(e) => setReceivedBy(e.target.value)}
-                        placeholder="Name of receiver"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      />
-                    </div>
-
                     <div className="sm:col-span-2 transform transition-all hover:scale-[1.01]">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Remarks
@@ -611,7 +621,6 @@ const DispatchModal = ({
                     </div>
                   </div>
 
-                  {/* Action Buttons with animations */}
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                     <button
                       type="button"
@@ -676,9 +685,26 @@ class PendingPOManager {
       (sum, item) => sum + (item.total || 0),
       0,
     );
-    const uniquePOs = new Set(this.data.map((item) => item.po));
-    const uniqueCompanies = new Set(this.data.map((item) => item.company));
-    const uniqueDrawings = new Set(this.data.map((item) => item.drawing));
+    const uniquePOs = new Set(this.data.map((item) => item.po).filter(Boolean));
+    const uniqueCompanies = new Set(
+      this.data.map((item) => item.company).filter(Boolean),
+    );
+    const uniqueDrawings = new Set(
+      this.data.map((item) => item.drawing).filter(Boolean),
+    );
+    const completedItems = this.data.filter((item) => item.pending <= 0).length;
+    const partialItems = this.data.filter(
+      (item) => item.pending > 0 && item.dispatched > 0,
+    ).length;
+    const untouchedItems = this.data.filter(
+      (item) => item.pending > 0 && item.dispatched <= 0,
+    ).length;
+    const highRiskItems = this.data.filter((item) => {
+      const total = Number(item.poQty) || 0;
+      if (total <= 0) return false;
+      const remaining = ((Number(item.pending) || 0) / total) * 100;
+      return remaining >= 75;
+    }).length;
 
     return {
       totalPending,
@@ -689,6 +715,10 @@ class PendingPOManager {
       totalCompanies: uniqueCompanies.size,
       totalDrawings: uniqueDrawings.size,
       totalItems: this.data.length,
+      completedItems,
+      partialItems,
+      untouchedItems,
+      highRiskItems,
       pendingPercentage: totalPOQty > 0 ? (totalPending / totalPOQty) * 100 : 0,
       dispatchedPercentage:
         totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
@@ -741,15 +771,18 @@ class PendingPOManager {
     const categories = new Set();
     this.data.forEach((item) => {
       const desc = item.item || "";
-      if (desc.includes("Bus Bar") || desc.includes("BUS BAR")) {
+      if (desc.toLowerCase().includes("bus bar")) {
         categories.add("Bus Bars");
-      } else if (desc.includes("Heat Sink")) {
+      } else if (desc.toLowerCase().includes("heat sink")) {
         categories.add("Heat Sinks");
-      } else if (desc.includes("Accessory") || desc.includes("Assembly")) {
+      } else if (
+        desc.toLowerCase().includes("accessory") ||
+        desc.toLowerCase().includes("assembly")
+      ) {
         categories.add("Accessories");
-      } else if (desc.includes("Hardware")) {
+      } else if (desc.toLowerCase().includes("hardware")) {
         categories.add("Hardware");
-      } else if (desc.includes("Plate")) {
+      } else if (desc.toLowerCase().includes("plate")) {
         categories.add("Plates");
       } else {
         categories.add("Others");
@@ -792,35 +825,47 @@ class PendingPOManager {
       filtered = filtered.filter((item) => {
         const desc = item.item || "";
         if (filters.category === "Bus Bars")
-          return desc.includes("Bus Bar") || desc.includes("BUS BAR");
+          return desc.toLowerCase().includes("bus bar");
         if (filters.category === "Heat Sinks")
-          return desc.includes("Heat Sink");
+          return desc.toLowerCase().includes("heat sink");
         if (filters.category === "Accessories")
-          return desc.includes("Accessory") || desc.includes("Assembly");
-        if (filters.category === "Hardware") return desc.includes("Hardware");
-        if (filters.category === "Plates") return desc.includes("Plate");
+          return (
+            desc.toLowerCase().includes("accessory") ||
+            desc.toLowerCase().includes("assembly")
+          );
+        if (filters.category === "Hardware")
+          return desc.toLowerCase().includes("hardware");
+        if (filters.category === "Plates")
+          return desc.toLowerCase().includes("plate");
         return true;
       });
     }
 
     if (filters.minPending !== undefined && filters.minPending !== "") {
       filtered = filtered.filter(
-        (item) => item.pending >= parseInt(filters.minPending),
+        (item) => item.pending >= Number(filters.minPending),
       );
     }
 
     if (filters.maxPending !== undefined && filters.maxPending !== "") {
       filtered = filtered.filter(
-        (item) => item.pending <= parseInt(filters.maxPending),
+        (item) => item.pending <= Number(filters.maxPending),
       );
     }
 
-    if (filters.dateRange && filters.dateRange.start && filters.dateRange.end) {
-      const start = new Date(filters.dateRange.start);
-      const end = new Date(filters.dateRange.end);
+    if (
+      filters.dateRange &&
+      (filters.dateRange.start || filters.dateRange.end)
+    ) {
+      const start = filters.dateRange.start
+        ? new Date(`${filters.dateRange.start}T00:00:00`)
+        : new Date(-8640000000000000);
+      const end = filters.dateRange.end
+        ? new Date(`${filters.dateRange.end}T23:59:59.999`)
+        : new Date(8640000000000000);
       filtered = filtered.filter((item) => {
         const date = new Date(item.poDate);
-        return date >= start && date <= end;
+        return !Number.isNaN(date.getTime()) && date >= start && date <= end;
       });
     }
 
@@ -850,16 +895,89 @@ class PendingPOManager {
 }
 
 // ============================================
+// STAT CARD COMPONENT
+// ============================================
+const StatCard = ({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  tone = "blue",
+  progress,
+}) => {
+  const tones = {
+    blue: {
+      icon: "bg-blue-50 text-blue-600 ring-blue-100",
+      bar: "bg-gradient-to-r from-blue-500 to-indigo-500",
+      glow: "from-blue-500/10",
+    },
+    emerald: {
+      icon: "bg-emerald-50 text-emerald-600 ring-emerald-100",
+      bar: "bg-gradient-to-r from-emerald-500 to-teal-500",
+      glow: "from-emerald-500/10",
+    },
+    rose: {
+      icon: "bg-rose-50 text-rose-600 ring-rose-100",
+      bar: "bg-gradient-to-r from-rose-500 to-orange-400",
+      glow: "from-rose-500/10",
+    },
+    violet: {
+      icon: "bg-violet-50 text-violet-600 ring-violet-100",
+      bar: "bg-gradient-to-r from-violet-500 to-indigo-500",
+      glow: "from-violet-500/10",
+    },
+  };
+  const palette = tones[tone] || tones.blue;
+
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-white/80 bg-white p-4 shadow-[0_12px_35px_-20px_rgba(30,64,175,0.35)] ring-1 ring-slate-200/70 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-22px_rgba(30,64,175,0.4)] sm:p-5">
+      <div
+        className={`pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-gradient-to-br ${palette.glow} to-transparent blur-2xl`}
+      />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            {label}
+          </p>
+          <p className="mt-2 truncate text-2xl font-bold tracking-tight text-slate-900">
+            {value}
+          </p>
+        </div>
+        <div
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1 ${palette.icon}`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="relative mt-3">
+        <p className="truncate text-xs text-slate-500">{helper}</p>
+        {Number.isFinite(progress) && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${palette.bar}`}
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </article>
+  );
+};
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 const GeneratePendingList = () => {
-  const [data, setData] = useState([]);
-  const [manager, setManager] = useState(null);
+  const [data, setData] = useState(() => generateDummyData());
+  const [manager, setManager] = useState(
+    () => new PendingPOManager(generateDummyData()),
+  );
   const [filteredData, setFilteredData] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [minPending, setMinPending] = useState("");
@@ -868,7 +986,6 @@ const GeneratePendingList = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [viewMode, setViewMode] = useState("table");
-  const [expandedPOs, setExpandedPOs] = useState(new Set());
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
@@ -877,6 +994,109 @@ const GeneratePendingList = () => {
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState({});
   const [isHovered, setIsHovered] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [showAnalytics, setShowAnalytics] = useState(true);
+  const [showDummyData, setShowDummyData] = useState(true);
+
+  const getCategory = (description = "") => {
+    const value = String(description).toLowerCase();
+    if (value.includes("bus bar")) return "Bus Bars";
+    if (value.includes("heat sink")) return "Heat Sinks";
+    if (value.includes("accessory") || value.includes("assembly")) {
+      return "Accessories";
+    }
+    if (value.includes("hardware")) return "Hardware";
+    if (value.includes("plate")) return "Plates";
+    return "Others";
+  };
+
+  const filteredManager = useMemo(
+    () => new PendingPOManager(filteredData),
+    [filteredData],
+  );
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig.key) return filteredData;
+
+    return [...filteredData].sort((first, second) => {
+      const firstValue = first?.[sortConfig.key];
+      const secondValue = second?.[sortConfig.key];
+      const firstNumber = Number(firstValue);
+      const secondNumber = Number(secondValue);
+
+      let comparison = 0;
+      if (
+        Number.isFinite(firstNumber) &&
+        Number.isFinite(secondNumber) &&
+        firstValue !== "" &&
+        secondValue !== ""
+      ) {
+        comparison = firstNumber - secondNumber;
+      } else {
+        comparison = String(firstValue ?? "").localeCompare(
+          String(secondValue ?? ""),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        );
+      }
+
+      return sortConfig.direction === "asc" ? comparison : -comparison;
+    });
+  }, [filteredData, sortConfig]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedData.slice(start, start + pageSize);
+  }, [sortedData, currentPage, pageSize]);
+
+  const getItemKey = (item) =>
+    [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
+      .filter(Boolean)
+      .join("::");
+
+  const selectedRows = useMemo(
+    () => data.filter((item) => selectedItems.has(getItemKey(item))),
+    [data, selectedItems],
+  );
+
+  const companyRanking = useMemo(() => {
+    if (!manager) return [];
+    return Object.entries(manager.companyStats)
+      .map(([company, stats]) => ({ company, ...stats }))
+      .sort((a, b) => b.totalPending - a.totalPending)
+      .slice(0, 5);
+  }, [manager]);
+
+  const activeFilterCount = useMemo(
+    () =>
+      [
+        searchTerm,
+        selectedCompany !== "all",
+        selectedStatus !== "all",
+        selectedCategory !== "all",
+        minPending,
+        maxPending,
+        dateRange.start,
+        dateRange.end,
+      ].filter(Boolean).length,
+    [
+      searchTerm,
+      selectedCompany,
+      selectedStatus,
+      selectedCategory,
+      minPending,
+      maxPending,
+      dateRange,
+    ],
+  );
+
+  useEffect(() => {
+    if (!notification) return undefined;
+    const timer = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notification]);
 
   // Parse Excel file
   const parseExcelFile = (file) => {
@@ -888,50 +1108,70 @@ const GeneratePendingList = () => {
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-          const mappedData = jsonData.map((row) => {
-            const po = row["PO"] || row["PO Number"] || row["PO #"] || "";
-            const poDate =
-              row["PO Date"] ||
-              row["Date"] ||
-              new Date().toISOString().split("T")[0];
-            const drawing = row["Drawing"] || row["Drawing #"] || "";
-            const itemCode = row["Item Code"] || row["Code"] || "";
-            const item =
-              row["Item"] ||
-              row["Description"] ||
-              row["Item Description"] ||
-              "";
-            const poQty = parseFloat(row["PO Qty"] || row["Quantity"] || 0);
-            const dispatched = parseFloat(
-              row["Dispatched"] || row["Dispatched Qty"] || 0,
-            );
-            const pending = poQty - dispatched;
-            const rate = parseFloat(row["Rate"] || row["Unit Price"] || 0);
-            const total = pending * rate;
-            const company = row["Company Name"] || row["Company"] || "Unknown";
-            const status = pending > 0 ? "Pending" : "Completed";
+          const mappedData = jsonData
+            .map((row) => {
+              const po = row["PO"] || row["PO Number"] || row["PO #"] || "";
+              const poDate =
+                row["PO Date"] ||
+                row["Date"] ||
+                new Date().toISOString().split("T")[0];
+              const deliveryDate =
+                row["Delivery Date"] || row["Due Date"] || "";
+              const drawing = row["Drawing"] || row["Drawing #"] || "";
+              const itemCode = row["Item Code"] || row["Code"] || "";
+              const item =
+                row["Item"] ||
+                row["Description"] ||
+                row["Item Description"] ||
+                "";
+              const poQty = Math.max(
+                0,
+                Number(row["PO Qty"] || row["Quantity"] || 0),
+              );
+              const dispatched = Math.min(
+                poQty,
+                Math.max(
+                  0,
+                  Number(row["Dispatched"] || row["Dispatched Qty"] || 0),
+                ),
+              );
+              const pending = Math.max(0, poQty - dispatched);
+              const rate = Math.max(
+                0,
+                Number(row["Rate"] || row["Unit Price"] || 0),
+              );
+              const total = pending * rate;
+              const company =
+                row["Company Name"] || row["Company"] || "Unknown";
+              const status = pending > 0 ? "Pending" : "Completed";
 
-            return {
-              company: company.toString().trim(),
-              po: po.toString().trim(),
-              poDate: poDate,
-              drawing: drawing.toString().trim(),
-              itemCode: itemCode.toString().trim(),
-              item: item.toString().trim(),
-              poQty: poQty,
-              dispatched: dispatched,
-              pending: pending,
-              status: status,
-              rate: rate,
-              total: total,
-            };
-          });
+              return {
+                company: company.toString().trim(),
+                po: po.toString().trim(),
+                poDate: poDate,
+                deliveryDate,
+                drawing: drawing.toString().trim(),
+                itemCode: itemCode.toString().trim(),
+                item: item.toString().trim(),
+                poQty: poQty,
+                dispatched: dispatched,
+                pending: pending,
+                status: status,
+                rate: rate,
+                total: total,
+              };
+            })
+            .filter(
+              (item) => item.po || item.itemCode || item.drawing || item.item,
+            );
 
           resolve(mappedData);
         } catch (error) {
           reject(error);
         }
       };
+      reader.onerror = () =>
+        reject(new Error("The selected file could not be read"));
       reader.readAsArrayBuffer(file);
     });
   };
@@ -939,14 +1179,29 @@ const GeneratePendingList = () => {
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (file) {
+      if (!/\.(xlsx|xls)$/i.test(file.name)) {
+        showNotification("Please upload an .xlsx or .xls file", "error");
+        event.target.value = "";
+        return;
+      }
+
       setIsLoading(true);
-      setUploadedFile(file);
 
       try {
         const parsedData = await parseExcelFile(file);
+        if (!parsedData.length) {
+          throw new Error("No usable purchase-order rows were found");
+        }
+        setUploadedFile(file);
         setData(parsedData);
         const newManager = new PendingPOManager(parsedData);
         setManager(newManager);
+        setSelectedItems(new Set());
+        setDispatchHistory({});
+        setSortConfig({ key: null, direction: "asc" });
+        setCurrentPage(1);
+        clearFilters();
+        setShowDummyData(false);
 
         setCompanies(["all", ...Object.keys(newManager.companyStats)]);
         setCategories(["all", ...newManager.itemCategories]);
@@ -956,16 +1211,21 @@ const GeneratePendingList = () => {
           end: "",
         });
 
-        showNotification("File uploaded successfully!", "success");
+        showNotification(
+          `${parsedData.length.toLocaleString("en-IN")} records loaded successfully`,
+          "success",
+        );
       } catch (error) {
         console.error("Error parsing file:", error);
         showNotification(
-          "Error parsing file. Please check the format.",
+          error?.message ||
+            "Could not parse the file. Please check its columns.",
           "error",
         );
       }
 
       setIsLoading(false);
+      event.target.value = "";
     }
   };
 
@@ -988,11 +1248,19 @@ const GeneratePendingList = () => {
   );
 
   useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedSearchTerm(searchTerm.trim()),
+      220,
+    );
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     if (manager) {
       applyFilters(
         manager,
         selectedCompany,
-        searchTerm,
+        debouncedSearchTerm,
         selectedStatus,
         selectedCategory,
         minPending,
@@ -1003,7 +1271,7 @@ const GeneratePendingList = () => {
   }, [
     manager,
     selectedCompany,
-    searchTerm,
+    debouncedSearchTerm,
     selectedStatus,
     selectedCategory,
     minPending,
@@ -1012,58 +1280,58 @@ const GeneratePendingList = () => {
     applyFilters,
   ]);
 
+  useEffect(() => {
+    if (manager && companies.length === 0) {
+      setCompanies(["all", ...Object.keys(manager.companyStats)]);
+      setCategories(["all", ...manager.itemCategories]);
+    }
+  }, [manager, companies.length]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    debouncedSearchTerm,
+    selectedCompany,
+    selectedStatus,
+    selectedCategory,
+    minPending,
+    maxPending,
+    dateRange,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const handleDispatchUpdate = (updateData) => {
     if (!selectedItemForDispatch) return;
 
-    const itemKey = `${selectedItemForDispatch.po}-${selectedItemForDispatch.itemCode}`;
-    const currentHistory = dispatchHistory[itemKey] || [];
+    const itemKey = getItemKey(selectedItemForDispatch);
 
-    // Find the actual index of the item
-    const index = data.findIndex(
-      (d) =>
-        d.po === selectedItemForDispatch.po &&
-        d.itemCode === selectedItemForDispatch.itemCode &&
-        d.company === selectedItemForDispatch.company,
-    );
+    const index = data.findIndex((entry) => getItemKey(entry) === itemKey);
 
-    if (index !== -1 && manager) {
-      // Update the item with new values
+    if (index !== -1) {
       const updatedItem = {
         ...data[index],
         dispatched: updateData.dispatched,
         pending: updateData.pending,
         status: updateData.status,
+        total: updateData.pending * (Number(data[index].rate) || 0),
+        lastDispatch: updateData.lastDispatch,
       };
 
-      // Update in manager
-      manager.data[index] = updatedItem;
-
-      // Update local data
       const newData = [...data];
       newData[index] = updatedItem;
       setData(newData);
+      setManager(new PendingPOManager(newData));
 
-      // Update dispatch history
-      const newHistory = [
-        ...currentHistory,
-        ...(updateData.dispatchHistory || []),
-      ];
-      setDispatchHistory({
-        ...dispatchHistory,
-        [itemKey]: newHistory,
-      });
-
-      // Update filtered data
-      const filtered = manager.filterData({
-        company: selectedCompany,
-        searchTerm: searchTerm,
-        status: selectedStatus,
-        category: selectedCategory,
-        minPending: minPending,
-        maxPending: maxPending,
-        dateRange: dateRange,
-      });
-      setFilteredData(filtered);
+      if (updateData.dispatchEntry) {
+        setDispatchHistory((current) => ({
+          ...current,
+          [itemKey]: [...(current[itemKey] || []), updateData.dispatchEntry],
+        }));
+      }
 
       showNotification(
         `Dispatch updated successfully! New pending: ${updateData.pending}`,
@@ -1073,7 +1341,7 @@ const GeneratePendingList = () => {
   };
 
   const openDispatchModal = (item) => {
-    const itemKey = `${item.po}-${item.itemCode}`;
+    const itemKey = getItemKey(item);
     setSelectedItemForDispatch({
       ...item,
       dispatchHistory: dispatchHistory[itemKey] || [],
@@ -1081,14 +1349,13 @@ const GeneratePendingList = () => {
     setIsDispatchModalOpen(true);
   };
 
-  const closeDispatchModal = () => {
+  const closeDispatchModal = useCallback(() => {
     setIsDispatchModalOpen(false);
     setSelectedItemForDispatch(null);
-  };
+  }, []);
 
   const showNotification = (message, type = "info") => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
   };
 
   const formatCurrency = (value) => {
@@ -1104,6 +1371,7 @@ const GeneratePendingList = () => {
     if (!dateStr) return "-";
     try {
       const date = new Date(dateStr);
+      if (Number.isNaN(date.getTime())) return String(dateStr);
       return date.toLocaleDateString("en-IN", {
         day: "2-digit",
         month: "short",
@@ -1114,12 +1382,47 @@ const GeneratePendingList = () => {
     }
   };
 
-  const resetAll = () => {
-    setData([]);
-    setManager(null);
-    setFilteredData([]);
-    setCompanies([]);
-    setCategories([]);
+  const getCompletionPercentage = (item) => {
+    const total = Number(item?.poQty) || 0;
+    if (total <= 0) return 0;
+    return Math.min(
+      100,
+      Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100),
+    );
+  };
+
+  const getRiskMeta = (item) => {
+    if ((Number(item?.pending) || 0) <= 0) {
+      return {
+        label: "Completed",
+        dot: "bg-emerald-500",
+        badge: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      };
+    }
+
+    const remaining = 100 - getCompletionPercentage(item);
+    if (remaining >= 75) {
+      return {
+        label: "High pending",
+        dot: "bg-rose-500",
+        badge: "bg-rose-50 text-rose-700 ring-rose-200",
+      };
+    }
+    if (remaining >= 35) {
+      return {
+        label: "Needs attention",
+        dot: "bg-amber-500",
+        badge: "bg-amber-50 text-amber-700 ring-amber-200",
+      };
+    }
+    return {
+      label: "Near completion",
+      dot: "bg-blue-500",
+      badge: "bg-blue-50 text-blue-700 ring-blue-200",
+    };
+  };
+
+  const clearFilters = () => {
     setSelectedCompany("all");
     setSearchTerm("");
     setSelectedStatus("all");
@@ -1127,35 +1430,218 @@ const GeneratePendingList = () => {
     setMinPending("");
     setMaxPending("");
     setDateRange({ start: "", end: "" });
+  };
+
+  const handleSort = (key) => {
+    setSortConfig((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return ArrowUpDown;
+    return sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
+  };
+
+  const renderSortHeader = (label, key, align = "left") => {
+    const SortIcon = getSortIcon(key);
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(key)}
+        className={`group inline-flex w-full items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 transition hover:text-blue-700 ${
+          align === "right" ? "justify-end" : "justify-start"
+        }`}
+      >
+        {label}
+        <SortIcon
+          className={`h-3 w-3 ${sortConfig.key === key ? "text-blue-600" : "text-slate-300 group-hover:text-blue-500"}`}
+        />
+      </button>
+    );
+  };
+
+  const toggleItemSelection = (item) => {
+    const itemKey = getItemKey(item);
+    setSelectedItems((current) => {
+      const next = new Set(current);
+      if (next.has(itemKey)) next.delete(itemKey);
+      else next.add(itemKey);
+      return next;
+    });
+  };
+
+  const togglePageSelection = () => {
+    const pageKeys = paginatedData.map(getItemKey);
+    const allSelected =
+      pageKeys.length > 0 && pageKeys.every((key) => selectedItems.has(key));
+
+    setSelectedItems((current) => {
+      const next = new Set(current);
+      pageKeys.forEach((key) => {
+        if (allSelected) next.delete(key);
+        else next.add(key);
+      });
+      return next;
+    });
+  };
+
+  const exportRows = (rows, label = "filtered") => {
+    if (!rows.length) {
+      showNotification("No records available to export", "warning");
+      return;
+    }
+
+    const exportData = rows.map((item) => ({
+      Company: item.company,
+      "PO Number": item.po,
+      "PO Date": item.poDate,
+      "Delivery Date": item.deliveryDate || "",
+      Drawing: item.drawing,
+      "Item Code": item.itemCode,
+      "Item Description": item.item,
+      "PO Quantity": item.poQty,
+      Dispatched: item.dispatched,
+      Pending: item.pending,
+      "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
+      Status: item.status,
+      "Unit Rate": item.rate,
+      "Pending Value": item.total,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 13 },
+      { wch: 13 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 36 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 16 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pending PO");
+    const stamp = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(workbook, `pending-po-${label}-${stamp}.xlsx`);
+    showNotification(`${rows.length} records exported`, "success");
+  };
+
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      [
+        "Company Name",
+        "PO Number",
+        "PO Date",
+        "Delivery Date",
+        "Drawing",
+        "Item Code",
+        "Item Description",
+        "PO Qty",
+        "Dispatched Qty",
+        "Rate",
+      ],
+    ]);
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 13 },
+      { wch: 13 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 36 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 12 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "PO Import");
+    XLSX.writeFile(workbook, "pending-po-import-template.xlsx");
+    showNotification("Blank import template downloaded", "success");
+  };
+
+  const handlePrint = () => window.print();
+
+  const resetAll = () => {
+    const dummyData = generateDummyData();
+    setData(dummyData);
+    setManager(new PendingPOManager(dummyData));
+    setFilteredData([]);
+    setCompanies([
+      "all",
+      ...Object.keys(new PendingPOManager(dummyData).companyStats),
+    ]);
+    setCategories(["all", ...new PendingPOManager(dummyData).itemCategories]);
+    setSelectedCompany("all");
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+    setSelectedStatus("all");
+    setSelectedCategory("all");
+    setMinPending("");
+    setMaxPending("");
+    setDateRange({ start: "", end: "" });
     setUploadedFile(null);
+    setCurrentPage(1);
+    setSortConfig({ key: null, direction: "asc" });
     setSelectedItems(new Set());
-    setExpandedPOs(new Set());
     setDispatchHistory({});
-    showNotification("Data reset successfully", "info");
+    setShowDummyData(true);
+    showNotification("Reset to dummy data", "info");
   };
 
   // Render notification
   const renderNotification = () => {
     if (!notification) return null;
 
-    const colors = {
-      success: "bg-green-50 border-green-400 text-green-800",
-      error: "bg-red-50 border-red-400 text-red-800",
-      warning: "bg-yellow-50 border-yellow-400 text-yellow-800",
-      info: "bg-blue-50 border-blue-400 text-blue-800",
+    const variants = {
+      success: {
+        classes: "border-emerald-200 bg-white text-emerald-800",
+        icon: CheckCircle2,
+        iconClasses: "bg-emerald-50 text-emerald-600",
+      },
+      error: {
+        classes: "border-rose-200 bg-white text-rose-800",
+        icon: CircleAlert,
+        iconClasses: "bg-rose-50 text-rose-600",
+      },
+      warning: {
+        classes: "border-amber-200 bg-white text-amber-800",
+        icon: AlertCircle,
+        iconClasses: "bg-amber-50 text-amber-600",
+      },
+      info: {
+        classes: "border-blue-200 bg-white text-blue-800",
+        icon: Activity,
+        iconClasses: "bg-blue-50 text-blue-600",
+      },
     };
+    const variant = variants[notification.type] || variants.info;
+    const NotificationIcon = variant.icon;
 
     return (
       <div
-        className={`fixed top-4 right-4 z-50 p-4 rounded-lg border shadow-lg ${colors[notification.type]} animate-slideIn`}
+        className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-2xl border p-3 pr-4 shadow-2xl shadow-slate-900/10 ${variant.classes} animate-slideIn`}
+        role="status"
       >
-        {notification.message}
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}
+        >
+          <NotificationIcon className="h-4 w-4" />
+        </span>
+        <span className="text-sm font-medium">{notification.message}</span>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/70 to-indigo-50 p-3 text-slate-900 sm:p-5 lg:p-6">
       <style>
         {`
           @keyframes slideIn {
@@ -1172,6 +1658,26 @@ const GeneratePendingList = () => {
           .animate-fadeInUp {
             animation: fadeInUp 0.5s ease-out;
           }
+          .premium-grid {
+            background-image:
+              linear-gradient(rgba(255,255,255,.075) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,.075) 1px, transparent 1px);
+            background-size: 28px 28px;
+          }
+          .thin-scrollbar::-webkit-scrollbar { width: 7px; height: 7px; }
+          .thin-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+          .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          @media (prefers-reduced-motion: reduce) {
+            .animate-slideIn, .animate-fadeInUp, .animate-pulse-slow {
+              animation: none !important;
+            }
+          }
+          @media print {
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .print-card { box-shadow: none !important; break-inside: avoid; }
+            .print-table { overflow: visible !important; }
+          }
         `}
       </style>
 
@@ -1186,32 +1692,34 @@ const GeneratePendingList = () => {
         dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
       />
 
-      <div className="max-w-7xl mx-auto">
+      <div className="mx-auto max-w-[1600px]">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-blue-100 animate-fadeInUp">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-                <FileSpreadsheet className="w-8 h-8 text-white" />
+        <header className="premium-grid relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 p-5 shadow-[0_24px_70px_-32px_rgba(30,64,175,0.75)] animate-fadeInUp sm:p-6 lg:p-7">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-indigo-300/20 blur-3xl" />
+
+          <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/15 shadow-inner backdrop-blur-sm sm:h-14 sm:w-14">
+                <LayoutDashboard className="h-6 w-6 text-black sm:h-7 sm:w-7" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Advanced Pending PO Manager
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center  gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 backdrop-blur-sm">
+                    <Sparkles className="h-3 w-3" /> Operations workspace
+                  </span>
+                </div>
+                <h1 className="truncate text-2xl font-bold tracking-tight text-black sm:text-3xl">
+                  Pending PO
                 </h1>
-                <p className="text-sm text-gray-500 flex items-center gap-2">
-                  <Award className="w-4 h-4" />
-                  Enterprise-grade purchase order tracking with dispatch
-                  management
-                  {data.length > 0 && (
-                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                      {data.length} items loaded
-                    </span>
-                  )}
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-700">
+                  Track commitments, prioritize pending quantities, and record
+                  every dispatch from one responsive workspace.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="no-print flex flex-wrap items-center gap-2">
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -1221,31 +1729,38 @@ const GeneratePendingList = () => {
               />
               <label
                 htmlFor="file-upload"
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer shadow-md hover:shadow-lg transform hover:scale-105"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
               >
-                <Upload className="w-4 h-4" />
-                Upload Excel
+                <Upload className="h-4 w-4" />
+                {uploadedFile ? "Replace Excel" : "Upload Excel"}
               </label>
 
               {uploadedFile && (
                 <>
                   <button
-                    onClick={resetAll}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all transform hover:scale-105"
+                    type="button"
+                    onClick={() => exportRows(filteredData, "filtered")}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
                   >
-                    <RefreshCw className="w-4 h-4" />
-                    Reset
+                    <Download className="h-4 w-4" />
+                    Export
                   </button>
                   <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-all transform hover:scale-105"
+                    type="button"
+                    onClick={handlePrint}
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
+                    title="Print dashboard"
+                    aria-label="Print dashboard"
                   >
-                    {showFilters ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                    {showFilters ? "Hide" : "Show"} Filters
+                    <Printer className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={resetAll}
+                    className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm transition hover:bg-rose-500/30"
+                    title="Reset workspace"
+                    aria-label="Reset workspace"
+                  >
+                    <RotateCcw className="h-4 w-4" />
                   </button>
                 </>
               )}
@@ -1253,434 +1768,660 @@ const GeneratePendingList = () => {
           </div>
 
           {uploadedFile && (
-            <div className="mt-3 flex items-center gap-3 text-sm bg-gray-50 p-2 rounded-lg border border-gray-200">
-              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-              <span className="text-gray-600">File: {uploadedFile.name}</span>
-              <span className="text-gray-400">|</span>
-              <span className="text-gray-600">
-                Size: {(uploadedFile.size / 1024).toFixed(1)} KB
+            <div className="relative mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/15 bg-slate-950/10 px-4 py-3 text-xs text-blue-50 backdrop-blur-sm">
+              <span className="flex min-w-0 items-center gap-2 font-medium">
+                <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                <span className="max-w-[280px] truncate">
+                  {uploadedFile.name}
+                </span>
               </span>
-              <span className="text-gray-400">|</span>
-              <span className="text-gray-600">Items: {data.length}</span>
+              <span>{(uploadedFile.size / 1024).toFixed(1)} KB</span>
+              <span>{manager?.summary.totalPOs || 0} purchase orders</span>
+              <span>{manager?.summary.totalCompanies || 0} companies</span>
+              <span className="ml-auto flex items-center gap-1.5 text-blue-100">
+                <ShieldCheck className="h-3.5 w-3.5" /> Parsed and ready
+              </span>
             </div>
           )}
-        </div>
+        </header>
 
-        {/* Summary Cards with animations */}
+        {/* Executive summary */}
         {data.length > 0 && manager && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div
-              className="bg-white p-4 rounded-xl shadow-md border border-blue-100 hover:shadow-lg transition-all transform hover:scale-105 animate-fadeInUp"
-              style={{ animationDelay: "0.1s" }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <Clock className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Total Pending</p>
-                    <p className="text-xl font-bold text-gray-800">
-                      {manager.summary.totalPending.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">
-                    {manager.summary.pendingPercentage.toFixed(1)}% of total
-                  </p>
-                </div>
+          <section className="mb-5 animate-fadeInUp">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+                  Portfolio snapshot
+                </p>
+                <h2 className="mt-1 text-lg font-bold tracking-tight text-slate-900">
+                  Dispatch performance at a glance
+                </h2>
               </div>
-              <div className="mt-2 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-red-500 h-2 rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${Math.min(manager.summary.pendingPercentage, 100)}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div
-              className="bg-white p-4 rounded-xl shadow-md border border-green-100 hover:shadow-lg transition-all transform hover:scale-105 animate-fadeInUp"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Total Dispatched</p>
-                    <p className="text-xl font-bold text-gray-800">
-                      {manager.summary.totalDispatched.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">
-                    {manager.summary.dispatchedPercentage.toFixed(1)}% of total
-                  </p>
-                </div>
-              </div>
-              <div className="mt-2 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${Math.min(manager.summary.dispatchedPercentage, 100)}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div
-              className="bg-white p-4 rounded-xl shadow-md border border-purple-100 hover:shadow-lg transition-all transform hover:scale-105 animate-fadeInUp"
-              style={{ animationDelay: "0.3s" }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Value</p>
-                  <p className="text-xl font-bold text-gray-800">
-                    {formatCurrency(manager.summary.totalValue)}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-gray-400">
-                Across {manager.summary.totalPOs} purchase orders
-              </div>
-            </div>
-
-            <div
-              className="bg-white p-4 rounded-xl shadow-md border border-orange-100 hover:shadow-lg transition-all transform hover:scale-105 animate-fadeInUp"
-              style={{ animationDelay: "0.4s" }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Building className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Companies</p>
-                  <p className="text-xl font-bold text-gray-800">
-                    {manager.summary.totalCompanies}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-gray-400">
-                {manager.summary.totalDrawings} unique drawings
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filters Section */}
-        {data.length > 0 && showFilters && (
-          <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-200 animate-fadeInUp">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Advanced Filters
-              </h3>
               <button
-                onClick={() => {
-                  setSelectedCompany("all");
-                  setSearchTerm("");
-                  setSelectedStatus("all");
-                  setSelectedCategory("all");
-                  setMinPending("");
-                  setMaxPending("");
-                  setDateRange({ start: "", end: "" });
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                type="button"
+                onClick={() => setShowAnalytics((current) => !current)}
+                className="no-print inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
               >
-                Reset All
+                {showAnalytics ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+                {showAnalytics ? "Hide insights" : "Show insights"}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Search
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="PO, Drawing, Item..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatCard
+                label="Pending quantity"
+                value={manager.summary.totalPending.toLocaleString("en-IN")}
+                helper={`${manager.summary.pendingPercentage.toFixed(1)}% of ordered quantity remains`}
+                icon={Clock3}
+                tone="rose"
+                progress={manager.summary.pendingPercentage}
+              />
+              <StatCard
+                label="Dispatched quantity"
+                value={manager.summary.totalDispatched.toLocaleString("en-IN")}
+                helper={`${manager.summary.dispatchedPercentage.toFixed(1)}% fulfilment across all POs`}
+                icon={CircleCheckBig}
+                tone="emerald"
+                progress={manager.summary.dispatchedPercentage}
+              />
+
+              <StatCard
+                label="Active portfolio"
+                value={`${manager.summary.totalCompanies} companies`}
+                helper={`${manager.summary.totalDrawings} drawings · ${manager.summary.totalItems} line items`}
+                icon={Building2}
+                tone="blue"
+              />
+            </div>
+
+            {showAnalytics && (
+              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-12">
+                <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">
+                        Fulfilment overview
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Quantity-weighted progress
+                      </p>
+                    </div>
+                    <Gauge className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="mt-5 flex items-center gap-6">
+                    <div
+                      className="relative grid h-28 w-28 shrink-0 place-items-center rounded-full"
+                      style={{
+                        background: `conic-gradient(#2563eb ${manager.summary.dispatchedPercentage}%, #e2e8f0 0)`,
+                      }}
+                    >
+                      <div className="grid h-[82px] w-[82px] place-items-center rounded-full bg-white shadow-inner">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-slate-900">
+                            {manager.summary.dispatchedPercentage.toFixed(0)}%
+                          </p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            complete
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-3">
+                      {[
+                        [
+                          "Completed",
+                          manager.summary.completedItems,
+                          "bg-emerald-500",
+                        ],
+                        [
+                          "In progress",
+                          manager.summary.partialItems,
+                          "bg-blue-500",
+                        ],
+                        [
+                          "Not started",
+                          manager.summary.untouchedItems,
+                          "bg-rose-500",
+                        ],
+                      ].map(([label, value, color]) => (
+                        <div
+                          key={label}
+                          className="flex items-center justify-between gap-3 text-xs"
+                        >
+                          <span className="flex items-center gap-2 text-slate-500">
+                            <span className={`h-2 w-2 rounded-full ${color}`} />
+                            {label}
+                          </span>
+                          <span className="font-bold text-slate-800">
+                            {value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+
+                <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">
+                        Company workload
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Highest pending quantity first
+                      </p>
+                    </div>
+                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="mt-4 space-y-3.5">
+                    {companyRanking.map((company) => {
+                      const maxPending = Math.max(
+                        1,
+                        ...companyRanking.map((entry) => entry.totalPending),
+                      );
+                      return (
+                        <div key={company.company}>
+                          <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                            <span className="truncate font-medium text-slate-700">
+                              {company.company}
+                            </span>
+                            <span className="shrink-0 font-bold text-slate-900">
+                              {company.totalPending.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                              style={{
+                                width: `${(company.totalPending / maxPending) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+
+                {/* <article className="print-card rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-900 to-blue-950 p-5 text-white shadow-[0_18px_45px_-24px_rgba(15,23,42,0.75)] xl:col-span-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold">Action queue</p>
+                      <p className="mt-0.5 text-xs text-slate-300">
+                        Priority signals
+                      </p>
+                    </div>
+                    <Activity className="h-5 w-5 text-blue-300" />
+                  </div>
+                  <div className="mt-4 space-y-2.5">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-2xl font-bold">
+                        {manager.summary.highRiskItems}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-300">
+                        High-pending line items
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-lg font-bold">
+                          {manager.summary.partialItems}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-300">
+                          In progress
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-lg font-bold">
+                          {manager.summary.completedItems}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-300">
+                          Completed
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </article> */}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Filters Section */}
+        {data.length > 0 && (
+          <section className="no-print mb-5 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] animate-fadeInUp">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                  <SlidersHorizontal className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Filters
+                    </h3>
+                    {activeFilterCount > 0 && (
+                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {activeFilterCount} active
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Company
-                </label>
-                <select
-                  value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition-all"
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-lg px-3 py-2 text-xs font-semibold text-blue-600 transition hover:bg-blue-50"
+                  >
+                    Clear filters
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((current) => !current)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  {companies.map((company, index) => (
-                    <option key={index} value={company}>
-                      {company === "all" ? "All Companies" : company}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Status
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition-all"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending Only</option>
-                  <option value="completed">Completed</option>
-                  <option value="partial">Partial Dispatch</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Category
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition-all"
-                >
-                  {categories.map((category, index) => (
-                    <option key={index} value={category}>
-                      {category === "all" ? "All Categories" : category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Min Pending
-                </label>
-                <input
-                  type="number"
-                  value={minPending}
-                  onChange={(e) => setMinPending(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Max Pending
-                </label>
-                <input
-                  type="number"
-                  value={maxPending}
-                  onChange={(e) => setMaxPending(e.target.value)}
-                  placeholder="1000"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Date From
-                </label>
-                <input
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) =>
-                    setDateRange((prev) => ({ ...prev, start: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Date To
-                </label>
-                <input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) =>
-                    setDateRange((prev) => ({ ...prev, end: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
+                  {showFilters ? (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                  {showFilters ? "Collapse" : "Expand"}
+                </button>
               </div>
             </div>
-          </div>
+
+            {showFilters && (
+              <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                  <div className="sm:col-span-2 xl:col-span-2">
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Search records
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="search"
+                        placeholder="PO, drawing, code, description..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 pl-9 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="xl:col-span-2">
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Company
+                    </label>
+                    <select
+                      value={selectedCompany}
+                      onChange={(e) => setSelectedCompany(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    >
+                      {companies.map((company) => (
+                        <option key={company} value={company}>
+                          {company === "all" ? "All companies" : company}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Category
+                    </label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    >
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category === "all" ? "All categories" : category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Min pending
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={minPending}
+                      onChange={(e) => setMinPending(e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Max pending
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={maxPending}
+                      onChange={(e) => setMaxPending(e.target.value)}
+                      placeholder="Any"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 xl:col-span-2">
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      PO date from
+                    </label>
+                    <input
+                      type="date"
+                      value={dateRange.start}
+                      onChange={(e) =>
+                        setDateRange((current) => ({
+                          ...current,
+                          start: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 xl:col-span-2">
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      PO date to
+                    </label>
+                    <input
+                      type="date"
+                      value={dateRange.end}
+                      onChange={(e) =>
+                        setDateRange((current) => ({
+                          ...current,
+                          end: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         )}
 
         {/* Main Data Table */}
         {isLoading ? (
-          <div className="bg-white rounded-xl shadow-md p-12 text-center">
-            <RefreshCw className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-            <p className="text-gray-600">Processing Excel file...</p>
-            <p className="text-sm text-gray-400 mt-2">
-              Please wait while we parse your data
+          <div className="rounded-3xl border border-blue-100 bg-white p-12 text-center shadow-xl shadow-blue-900/5">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-50">
+              <RefreshCw className="h-7 w-7 animate-spin text-blue-600" />
+            </div>
+            <p className="mt-5 font-semibold text-slate-800">
+              Building your PO workspace
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Reading, validating, and organizing the Excel records...
             </p>
           </div>
         ) : data.length > 0 ? (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 animate-fadeInUp">
+          <section className="print-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.45)] animate-fadeInUp">
             {/* View Mode Selector */}
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">View:</span>
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`px-3 py-1 text-sm rounded-lg transition-all ${
-                    viewMode === "table"
-                      ? "bg-blue-100 text-blue-700"
-                      : "hover:bg-gray-200"
-                  }`}
-                >
-                  Table
-                </button>
-                <button
-                  onClick={() => setViewMode("cards")}
-                  className={`px-3 py-1 text-sm rounded-lg transition-all ${
-                    viewMode === "cards"
-                      ? "bg-blue-100 text-blue-700"
-                      : "hover:bg-gray-200"
-                  }`}
-                >
-                  Cards
-                </button>
+            <div className="no-print flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900">
+                    Purchase order register
+                  </h2>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {filteredData.length.toLocaleString("en-IN")} of{" "}
+                    {data.length.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Select records, sort columns, or open an item to record
+                  dispatch
+                </p>
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>
-                  Showing {filteredData.length} of {data.length} items
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedRows.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100">
+                    <Check className="h-3.5 w-3.5" />
+                    {selectedRows.length} selected
+                    <button
+                      type="button"
+                      onClick={() => exportRows(selectedRows, "selected")}
+                      className="ml-1 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] shadow-sm transition hover:text-blue-900"
+                    >
+                      <FileDown className="h-3 w-3" /> Export
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedItems(new Set())}
+                      className="rounded-md p-1 transition hover:bg-white"
+                      aria-label="Clear selected records"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex rounded-xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      viewMode === "table"
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Table2 className="h-3.5 w-3.5" /> Table
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Table View */}
             {viewMode === "table" && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+              <div className="print-table thin-scrollbar overflow-x-auto">
+                <table className="w-full min-w-[1420px] table-auto">
+                  <thead className="border-b border-slate-200 bg-slate-50/90">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Company
+                      <th className="w-12 px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            paginatedData.length > 0 &&
+                            paginatedData.every((item) =>
+                              selectedItems.has(getItemKey(item)),
+                            )
+                          }
+                          onChange={togglePageSelection}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                          aria-label="Select all records on this page"
+                        />
                       </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PO #
+                      <th className="min-w-[190px] px-3 py-3">
+                        {renderSortHeader("Company", "company")}
                       </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Drawing
+                      <th className="min-w-[160px] px-3 py-3">
+                        {renderSortHeader("PO details", "po")}
                       </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Item
+                      <th className="min-w-[260px] px-3 py-3">
+                        {renderSortHeader("Item / drawing", "item")}
                       </th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PO Qty
+                      <th className="min-w-[150px] px-3 py-3">
+                        {renderSortHeader("Progress", "pending")}
                       </th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dispatched
+                      <th className="w-24 px-3 py-3">
+                        {renderSortHeader("PO qty", "poQty", "right")}
                       </th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Pending
+                      <th className="w-28 px-3 py-3">
+                        {renderSortHeader("Dispatched", "dispatched", "right")}
                       </th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Rate
+                      <th className="w-24 px-3 py-3">
+                        {renderSortHeader("Pending", "pending", "right")}
                       </th>
-                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
+                      <th className="w-28 px-3 py-3">
+                        {renderSortHeader("Unit rate", "rate", "right")}
                       </th>
-                      <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-36 px-3 py-3">
+                        {renderSortHeader("Pending value", "total", "right")}
+                      </th>
+                      <th className="w-36 px-3 py-3 text-left text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                        Priority
+                      </th>
+                      <th className="w-28 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
                         Action
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredData.map((item) => {
-                      const hasHistory =
-                        dispatchHistory[`${item.po}-${item.itemCode}`]?.length >
-                        0;
-                      const isItemHovered =
-                        isHovered === `${item.po}-${item.itemCode}`;
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {paginatedData.map((item) => {
+                      const itemKey = getItemKey(item);
+                      const historyCount =
+                        dispatchHistory[itemKey]?.length || 0;
+                      const isItemHovered = isHovered === itemKey;
+                      const completion = getCompletionPercentage(item);
+                      const risk = getRiskMeta(item);
+                      const isSelected = selectedItems.has(itemKey);
 
                       return (
                         <tr
-                          key={`${item.po}-${item.itemCode}`}
-                          className="hover:bg-gray-50 transition-colors"
-                          onMouseEnter={() =>
-                            setIsHovered(`${item.po}-${item.itemCode}`)
-                          }
+                          key={itemKey}
+                          className={`transition-colors ${
+                            isSelected
+                              ? "bg-blue-50/70"
+                              : "hover:bg-slate-50/80"
+                          }`}
+                          onMouseEnter={() => setIsHovered(itemKey)}
                           onMouseLeave={() => setIsHovered(null)}
                         >
-                          <td className="px-3 py-2 text-sm">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                              {item.company}
-                            </span>
+                          <td className="px-4 py-3.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleItemSelection(item)}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                              aria-label={`Select ${item.po} ${item.item}`}
+                            />
                           </td>
-                          <td className="px-3 py-2 text-sm font-mono">
-                            {item.po}
+                          <td className="px-3 py-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                                {(item.company || "?").charAt(0).toUpperCase()}
+                              </span>
+                              <div className="min-w-0">
+                                <p
+                                  className="max-w-[145px] truncate text-sm font-semibold text-slate-800"
+                                  title={item.company}
+                                >
+                                  {item.company || "Unknown"}
+                                </p>
+                                <p className="text-[11px] text-slate-400">
+                                  {getCategory(item.item)}
+                                </p>
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-3 py-2 text-sm">{item.drawing}</td>
-                          <td
-                            className="px-3 py-2 text-sm max-w-xs truncate"
-                            title={item.item}
-                          >
-                            {item.item}
+                          <td className="px-3 py-3.5">
+                            <p className="font-mono text-sm font-semibold text-slate-800">
+                              {item.po || "—"}
+                            </p>
+                            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+                              <CalendarDays className="h-3 w-3" />
+                              {formatDate(item.poDate)}
+                            </p>
                           </td>
-                          <td className="px-3 py-2 text-sm text-right">
-                            {item.poQty}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-right text-green-600">
-                            {item.dispatched}
-                          </td>
-                          <td className="px-3 py-2 text-sm text-right">
-                            <span
-                              className={`font-semibold ${item.pending > 0 ? "text-red-600" : "text-green-600"}`}
+                          <td className="px-3 py-3.5">
+                            <p
+                              className="max-w-[240px] truncate text-sm font-medium text-slate-800"
+                              title={item.item}
                             >
-                              {item.pending}
-                            </span>
+                              {item.item || "Unnamed item"}
+                            </p>
+                            <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                              <span>{item.itemCode || "No code"}</span>
+                              <span className="h-1 w-1 rounded-full bg-slate-300" />
+                              <span>{item.drawing || "No drawing"}</span>
+                            </div>
                           </td>
-                          <td className="px-3 py-2 text-sm text-right">
+                          <td className="px-3 py-3.5">
+                            <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                              <span className="font-semibold text-slate-600">
+                                {completion.toFixed(0)}%
+                              </span>
+                              <span className="text-slate-400">fulfilled</span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                                style={{ width: `${completion}%` }}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-slate-700">
+                            {Number(item.poQty || 0).toLocaleString("en-IN")}
+                          </td>
+                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-emerald-600">
+                            {Number(item.dispatched || 0).toLocaleString(
+                              "en-IN",
+                            )}
+                          </td>
+                          <td
+                            className={`px-3 py-3.5 text-right text-sm font-bold ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
+                          >
+                            {Number(item.pending || 0).toLocaleString("en-IN")}
+                          </td>
+                          <td className="px-3 py-3.5 text-right text-sm font-semibold text-slate-600">
                             {formatCurrency(item.rate)}
                           </td>
-                          <td className="px-3 py-2 text-sm text-right font-semibold">
+                          <td className="px-3 py-3.5 text-right text-sm font-bold text-slate-800">
                             {formatCurrency(item.total)}
                           </td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-3 py-3.5">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${risk.dot}`}
+                              />
+                              {risk.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
                             <button
                               onClick={() => openDispatchModal(item)}
-                              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all text-xs mx-auto ${
+                              className={`relative mx-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
                                 isItemHovered
-                                  ? "bg-blue-600 text-white shadow-md transform scale-105"
-                                  : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
                               }`}
-                              title="Manage dispatch"
+                              title={
+                                item.pending > 0
+                                  ? "Record dispatch"
+                                  : "View dispatch history"
+                              }
                             >
-                              <Truck className="w-3 h-3" />
-                              Dispatch
-                              {hasHistory && (
+                              {item.pending > 0 ? (
+                                <Truck className="h-3.5 w-3.5" />
+                              ) : (
+                                <History className="h-3.5 w-3.5" />
+                              )}
+                              {item.pending > 0 ? "Dispatch" : "Review"}
+                              {historyCount > 0 && (
                                 <span
-                                  className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
-                                    isItemHovered
-                                      ? "bg-white/20 text-white"
-                                      : "bg-blue-200 text-blue-700"
-                                  }`}
+                                  className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${isItemHovered ? "bg-white/20" : "bg-blue-200 text-blue-800"}`}
                                 >
-                                  {
-                                    dispatchHistory[
-                                      `${item.po}-${item.itemCode}`
-                                    ].length
-                                  }
+                                  {historyCount}
                                 </span>
                               )}
                             </button>
@@ -1688,142 +2429,173 @@ const GeneratePendingList = () => {
                         </tr>
                       );
                     })}
+                    {paginatedData.length === 0 && (
+                      <tr>
+                        <td colSpan="12" className="px-6 py-16 text-center">
+                          <Search className="mx-auto h-8 w-8 text-slate-300" />
+                          <p className="mt-3 text-sm font-semibold text-slate-700">
+                            No records match these filters
+                          </p>
+                          <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                          >
+                            Clear all filters
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Cards View */}
-            {viewMode === "cards" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                {filteredData.map((item) => {
-                  const hasHistory =
-                    dispatchHistory[`${item.po}-${item.itemCode}`]?.length > 0;
-
-                  return (
-                    <div
-                      key={`${item.po}-${item.itemCode}`}
-                      className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-lg transition-all transform hover:scale-105"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                            {item.company}
-                          </span>
-                          {hasHistory && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
-                              <History className="w-3 h-3" />
-                              {
-                                dispatchHistory[`${item.po}-${item.itemCode}`]
-                                  .length
-                              }
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(item.poDate)}
-                        </span>
-                      </div>
-
-                      <div className="mb-2">
-                        <div className="text-sm font-mono text-gray-600">
-                          PO: {item.po}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Drawing: {item.drawing}
-                        </div>
-                      </div>
-
-                      <div
-                        className="text-sm text-gray-700 truncate"
-                        title={item.item}
-                      >
-                        {item.item}
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                        <div className="bg-gray-50 p-2 rounded">
-                          <span className="text-gray-500">PO Qty:</span>
-                          <span className="font-medium ml-1">{item.poQty}</span>
-                        </div>
-                        <div className="bg-green-50 p-2 rounded">
-                          <span className="text-green-600">Dispatched:</span>
-                          <span className="font-medium ml-1">
-                            {item.dispatched}
-                          </span>
-                        </div>
-                        <div className="bg-red-50 p-2 rounded">
-                          <span className="text-red-600">Pending:</span>
-                          <span className="font-medium ml-1">
-                            {item.pending}
-                          </span>
-                        </div>
-                        <div className="bg-purple-50 p-2 rounded">
-                          <span className="text-purple-600">Total:</span>
-                          <span className="font-medium ml-1">
-                            {formatCurrency(item.total)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          onClick={() => openDispatchModal(item)}
-                          className="flex items-center gap-1 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all transform hover:scale-105 text-sm"
-                        >
-                          <Truck className="w-4 h-4" />
-                          Manage Dispatch
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Footer */}
-            <div className="bg-gray-50 px-4 py-2 border-t border-gray-200 flex items-center justify-between text-sm text-gray-600">
-              <div>Total: {filteredData.length} items</div>
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                 <span>
-                  Pending:{" "}
-                  {filteredData.reduce((sum, item) => sum + item.pending, 0)}
+                  Showing{" "}
+                  <strong className="text-slate-800">
+                    {sortedData.length === 0
+                      ? 0
+                      : (currentPage - 1) * pageSize + 1}
+                    –{Math.min(currentPage * pageSize, sortedData.length)}
+                  </strong>{" "}
+                  of{" "}
+                  <strong className="text-slate-800">
+                    {sortedData.length}
+                  </strong>
                 </span>
                 <span>
-                  Value:{" "}
-                  {formatCurrency(
-                    filteredData.reduce((sum, item) => sum + item.total, 0),
-                  )}
+                  Pending{" "}
+                  <strong className="text-rose-600">
+                    {filteredManager.summary.totalPending.toLocaleString(
+                      "en-IN",
+                    )}
+                  </strong>
+                </span>
+                <span>
+                  Outstanding{" "}
+                  <strong className="text-slate-800">
+                    {formatCurrency(filteredManager.summary.totalValue)}
+                  </strong>
                 </span>
               </div>
+
+              <div className="no-print flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-slate-500">
+                  Rows
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
+                  >
+                    {[10, 15, 25, 50].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="ml-1 flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="First page"
+                  >
+                    <ChevronsLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="min-w-[76px] px-2 text-center text-xs font-semibold text-slate-700">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Last page"
+                  >
+                    <ChevronsRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
         ) : (
-          <div className="bg-white rounded-xl shadow-md p-12 text-center border-2 border-dashed border-gray-300 animate-fadeInUp">
-            <div className="flex justify-center mb-6">
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full animate-pulse-slow">
-                <Upload className="w-16 h-16 text-blue-500" />
+          <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-white px-5 py-14 text-center shadow-[0_24px_70px_-40px_rgba(30,64,175,0.5)] animate-fadeInUp sm:py-20">
+            <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-80 -translate-x-1/2 rounded-full bg-blue-100/80 blur-3xl" />
+            <div className="relative mx-auto max-w-xl">
+              <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-600/25">
+                <FileSpreadsheet className="h-9 w-9" />
+              </div>
+              <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
+                Start with your source file
+              </p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                Turn your pending PO sheet into an operating dashboard
+              </h2>
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
+                Upload an Excel file and the workspace will organize quantities,
+                company workload, progress, and dispatch history.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+                <label
+                  htmlFor="file-upload"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  <Upload className="h-4 w-4" />
+                  Choose Excel file
+                </label>
+                <button
+                  type="button"
+                  onClick={downloadTemplate}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                >
+                  <FileDown className="h-4 w-4" />
+                  Download template
+                </button>
+              </div>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and
+                  .xls
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> No data
+                  leaves this screen
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Instant
+                  analytics
+                </span>
               </div>
             </div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              No Data Uploaded
-            </h3>
-            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              Upload an Excel file to view and manage pending purchase orders
-              across multiple companies.
-              <br />
-              <span className="text-sm text-gray-400">
-                Supported formats: .xlsx, .xls
-              </span>
-            </p>
-            <label
-              htmlFor="file-upload"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all cursor-pointer shadow-md hover:shadow-lg transform hover:scale-105"
-            >
-              <Upload className="w-4 h-4" />
-              Upload Excel File
-            </label>
-          </div>
+          </section>
         )}
       </div>
     </div>
