@@ -1,6 +1,11 @@
 import React from "react";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useTransition } from "react";
 import * as XLSX from "xlsx";
+import {
+  createDispatchRequestId,
+  getApiErrorMessage,
+  pendingPoApi,
+} from "./pendingPoApi.js";
 import {
   Activity,
   ArrowDown,
@@ -25,16 +30,13 @@ import {
   FileSpreadsheet,
   FileText,
   Gauge,
-  Grid2X2,
   History,
   IndianRupee,
   LayoutDashboard,
   Maximize2,
   Minimize2,
   Package,
-  Printer,
   RefreshCw,
-  RotateCcw,
   Search,
   Send,
   ShieldCheck,
@@ -46,16 +48,16 @@ import {
   X,
   AlertCircle,
   Layers,
-  Copy,
 } from "lucide-react";
 
 // ============================================
 // DISPATCH HISTORY BILL DETAILS COMPONENT
 // ============================================
-// ============================================
-// DISPATCH HISTORY BILL DETAILS COMPONENT
-// ============================================
-const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
+const DispatchBillDetails = React.memo(function DispatchBillDetails({ 
+  billNumber, 
+  entries, 
+  onClose 
+}) {
   const totalItems = entries.length;
   const totalQuantity = entries.reduce(
     (sum, entry) => sum + (entry.dispatchQty || 0),
@@ -80,7 +82,6 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
         />
 
         <div className="relative w-full max-w-4xl overflow-hidden bg-white rounded-2xl shadow-2xl animate-fadeIn">
-          {/* Header */}
           <div className="bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -96,7 +97,6 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
             </div>
           </div>
 
-          {/* Bill Summary */}
           <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
@@ -146,54 +146,34 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
             )}
           </div>
 
-          {/* Items List */}
           <div className="max-h-[400px] overflow-y-auto p-4">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
-                    #
-                  </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
-                    PO Number
-                  </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
-                    Company
-                  </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
-                    Item
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
-                    Qty Dispatched
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
-                    Pending
-                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">#</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">PO Number</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Company</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Item</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Qty Dispatched</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Pending</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {entries.map((entry, idx) => (
-                  <tr key={idx} className="hover:bg-blue-50 transition">
-                    <td className="px-3 py-2 text-xs text-gray-500">
-                      {idx + 1}
-                    </td>
+                  <tr key={entry.po + idx} className="hover:bg-blue-50 transition">
+                    <td className="px-3 py-2 text-xs text-gray-500">{idx + 1}</td>
                     <td className="px-3 py-2 font-mono text-sm font-semibold text-gray-800">
                       {entry.po || "-"}
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-700">
-                      {entry.company || "-"}
-                    </td>
-                    <td
-                      className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate"
-                      title={entry.item}
-                    >
+                    <td className="px-3 py-2 text-sm text-gray-700">{entry.company || "-"}</td>
+                    <td className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate" title={entry.item}>
                       {entry.item || "-"}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-green-600">
                       {entry.dispatchQty || 0}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-600">
-                      {entry.newPending || entry.pending || 0}
+                      {entry.newPending ?? entry.pending ?? 0}
                     </td>
                   </tr>
                 ))}
@@ -201,7 +181,6 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
             </table>
           </div>
 
-          {/* Footer */}
           <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
             <button
               onClick={onClose}
@@ -214,22 +193,20 @@ const DispatchBillDetails = ({ billNumber, entries, onClose }) => {
       </div>
     </div>
   );
-};
+});
 
 // ============================================
 // GLOBAL DISPATCH HISTORY MODAL
 // ============================================
-const GlobalDispatchHistoryModal = ({
+const GlobalDispatchHistoryModal = React.memo(function GlobalDispatchHistoryModal({
   isOpen,
   onClose,
   dispatchHistory,
-  formatCurrency,
   formatDate,
-}) => {
+}) {
   const [selectedBill, setSelectedBill] = useState(null);
   const [showBillDetails, setShowBillDetails] = useState(false);
 
-  // Get all unique bills from dispatch history
   const allBills = useMemo(() => {
     const bills = {};
     Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
@@ -277,7 +254,6 @@ const GlobalDispatchHistoryModal = ({
 
   return (
     <>
-      {/* Bill Details Modal */}
       {showBillDetails && selectedBill && (
         <DispatchBillDetails
           billNumber={selectedBill.billNumber}
@@ -303,7 +279,6 @@ const GlobalDispatchHistoryModal = ({
           />
 
           <div className="relative w-full max-w-6xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
-            {/* Modal Header */}
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
               <div className="absolute inset-0 opacity-10">
                 <div
@@ -349,18 +324,14 @@ const GlobalDispatchHistoryModal = ({
                 {allBills.length === 0 ? (
                   <div className="text-center py-12">
                     <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500 text-lg">
-                      No dispatch history available
-                    </p>
-                    <p className="text-gray-400 text-sm mt-1">
-                      Dispatch some items to see history here
-                    </p>
+                    <p className="text-gray-500 text-lg">No dispatch history available</p>
+                    <p className="text-gray-400 text-sm mt-1">Dispatch some items to see history here</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {allBills.map((bill, idx) => (
+                    {allBills.map((bill) => (
                       <div
-                        key={idx}
+                        key={bill.billNumber}
                         className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
                         onClick={() => {
                           setSelectedBill(bill);
@@ -375,48 +346,31 @@ const GlobalDispatchHistoryModal = ({
                               </span>
                               <span className="text-gray-300">|</span>
                               <span className="text-xs text-gray-500">
-                                {bill.dispatchDate
-                                  ? formatDate(bill.dispatchDate)
-                                  : "-"}
+                                {bill.dispatchDate ? formatDate(bill.dispatchDate) : "-"}
                               </span>
                               {bill.transportMode && (
                                 <>
                                   <span className="text-gray-300">|</span>
-                                  <span className="text-xs text-gray-500">
-                                    🚚 {bill.transportMode}
-                                  </span>
+                                  <span className="text-xs text-gray-500">🚚 {bill.transportMode}</span>
                                 </>
                               )}
                               {bill.receivedBy && (
                                 <>
                                   <span className="text-gray-300">|</span>
-                                  <span className="text-xs text-gray-500">
-                                    👤 {bill.receivedBy}
-                                  </span>
+                                  <span className="text-xs text-gray-500">👤 {bill.receivedBy}</span>
                                 </>
                               )}
                             </div>
                             <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-gray-500">
                               <span className="flex items-center gap-1">
-                                📦{" "}
-                                <strong className="text-gray-700">
-                                  {bill.totalItems}
-                                </strong>{" "}
-                                item{bill.totalItems > 1 ? "s" : ""}
+                                📦 <strong className="text-gray-700">{bill.totalItems}</strong> item{bill.totalItems > 1 ? "s" : ""}
                               </span>
                               <span className="flex items-center gap-1">
-                                📊{" "}
-                                <strong className="text-gray-700">
-                                  {bill.totalQuantity}
-                                </strong>{" "}
-                                units
+                                📊 <strong className="text-gray-700">{bill.totalQuantity}</strong> units
                               </span>
                               {bill.remarks && (
                                 <span className="text-gray-400">
-                                  💬{" "}
-                                  {bill.remarks.length > 30
-                                    ? bill.remarks.substring(0, 30) + "..."
-                                    : bill.remarks}
+                                  💬 {bill.remarks.length > 30 ? bill.remarks.substring(0, 30) + "..." : bill.remarks}
                                 </span>
                               )}
                             </div>
@@ -442,7 +396,6 @@ const GlobalDispatchHistoryModal = ({
               </div>
             </div>
 
-            {/* Footer */}
             <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex justify-end">
               <button
                 onClick={onClose}
@@ -456,18 +409,18 @@ const GlobalDispatchHistoryModal = ({
       </div>
     </>
   );
-};
+});
 
 // ============================================
 // MULTIPLE DISPATCH MODAL COMPONENT
 // ============================================
-const MultipleDispatchModal = ({
+const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
   isOpen,
   onClose,
   selectedItems = [],
   onDispatchUpdate,
   dispatchHistory = {},
-}) => {
+}) {
   const [individualQuantities, setIndividualQuantities] = useState({});
   const [dispatchDate, setDispatchDate] = useState(
     new Date().toISOString().split("T")[0],
@@ -477,7 +430,6 @@ const MultipleDispatchModal = ({
   const [transportMode, setTransportMode] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
-  const [status, setStatus] = useState("Partial");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [selectedBillForDetails, setSelectedBillForDetails] = useState(null);
@@ -493,7 +445,6 @@ const MultipleDispatchModal = ({
     setTransportMode("");
     setTrackingNumber("");
     setReceivedBy("");
-    setStatus("Partial");
     setErrors({});
     setSelectedBillForDetails(null);
     setShowBillDetails(false);
@@ -511,7 +462,6 @@ const MultipleDispatchModal = ({
     };
   }, [isOpen, onClose]);
 
-  // Group dispatch history by bill number
   const groupedHistory = useMemo(() => {
     const groups = {};
     Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
@@ -543,11 +493,26 @@ const MultipleDispatchModal = ({
     return groups;
   }, [dispatchHistory]);
 
-  const getTotalPending = () => {
-    return selectedItems.reduce((sum, item) => sum + (item.pending || 0), 0);
-  };
+  const getItemKey = useCallback(
+    (item) =>
+      String(
+        item?._id ||
+          [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
+            .filter(Boolean)
+            .join("::"),
+      ),
+    [],
+  );
 
-  const validate = () => {
+  const getTotalPending = useCallback(() => {
+    return selectedItems.reduce((sum, item) => sum + (item.pending || 0), 0);
+  }, [selectedItems]);
+
+  const getTotalPendingValue = useCallback(() => {
+    return selectedItems.reduce((sum, item) => sum + (item.total || 0), 0);
+  }, [selectedItems]);
+
+  const validate = useCallback(() => {
     const newErrors = {};
     let hasValidQuantity = false;
     const invalidItems = [];
@@ -565,8 +530,7 @@ const MultipleDispatchModal = ({
     });
 
     if (!hasValidQuantity) {
-      newErrors.dispatchQty =
-        "Please enter valid quantities for at least one item";
+      newErrors.dispatchQty = "Please enter valid quantities for at least one item";
     }
     if (invalidItems.length > 0) {
       newErrors.dispatchQty = `Invalid quantities for: ${invalidItems.join(", ")}`;
@@ -580,94 +544,46 @@ const MultipleDispatchModal = ({
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [selectedItems, individualQuantities, dispatchDate, billNumber, getItemKey]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setErrors((current) => ({ ...current, form: "" }));
 
-    const dispatchEntry = {
-      dispatchDate,
-      billNumber: billNumber.trim(),
-      remarks: remarks.trim(),
-      transportMode: transportMode.trim(),
-      trackingNumber: trackingNumber.trim(),
-      receivedBy: receivedBy.trim(),
-      status: status,
-      timestamp: new Date().toISOString(),
-      isBulkDispatch: true,
-      totalItemsDispatched: selectedItems.length,
-    };
+    try {
+      const items = selectedItems
+        .map((item) => ({
+          poId: item._id,
+          dispatchQty: Number(individualQuantities[getItemKey(item)]) || 0,
+        }))
+        .filter((item) => item.dispatchQty > 0);
 
-    // Process each selected item
-    const updates = selectedItems.map((item) => {
-      const itemKey = getItemKey(item);
-      const qtyToDispatch = Math.min(
-        Number(individualQuantities[itemKey]) || 0,
-        item.pending || 0,
-      );
-
-      if (qtyToDispatch <= 0) {
-        return {
-          item,
-          dispatched: item.dispatched,
-          pending: item.pending,
-          status: item.status,
-          dispatchEntry: null,
-          skipped: true,
-          reason: "No valid quantity specified",
-        };
-      }
-
-      const currentPending = Number(item.pending) || 0;
-      const newPending = Math.max(0, currentPending - qtyToDispatch);
-      const newDispatched = (Number(item.dispatched) || 0) + qtyToDispatch;
-
-      const itemDispatchEntry = {
-        ...dispatchEntry,
-        dispatchQty: qtyToDispatch,
-        itemKey: itemKey,
-        po: item.po,
-        company: item.company,
-        item: item.item,
-        originalPending: currentPending,
-        newPending: newPending,
-      };
-
-      return {
-        item,
-        dispatched: newDispatched,
-        pending: newPending,
-        status: newPending === 0 ? "Completed" : "Partial",
-        dispatchEntry: itemDispatchEntry,
-        skipped: false,
-      };
-    });
-
-    // Apply updates
-    const successfulUpdates = updates.filter((u) => !u.skipped);
-    const failedUpdates = updates.filter((u) => u.skipped);
-
-    // Update the state
-    const updateData = {
-      updates: successfulUpdates,
-      failed: failedUpdates,
-      totalProcessed: successfulUpdates.length,
-      totalFailed: failedUpdates.length,
-      dispatchEntry,
-      isBulk: true,
-    };
-
-    setTimeout(() => {
-      onDispatchUpdate(updateData);
-      setIsSubmitting(false);
+      await onDispatchUpdate({
+        isBulk: true,
+        requestId: createDispatchRequestId(),
+        items,
+        dispatchDate,
+        billNumber: billNumber.trim(),
+        remarks: remarks.trim(),
+        transportMode: transportMode.trim(),
+        trackingNumber: trackingNumber.trim(),
+        receivedBy: receivedBy.trim(),
+      });
       onClose();
-    }, 350);
-  };
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        form: getApiErrorMessage(error, "Bulk dispatch could not be saved"),
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [validate, selectedItems, individualQuantities, getItemKey, onDispatchUpdate, dispatchDate, billNumber, remarks, transportMode, trackingNumber, receivedBy, onClose]);
 
-  const handleIndividualQuantityChange = (itemKey, value) => {
+  const handleIndividualQuantityChange = useCallback((itemKey, value) => {
     setIndividualQuantities((prev) => ({
       ...prev,
       [itemKey]: value,
@@ -675,29 +591,18 @@ const MultipleDispatchModal = ({
     if (errors.dispatchQty) {
       setErrors((current) => ({ ...current, dispatchQty: "" }));
     }
-  };
+  }, [errors.dispatchQty]);
 
-  const getItemKey = (item) =>
-    [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
-      .filter(Boolean)
-      .join("::");
-
-  const getTotalPendingValue = () => {
-    return selectedItems.reduce((sum, item) => sum + (item.total || 0), 0);
-  };
-
-  // Truncate text function
-  const truncateText = (text, maxLength = 60) => {
+  const truncateText = useCallback((text, maxLength = 60) => {
     if (!text) return "-";
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
-  };
+  }, []);
 
   if (!isOpen || selectedItems.length === 0) return null;
 
   return (
     <>
-      {/* Bill Details Modal */}
       {showBillDetails && selectedBillForDetails && (
         <DispatchBillDetails
           billNumber={selectedBillForDetails.billNumber}
@@ -739,7 +644,6 @@ const MultipleDispatchModal = ({
           />
 
           <div className="relative w-full max-w-5xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
-            {/* Modal Header */}
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
               <div className="absolute inset-0 opacity-10">
                 <div
@@ -781,7 +685,6 @@ const MultipleDispatchModal = ({
 
             <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-7rem)] overflow-y-auto">
               <div className="px-4 py-5 sm:px-6">
-                {/* Selected Items Summary */}
                 <div className="mb-5 rounded-2xl border border-purple-100 bg-white p-4 shadow-sm">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="flex items-center gap-2">
@@ -790,9 +693,7 @@ const MultipleDispatchModal = ({
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Total Items</p>
-                        <p className="font-medium text-gray-800">
-                          {selectedItems.length} POs
-                        </p>
+                        <p className="font-medium text-gray-800">{selectedItems.length} POs</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -825,7 +726,6 @@ const MultipleDispatchModal = ({
                   </div>
                 </div>
 
-                {/* Dispatch History Section */}
                 {Object.keys(groupedHistory).length > 0 && (
                   <div className="mb-5">
                     <div className="flex items-center justify-between mb-3">
@@ -838,9 +738,9 @@ const MultipleDispatchModal = ({
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <div className="space-y-2">
-                        {Object.values(groupedHistory).map((group, idx) => (
+                        {Object.values(groupedHistory).map((group) => (
                           <div
-                            key={idx}
+                            key={group.billNumber}
                             className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:border-indigo-200 transition-colors cursor-pointer"
                             onClick={() => {
                               setSelectedBillForDetails(group);
@@ -856,9 +756,7 @@ const MultipleDispatchModal = ({
                                   <span className="text-gray-300">|</span>
                                   <span className="text-xs text-gray-500">
                                     {group.dispatchDate
-                                      ? new Date(
-                                          group.dispatchDate,
-                                        ).toLocaleDateString("en-IN", {
+                                      ? new Date(group.dispatchDate).toLocaleDateString("en-IN", {
                                           day: "2-digit",
                                           month: "short",
                                           year: "numeric",
@@ -868,27 +766,18 @@ const MultipleDispatchModal = ({
                                   {group.transportMode && (
                                     <>
                                       <span className="text-gray-300">|</span>
-                                      <span className="text-xs text-gray-500">
-                                        🚚 {group.transportMode}
-                                      </span>
+                                      <span className="text-xs text-gray-500">🚚 {group.transportMode}</span>
                                     </>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                  <span>
-                                    📦 {group.totalItems} item
-                                    {group.totalItems > 1 ? "s" : ""}
-                                  </span>
+                                  <span>📦 {group.totalItems} item{group.totalItems > 1 ? "s" : ""}</span>
                                   <span>📊 {group.totalQuantity} units</span>
-                                  {group.receivedBy && (
-                                    <span>👤 {group.receivedBy}</span>
-                                  )}
+                                  {group.receivedBy && <span>👤 {group.receivedBy}</span>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-indigo-600 font-medium">
-                                  View Details
-                                </span>
+                                <span className="text-xs text-indigo-600 font-medium">View Details</span>
                                 <ChevronRight className="w-4 h-4 text-gray-400" />
                               </div>
                             </div>
@@ -899,33 +788,27 @@ const MultipleDispatchModal = ({
                   </div>
                 )}
 
-                {/* Individual Quantities Section */}
                 <div className="mb-5">
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700">
                       Set Quantity Per Item
                     </label>
-                    <span className="text-xs text-gray-500">
-                      Enter quantity for each item below
-                    </span>
+                    <span className="text-xs text-gray-500">Enter quantity for each item below</span>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                     <div className="space-y-3">
-                      {selectedItems.map((item, idx) => {
+                      {selectedItems.map((item) => {
                         const itemKey = getItemKey(item);
-                        const historyCount =
-                          dispatchHistory[itemKey]?.length || 0;
-                        const individualQty =
-                          individualQuantities[itemKey] || "";
+                        const historyCount = dispatchHistory[itemKey]?.length || 0;
+                        const individualQty = individualQuantities[itemKey] || "";
                         const maxQty = item.pending || 0;
 
                         return (
                           <div
-                            key={idx}
+                            key={itemKey}
                             className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:border-purple-200 transition-colors"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                              {/* Item Info - Left Side */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
                                   <span className="font-mono font-semibold text-gray-600 text-sm">
@@ -942,7 +825,6 @@ const MultipleDispatchModal = ({
                                   )}
                                 </div>
 
-                                {/* Item Description */}
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                                   <span
                                     className="text-gray-500 truncate max-w-[200px] sm:max-w-[300px]"
@@ -953,10 +835,7 @@ const MultipleDispatchModal = ({
                                   {item.drawing && (
                                     <>
                                       <span className="text-gray-300">|</span>
-                                      <span
-                                        className="text-gray-500 font-mono"
-                                        title={item.drawing}
-                                      >
+                                      <span className="text-gray-500 font-mono" title={item.drawing}>
                                         📐 {item.drawing}
                                       </span>
                                     </>
@@ -971,28 +850,18 @@ const MultipleDispatchModal = ({
                                   )}
                                 </div>
 
-                                {/* Pending Quantity */}
                                 <div className="mt-1">
                                   <span className="text-xs text-gray-500">
-                                    Pending:{" "}
-                                    <span className="font-semibold text-rose-600">
-                                      {maxQty}
-                                    </span>
+                                    Pending: <span className="font-semibold text-rose-600">{maxQty}</span>
                                     {item.poQty && (
-                                      <span className="text-gray-400">
-                                        {" "}
-                                        (Total: {item.poQty})
-                                      </span>
+                                      <span className="text-gray-400"> (Total: {item.poQty})</span>
                                     )}
                                   </span>
                                 </div>
                               </div>
 
-                              {/* Quantity Input - Right Side */}
                               <div className="flex items-center gap-2 sm:ml-4">
-                                <span className="text-xs text-gray-500 whitespace-nowrap">
-                                  Qty:
-                                </span>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">Qty:</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -1000,17 +869,12 @@ const MultipleDispatchModal = ({
                                   value={individualQty}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    handleIndividualQuantityChange(
-                                      itemKey,
-                                      val,
-                                    );
+                                    handleIndividualQuantityChange(itemKey, val);
                                   }}
                                   className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                   placeholder="Enter qty"
                                 />
-                                <span className="text-xs text-gray-400 whitespace-nowrap">
-                                  / {maxQty}
-                                </span>
+                                <span className="text-xs text-gray-400 whitespace-nowrap">/ {maxQty}</span>
                               </div>
                             </div>
                           </div>
@@ -1026,8 +890,16 @@ const MultipleDispatchModal = ({
                   )}
                 </div>
 
-                {/* Dispatch Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {errors.form && (
+                    <div
+                      className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                      role="alert"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{errors.form}</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="transform transition-all hover:scale-[1.01]">
                       <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
@@ -1078,9 +950,7 @@ const MultipleDispatchModal = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Remarks
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
                     <textarea
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
@@ -1090,7 +960,6 @@ const MultipleDispatchModal = ({
                     />
                   </div>
 
-                  {/* Dispatch Summary */}
                   <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
                     <div className="flex items-center gap-2 text-sm text-blue-800">
                       <div className="p-1.5 bg-blue-100 rounded-lg">
@@ -1099,11 +968,8 @@ const MultipleDispatchModal = ({
                       <div>
                         <p className="font-semibold">Bulk Dispatch Summary</p>
                         <p className="text-xs text-blue-600">
-                          This will dispatch specified quantities across{" "}
-                          {selectedItems.length} items.
-                          {Object.values(individualQuantities).some(
-                            (qty) => Number(qty) > 0,
-                          )
+                          This will dispatch specified quantities across {selectedItems.length} items.
+                          {Object.values(individualQuantities).some((qty) => Number(qty) > 0)
                             ? ` Total items with quantity: ${Object.values(individualQuantities).filter((qty) => Number(qty) > 0).length}`
                             : " Please enter quantities for items you want to dispatch."}
                         </p>
@@ -1145,12 +1011,12 @@ const MultipleDispatchModal = ({
       </div>
     </>
   );
-};
+});
 
 // ============================================
 // DISPATCH HISTORY ITEM COMPONENT
 // ============================================
-const DispatchHistoryItem = ({ entry, index }) => {
+const DispatchHistoryItem = React.memo(function DispatchHistoryItem({ entry, index }) {
   return (
     <div className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm border border-gray-100 animate-slideIn">
       <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">
@@ -1169,14 +1035,10 @@ const DispatchHistoryItem = ({ entry, index }) => {
             })}
           </span>
           {entry.billNumber && (
-            <span className="text-xs text-gray-500">
-              Bill: {entry.billNumber}
-            </span>
+            <span className="text-xs text-gray-500">Bill: {entry.billNumber}</span>
           )}
           {entry.transportMode && (
-            <span className="text-xs text-gray-500">
-              Mode: {entry.transportMode}
-            </span>
+            <span className="text-xs text-gray-500">Mode: {entry.transportMode}</span>
           )}
           {entry.isBulkDispatch && (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
@@ -1185,34 +1047,30 @@ const DispatchHistoryItem = ({ entry, index }) => {
             </span>
           )}
           {entry.trackingNumber && (
-            <span className="text-xs text-gray-500">
-              Tracking: {entry.trackingNumber}
-            </span>
+            <span className="text-xs text-gray-500">Tracking: {entry.trackingNumber}</span>
           )}
         </div>
         {entry.remarks && (
           <p className="mt-1 text-xs text-gray-500">{entry.remarks}</p>
         )}
         {entry.receivedBy && (
-          <p className="mt-0.5 text-xs text-gray-400">
-            Received by: {entry.receivedBy}
-          </p>
+          <p className="mt-0.5 text-xs text-gray-400">Received by: {entry.receivedBy}</p>
         )}
       </div>
     </div>
   );
-};
+});
 
 // ============================================
-// DISPATCH MODAL COMPONENT WITH ANIMATIONS
+// DISPATCH MODAL COMPONENT
 // ============================================
-const DispatchModal = ({
+const DispatchModal = React.memo(function DispatchModal({
   isOpen,
   onClose,
   item,
   onDispatchUpdate,
   dispatchHistory = [],
-}) => {
+}) {
   const [dispatchQty, setDispatchQty] = useState("");
   const [dispatchDate, setDispatchDate] = useState(
     new Date().toISOString().split("T")[0],
@@ -1222,7 +1080,6 @@ const DispatchModal = ({
   const [transportMode, setTransportMode] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
-  const [status, setStatus] = useState("Partial");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1238,7 +1095,6 @@ const DispatchModal = ({
     setTransportMode("");
     setTrackingNumber("");
     setReceivedBy("");
-    setStatus("Partial");
     setErrors({});
     setActiveTab((Number(item?.pending) || 0) > 0 ? "dispatch" : "history");
 
@@ -1255,7 +1111,11 @@ const DispatchModal = ({
     };
   }, [isOpen, item, onClose]);
 
-  const validate = () => {
+  const getMaxDispatch = useCallback(() => {
+    return item?.pending || 0;
+  }, [item]);
+
+  const validate = useCallback(() => {
     const newErrors = {};
     const quantity = Number(dispatchQty);
     const pending = Number(item?.pending) || 0;
@@ -1274,51 +1134,41 @@ const DispatchModal = ({
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [dispatchQty, item, dispatchDate, billNumber]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
     const quantity = Number(dispatchQty);
-    const currentPending = Number(item?.pending) || 0;
-    const newPending = Math.max(0, currentPending - quantity);
-    const newDispatched = (Number(item?.dispatched) || 0) + quantity;
+    setErrors((current) => ({ ...current, form: "" }));
 
-    const dispatchEntry = {
-      dispatchQty: quantity,
-      dispatchDate,
-      billNumber: billNumber.trim(),
-      remarks: remarks.trim(),
-      transportMode: transportMode.trim(),
-      trackingNumber: trackingNumber.trim(),
-      receivedBy: receivedBy.trim(),
-      status: newPending === 0 ? "Completed" : status,
-      timestamp: new Date().toISOString(),
-      isBulkDispatch: false,
-    };
-
-    const updateData = {
-      dispatched: newDispatched,
-      pending: newPending,
-      status: newPending === 0 ? "Completed" : "Partial",
-      dispatchEntry,
-      lastDispatch: dispatchEntry,
-    };
-
-    setTimeout(() => {
-      onDispatchUpdate(updateData);
-      setIsSubmitting(false);
+    try {
+      await onDispatchUpdate({
+        isBulk: false,
+        requestId: createDispatchRequestId(),
+        poId: item._id,
+        dispatchQty: quantity,
+        dispatchDate,
+        billNumber: billNumber.trim(),
+        remarks: remarks.trim(),
+        transportMode: transportMode.trim(),
+        trackingNumber: trackingNumber.trim(),
+        receivedBy: receivedBy.trim(),
+      });
       onClose();
-    }, 350);
-  };
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        form: getApiErrorMessage(error, "Dispatch could not be saved"),
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [validate, dispatchQty, dispatchDate, billNumber, remarks, transportMode, trackingNumber, receivedBy, onDispatchUpdate, item, onClose]);
 
-  const getMaxDispatch = () => {
-    return item?.pending || 0;
-  };
-
-  const applyQuickQuantity = (fraction) => {
+  const applyQuickQuantity = useCallback((fraction) => {
     const maximum = Number(getMaxDispatch()) || 0;
     const quantity =
       fraction === 1
@@ -1328,24 +1178,21 @@ const DispatchModal = ({
     if (errors.dispatchQty) {
       setErrors((current) => ({ ...current, dispatchQty: "" }));
     }
-  };
+  }, [getMaxDispatch, errors.dispatchQty]);
 
-  const getPendingPercentage = () => {
+  const getPendingPercentage = useCallback(() => {
     if (!item) return 0;
     const total = Number(item.poQty) || 0;
     if (total <= 0) return 0;
-    return Math.min(
-      100,
-      Math.max(0, ((Number(item.pending) || 0) / total) * 100),
-    );
-  };
+    return Math.min(100, Math.max(0, ((Number(item.pending) || 0) / total) * 100));
+  }, [item]);
 
-  const getProgressColor = () => {
+  const getProgressColor = useCallback(() => {
     const percentage = getPendingPercentage();
     if (percentage > 50) return "bg-rose-500";
     if (percentage > 25) return "bg-amber-500";
     return "bg-emerald-500";
-  };
+  }, [getPendingPercentage]);
 
   if (!isOpen || !item) return null;
 
@@ -1362,10 +1209,6 @@ const DispatchModal = ({
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
           }
-          @keyframes fadeOut {
-            from { opacity: 1; transform: scale(1); }
-            to { opacity: 0; transform: scale(0.95); }
-          }
           @keyframes slideIn {
             from { opacity: 0; transform: translateX(-20px); }
             to { opacity: 1; transform: translateX(0); }
@@ -1374,12 +1217,8 @@ const DispatchModal = ({
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
           }
-          .animate-slideIn {
-            animation: slideIn 0.3s ease-out;
-          }
-          .animate-pulse-slow {
-            animation: pulse 2s infinite;
-          }
+          .animate-slideIn { animation: slideIn 0.3s ease-out; }
+          .animate-pulse-slow { animation: pulse 2s infinite; }
         `}
       </style>
 
@@ -1397,7 +1236,6 @@ const DispatchModal = ({
               : "w-full max-w-5xl rounded-3xl"
           } ${isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
         >
-          {/* Modal Header */}
           <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 px-5 py-4 sm:px-6">
             <div className="absolute inset-0 opacity-10">
               <div
@@ -1407,7 +1245,7 @@ const DispatchModal = ({
                     "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
                   backgroundSize: "20px 20px",
                 }}
-              ></div>
+              />
             </div>
 
             <div className="flex items-center justify-between relative z-10">
@@ -1416,18 +1254,21 @@ const DispatchModal = ({
                   <Truck className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3
-                    id="dispatch-modal-title"
-                    className="text-lg font-bold tracking-tight text-white"
-                  >
+                  <h3 id="dispatch-modal-title" className="text-lg font-bold tracking-tight text-white">
                     Dispatch Management
                   </h3>
-                  <p className="text-sm text-blue-100">
-                    Update dispatch details for {item?.po || "PO"}
-                  </p>
+                  <p className="text-sm text-blue-100">Update dispatch details for {item?.po || "PO"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen((current) => !current)}
+                  className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                  aria-label={isFullscreen ? "Exit fullscreen" : "Open fullscreen"}
+                >
+                  {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                </button>
                 <button
                   onClick={onClose}
                   className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
@@ -1443,7 +1284,6 @@ const DispatchModal = ({
             className={`thin-scrollbar bg-slate-50 ${isFullscreen ? "h-[calc(100vh-72px)] overflow-y-auto" : "max-h-[calc(100vh-7rem)] overflow-y-auto"}`}
           >
             <div className="px-4 py-5 sm:px-6">
-              {/* Item Summary */}
               <div className="mb-5 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="flex items-center gap-2">
@@ -1461,9 +1301,7 @@ const DispatchModal = ({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Company</p>
-                      <p className="font-medium text-gray-800">
-                        {item?.company}
-                      </p>
+                      <p className="font-medium text-gray-800">{item?.company}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1479,11 +1317,7 @@ const DispatchModal = ({
                             : "bg-yellow-100 text-yellow-800"
                         }`}
                       >
-                        {item?.pending === 0 ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : (
-                          <Clock3 className="h-3 w-3" />
-                        )}
+                        {item?.pending === 0 ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
                         {item?.pending === 0 ? "Completed" : "Pending"}
                       </span>
                     </div>
@@ -1494,9 +1328,7 @@ const DispatchModal = ({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Pending %</p>
-                      <p className="font-medium text-gray-800">
-                        {getPendingPercentage().toFixed(1)}%
-                      </p>
+                      <p className="font-medium text-gray-800">{getPendingPercentage().toFixed(1)}%</p>
                     </div>
                   </div>
                 </div>
@@ -1513,12 +1345,11 @@ const DispatchModal = ({
                         width: `${100 - getPendingPercentage()}%`,
                         transition: "width 1s ease-in-out",
                       }}
-                    ></div>
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Tab Navigation */}
               <div className="mb-4 inline-flex rounded-xl bg-slate-200/70 p-1">
                 <button
                   onClick={() => setActiveTab("dispatch")}
@@ -1548,17 +1379,12 @@ const DispatchModal = ({
                 </button>
               </div>
 
-              {/* Dispatch History */}
               {activeTab === "history" && (
                 <div className="thin-scrollbar mb-6 max-h-[440px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-100/70 p-4">
                   {dispatchHistory && dispatchHistory.length > 0 ? (
                     <div className="space-y-3">
                       {dispatchHistory.map((entry, index) => (
-                        <DispatchHistoryItem
-                          key={index}
-                          entry={entry}
-                          index={index}
-                        />
+                        <DispatchHistoryItem key={entry._id || index} entry={entry} index={index} />
                       ))}
                     </div>
                   ) : (
@@ -1570,9 +1396,17 @@ const DispatchModal = ({
                 </div>
               )}
 
-              {/* Dispatch Form */}
               {activeTab === "dispatch" && (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {errors.form && (
+                    <div
+                      className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                      role="alert"
+                    >
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{errors.form}</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="transform transition-all hover:scale-[1.01]">
                       <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
@@ -1667,9 +1501,7 @@ const DispatchModal = ({
                     </div>
 
                     <div className="sm:col-span-2 transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Remarks
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
                       <textarea
                         value={remarks}
                         onChange={(e) => setRemarks(e.target.value)}
@@ -1714,7 +1546,7 @@ const DispatchModal = ({
       </div>
     </div>
   );
-};
+});
 
 // ============================================
 // PENDING PO MANAGER CLASS
@@ -1728,29 +1560,13 @@ class PendingPOManager {
   }
 
   calculateSummary() {
-    const totalPending = this.data.reduce(
-      (sum, item) => sum + (item.pending || 0),
-      0,
-    );
-    const totalDispatched = this.data.reduce(
-      (sum, item) => sum + (item.dispatched || 0),
-      0,
-    );
-    const totalPOQty = this.data.reduce(
-      (sum, item) => sum + (item.poQty || 0),
-      0,
-    );
-    const totalValue = this.data.reduce(
-      (sum, item) => sum + (item.total || 0),
-      0,
-    );
+    const totalPending = this.data.reduce((sum, item) => sum + (item.pending || 0), 0);
+    const totalDispatched = this.data.reduce((sum, item) => sum + (item.dispatched || 0), 0);
+    const totalPOQty = this.data.reduce((sum, item) => sum + (item.poQty || 0), 0);
+    const totalValue = this.data.reduce((sum, item) => sum + (item.total || 0), 0);
     const uniquePOs = new Set(this.data.map((item) => item.po).filter(Boolean));
-    const uniqueCompanies = new Set(
-      this.data.map((item) => item.company).filter(Boolean),
-    );
-    const uniqueDrawings = new Set(
-      this.data.map((item) => item.drawing).filter(Boolean),
-    );
+    const uniqueCompanies = new Set(this.data.map((item) => item.company).filter(Boolean));
+    const uniqueDrawings = new Set(this.data.map((item) => item.drawing).filter(Boolean));
     const completedItems = this.data.filter((item) => item.pending <= 0).length;
     const partialItems = this.data.filter(
       (item) => item.pending > 0 && item.dispatched > 0,
@@ -1758,12 +1574,6 @@ class PendingPOManager {
     const untouchedItems = this.data.filter(
       (item) => item.pending > 0 && item.dispatched <= 0,
     ).length;
-    const highRiskItems = this.data.filter((item) => {
-      const total = Number(item.poQty) || 0;
-      if (total <= 0) return false;
-      const remaining = ((Number(item.pending) || 0) / total) * 100;
-      return remaining >= 75;
-    }).length;
 
     return {
       totalPending,
@@ -1777,10 +1587,8 @@ class PendingPOManager {
       completedItems,
       partialItems,
       untouchedItems,
-      highRiskItems,
       pendingPercentage: totalPOQty > 0 ? (totalPending / totalPOQty) * 100 : 0,
-      dispatchedPercentage:
-        totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
+      dispatchedPercentage: totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
     };
   }
 
@@ -1815,10 +1623,8 @@ class PendingPOManager {
     Object.keys(stats).forEach((company) => {
       const s = stats[company];
       s.totalPOs = s.poCount.size;
-      s.completionRate =
-        s.itemCount > 0 ? (s.completedItems / s.itemCount) * 100 : 0;
-      s.pendingRate =
-        s.itemCount > 0 ? (s.pendingItems / s.itemCount) * 100 : 0;
+      s.completionRate = s.itemCount > 0 ? (s.completedItems / s.itemCount) * 100 : 0;
+      s.pendingRate = s.itemCount > 0 ? (s.pendingItems / s.itemCount) * 100 : 0;
       s.avgPendingPerPO = s.totalPOs > 0 ? s.totalPending / s.totalPOs : 0;
       delete s.poCount;
     });
@@ -1834,10 +1640,7 @@ class PendingPOManager {
         categories.add("Bus Bars");
       } else if (desc.toLowerCase().includes("heat sink")) {
         categories.add("Heat Sinks");
-      } else if (
-        desc.toLowerCase().includes("accessory") ||
-        desc.toLowerCase().includes("assembly")
-      ) {
+      } else if (desc.toLowerCase().includes("accessory") || desc.toLowerCase().includes("assembly")) {
         categories.add("Accessories");
       } else if (desc.toLowerCase().includes("hardware")) {
         categories.add("Hardware");
@@ -1883,39 +1686,25 @@ class PendingPOManager {
     if (filters.category && filters.category !== "all") {
       filtered = filtered.filter((item) => {
         const desc = item.item || "";
-        if (filters.category === "Bus Bars")
-          return desc.toLowerCase().includes("bus bar");
-        if (filters.category === "Heat Sinks")
-          return desc.toLowerCase().includes("heat sink");
+        if (filters.category === "Bus Bars") return desc.toLowerCase().includes("bus bar");
+        if (filters.category === "Heat Sinks") return desc.toLowerCase().includes("heat sink");
         if (filters.category === "Accessories")
-          return (
-            desc.toLowerCase().includes("accessory") ||
-            desc.toLowerCase().includes("assembly")
-          );
-        if (filters.category === "Hardware")
-          return desc.toLowerCase().includes("hardware");
-        if (filters.category === "Plates")
-          return desc.toLowerCase().includes("plate");
+          return desc.toLowerCase().includes("accessory") || desc.toLowerCase().includes("assembly");
+        if (filters.category === "Hardware") return desc.toLowerCase().includes("hardware");
+        if (filters.category === "Plates") return desc.toLowerCase().includes("plate");
         return true;
       });
     }
 
     if (filters.minPending !== undefined && filters.minPending !== "") {
-      filtered = filtered.filter(
-        (item) => item.pending >= Number(filters.minPending),
-      );
+      filtered = filtered.filter((item) => item.pending >= Number(filters.minPending));
     }
 
     if (filters.maxPending !== undefined && filters.maxPending !== "") {
-      filtered = filtered.filter(
-        (item) => item.pending <= Number(filters.maxPending),
-      );
+      filtered = filtered.filter((item) => item.pending <= Number(filters.maxPending));
     }
 
-    if (
-      filters.dateRange &&
-      (filters.dateRange.start || filters.dateRange.end)
-    ) {
+    if (filters.dateRange && (filters.dateRange.start || filters.dateRange.end)) {
       const start = filters.dateRange.start
         ? new Date(`${filters.dateRange.start}T00:00:00`)
         : new Date(-8640000000000000);
@@ -1954,16 +1743,16 @@ class PendingPOManager {
 }
 
 // ============================================
-// STAT CARD COMPONENT
+// STAT CARD COMPONENT - FIXED
 // ============================================
-const StatCard = ({
-  label,
-  value,
-  helper,
-  icon: Icon,
-  tone = "blue",
-  progress,
-}) => {
+const StatCard = React.memo(function StatCard({ 
+  label, 
+  value, 
+  helper, 
+  icon: Icon, 
+  tone = "blue", 
+  progress 
+}) {
   const tones = {
     blue: {
       icon: "bg-blue-50 text-blue-600 ring-blue-100",
@@ -2021,7 +1810,150 @@ const StatCard = ({
       </div>
     </article>
   );
-};
+});
+
+// ============================================
+// TABLE ROW COMPONENT - NEW
+// ============================================
+const TableRow = React.memo(function TableRow({
+  item,
+  itemKey,
+  isSelected,
+  isItemHovered,
+  onToggleSelection,
+  onDispatchClick,
+  onHoverStart,
+  onHoverEnd,
+  dispatchHistory,
+  getCompletionPercentage,
+  getRiskMeta,
+  formatCurrency,
+  formatDate,
+  getCategory,
+  index
+}) {
+  const historyCount = dispatchHistory[itemKey]?.length || 0;
+  const completion = getCompletionPercentage(item);
+  const risk = getRiskMeta(item);
+
+  return (
+    <tr
+      className={`hover:bg-blue-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+      onMouseEnter={() => onHoverStart(itemKey)}
+      onMouseLeave={onHoverEnd}
+    >
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelection(item)}
+          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+          aria-label={`Select ${item.po} ${item.item}`}
+        />
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+            {(item.company || "?").charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p
+              className="max-w-[145px] truncate text-sm font-semibold text-slate-800"
+              title={item.company}
+            >
+              {item.company || "Unknown"}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {getCategory(item.item)}
+            </p>
+          </div>
+        </div>
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <p className="font-mono text-sm font-semibold text-slate-800">
+          {item.po || "—"}
+        </p>
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+          <CalendarDays className="h-3 w-3" />
+          {formatDate(item.poDate)}
+        </p>
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <p
+          className="max-w-[240px] truncate text-sm font-medium text-slate-800"
+          title={item.item}
+        >
+          {item.item || "Unnamed item"}
+        </p>
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+          <span>{item.itemCode || "No code"}</span>
+          <span className="h-1 w-1 rounded-full bg-slate-300" />
+          <span>{item.drawing || "No drawing"}</span>
+        </div>
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <div className="mb-1.5 flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-slate-600">
+            {completion.toFixed(0)}%
+          </span>
+          <span className="text-slate-400">fulfilled</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+            style={{ width: `${completion}%` }}
+          />
+        </div>
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        {Number(item.poQty || 0).toLocaleString("en-IN")}
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        {Number(item.dispatched || 0).toLocaleString("en-IN")}
+      </td>
+      <td
+        className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
+      >
+        {Number(item.pending || 0).toLocaleString("en-IN")}
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        {formatCurrency(item.rate)}
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        {formatCurrency(item.total)}
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
+          {risk.label}
+        </span>
+      </td>
+      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+        <button
+          onClick={() => onDispatchClick(item)}
+          className={`relative mx-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+            isItemHovered
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+          }`}
+          title={item.pending > 0 ? "Record dispatch" : "View dispatch history"}
+        >
+          {item.pending > 0 ? <Truck className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
+          {item.pending > 0 ? "Dispatch" : "Review"}
+          {historyCount > 0 && (
+            <span
+              className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${isItemHovered ? "bg-white/20" : "bg-blue-200 text-blue-800"}`}
+            >
+              {historyCount}
+            </span>
+          )}
+        </button>
+      </td>
+    </tr>
+  );
+});
 
 // ============================================
 // MAIN COMPONENT
@@ -2029,7 +1961,6 @@ const StatCard = ({
 const GeneratePendingList = () => {
   const [data, setData] = useState([]);
   const [manager, setManager] = useState(null);
-  const [filteredData, setFilteredData] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState("all");
@@ -2041,6 +1972,7 @@ const GeneratePendingList = () => {
   const [maxPending, setMaxPending] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [isLoading, setIsLoading] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [viewMode, setViewMode] = useState("table");
   const [selectedItems, setSelectedItems] = useState(new Set());
@@ -2049,8 +1981,7 @@ const GeneratePendingList = () => {
   const [notification, setNotification] = useState(null);
   const [selectedItemForDispatch, setSelectedItemForDispatch] = useState(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
-  const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] =
-    useState(false);
+  const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState({});
   const [isHovered, setIsHovered] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -2058,17 +1989,51 @@ const GeneratePendingList = () => {
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [isGlobalHistoryOpen, setIsGlobalHistoryOpen] = useState(false);
 
-  const getCategory = (description = "") => {
+  // ✅ Use useTransition for smoother updates
+  const [isPending, startTransition] = useTransition();
+
+  const getCategory = useCallback((description = "") => {
     const value = String(description).toLowerCase();
     if (value.includes("bus bar")) return "Bus Bars";
     if (value.includes("heat sink")) return "Heat Sinks";
-    if (value.includes("accessory") || value.includes("assembly")) {
-      return "Accessories";
-    }
+    if (value.includes("accessory") || value.includes("assembly")) return "Accessories";
     if (value.includes("hardware")) return "Hardware";
     if (value.includes("plate")) return "Plates";
     return "Others";
-  };
+  }, []);
+
+  const getItemKey = useCallback((item) =>
+    String(
+      item?._id ||
+        [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
+          .filter(Boolean)
+          .join("::"),
+    ), []
+  );
+
+  // ✅ Use useMemo for filtered data instead of state
+  const filteredData = useMemo(() => {
+    if (!manager) return [];
+    const filters = {
+      company: selectedCompany,
+      searchTerm: debouncedSearchTerm,
+      status: selectedStatus,
+      category: selectedCategory,
+      minPending: minPending,
+      maxPending: maxPending,
+      dateRange: dateRange,
+    };
+    return manager.filterData(filters);
+  }, [
+    manager,
+    selectedCompany,
+    debouncedSearchTerm,
+    selectedStatus,
+    selectedCategory,
+    minPending,
+    maxPending,
+    dateRange,
+  ]);
 
   const filteredManager = useMemo(
     () => (filteredData.length > 0 ? new PendingPOManager(filteredData) : null),
@@ -2110,14 +2075,9 @@ const GeneratePendingList = () => {
     return sortedData.slice(start, start + pageSize);
   }, [sortedData, currentPage, pageSize]);
 
-  const getItemKey = (item) =>
-    [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
-      .filter(Boolean)
-      .join("::");
-
   const selectedRows = useMemo(
     () => data.filter((item) => selectedItems.has(getItemKey(item))),
-    [data, selectedItems],
+    [data, selectedItems, getItemKey],
   );
 
   const companyRanking = useMemo(() => {
@@ -2140,15 +2100,7 @@ const GeneratePendingList = () => {
         dateRange.start,
         dateRange.end,
       ].filter(Boolean).length,
-    [
-      searchTerm,
-      selectedCompany,
-      selectedStatus,
-      selectedCategory,
-      minPending,
-      maxPending,
-      dateRange,
-    ],
+    [searchTerm, selectedCompany, selectedStatus, selectedCategory, minPending, maxPending, dateRange],
   );
 
   useEffect(() => {
@@ -2157,85 +2109,43 @@ const GeneratePendingList = () => {
     return () => window.clearTimeout(timer);
   }, [notification]);
 
-  // Parse Excel file
-  const parseExcelFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const workbook = XLSX.read(e.target.result, { type: "array" });
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+  // ✅ Optimized loadPurchaseOrders with startTransition
+  const loadPurchaseOrders = useCallback(async ({ quiet = false, signal } = {}) => {
+    if (!quiet) setIsLoading(true);
+    try {
+      const result = await pendingPoApi.listAll({ signal });
+      const records = result.records || [];
+      const nextManager = new PendingPOManager(records);
+      const nextHistory = {};
 
-          const mappedData = jsonData
-            .map((row) => {
-              const po = row["PO"] || row["PO Number"] || row["PO #"] || "";
-              const poDate =
-                row["PO Date"] ||
-                row["Date"] ||
-                new Date().toISOString().split("T")[0];
-              const deliveryDate =
-                row["Delivery Date"] || row["Due Date"] || "";
-              const drawing = row["Drawing"] || row["Drawing #"] || "";
-              const itemCode = row["Item Code"] || row["Code"] || "";
-              const item =
-                row["Item"] ||
-                row["Description"] ||
-                row["Item Description"] ||
-                "";
-              const poQty = Math.max(
-                0,
-                Number(row["PO Qty"] || row["Quantity"] || 0),
-              );
-              const dispatched = Math.min(
-                poQty,
-                Math.max(
-                  0,
-                  Number(row["Dispatched"] || row["Dispatched Qty"] || 0),
-                ),
-              );
-              const pending = Math.max(0, poQty - dispatched);
-              const rate = Math.max(
-                0,
-                Number(row["Rate"] || row["Unit Price"] || 0),
-              );
-              const total = pending * rate;
-              const company =
-                row["Company Name"] || row["Company"] || "Unknown";
-              const status = pending > 0 ? "Pending" : "Completed";
+      records.forEach((item) => {
+        nextHistory[getItemKey(item)] = Array.isArray(item.dispatchHistory)
+          ? item.dispatchHistory
+          : [];
+      });
 
-              return {
-                company: company.toString().trim(),
-                po: po.toString().trim(),
-                poDate: poDate,
-                deliveryDate,
-                drawing: drawing.toString().trim(),
-                itemCode: itemCode.toString().trim(),
-                item: item.toString().trim(),
-                poQty: poQty,
-                dispatched: dispatched,
-                pending: pending,
-                status: status,
-                rate: rate,
-                total: total,
-              };
-            })
-            .filter(
-              (item) => item.po || item.itemCode || item.drawing || item.item,
-            );
+      startTransition(() => {
+        setData(records);
+        setManager(nextManager);
+        setDispatchHistory(nextHistory);
+        setCompanies(["all", ...Object.keys(nextManager.companyStats)]);
+        setCategories(["all", ...nextManager.itemCategories]);
+        setSelectedItems(new Set());
+        setIsDataReady(true);
+        if (!quiet) setIsLoading(false);
+      });
+    } catch (error) {
+      if (!quiet) {
+        setIsLoading(false);
+        setNotification({
+          message: getApiErrorMessage(error, "Could not load purchase orders"),
+          type: "error",
+        });
+      }
+    }
+  }, [getItemKey, startTransition]);
 
-          resolve(mappedData);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () =>
-        reject(new Error("The selected file could not be read"));
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  const handleFileUpload = async (event) => {
+  const handleFileUpload = useCallback(async (event) => {
     const file = event.target.files[0];
     if (file) {
       if (!/\.(xlsx|xls)$/i.test(file.name)) {
@@ -2247,63 +2157,45 @@ const GeneratePendingList = () => {
       setIsLoading(true);
 
       try {
-        const parsedData = await parseExcelFile(file);
-        if (!parsedData.length) {
-          throw new Error("No usable purchase-order rows were found");
-        }
+        const result = await pendingPoApi.importFile(file);
         setUploadedFile(file);
-        setData(parsedData);
-        const newManager = new PendingPOManager(parsedData);
-        setManager(newManager);
         setSelectedItems(new Set());
-        setDispatchHistory({});
         setSortConfig({ key: null, direction: "asc" });
         setCurrentPage(1);
         clearFilters();
+        await loadPurchaseOrders({ quiet: true });
 
-        setCompanies(["all", ...Object.keys(newManager.companyStats)]);
-        setCategories(["all", ...newManager.itemCategories]);
-
-        applyFilters(newManager, "all", "", "all", "all", "", "", {
-          start: "",
-          end: "",
-        });
-
+        const warningCount = Number(result.skipped || 0);
         showNotification(
-          `${parsedData.length.toLocaleString("en-IN")} records loaded successfully`,
-          "success",
+          `${result.inserted || 0} inserted, ${result.updated || 0} updated${
+            warningCount ? `, ${warningCount} skipped` : ""
+          }`,
+          warningCount ? "warning" : "success",
         );
       } catch (error) {
-        console.error("Error parsing file:", error);
+        console.error("Error importing file:", error);
         showNotification(
-          error?.message ||
-            "Could not parse the file. Please check its columns.",
+          getApiErrorMessage(error, "Could not import the file. Please check its columns."),
           "error",
         );
+      } finally {
+        setIsLoading(false);
+        event.target.value = "";
       }
-
-      setIsLoading(false);
-      event.target.value = "";
     }
-  };
+  }, [loadPurchaseOrders]);
 
-  const applyFilters = useCallback(
-    (mgr, company, search, status, category, min, max, date) => {
-      const filters = {
-        company,
-        searchTerm: search,
-        status,
-        category,
-        minPending: min,
-        maxPending: max,
-        dateRange: date,
-      };
-
-      const filtered = mgr ? mgr.filterData(filters) : [];
-      setFilteredData(filtered);
-    },
-    [],
-  );
+  useEffect(() => {
+    const controller = new AbortController();
+    loadPurchaseOrders({ signal: controller.signal }).catch((error) => {
+      if (error?.code === "ERR_CANCELED") return;
+      setNotification({
+        message: getApiErrorMessage(error, "Saved purchase orders could not be loaded"),
+        type: "error",
+      });
+    });
+    return () => controller.abort();
+  }, [loadPurchaseOrders]);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -2314,31 +2206,6 @@ const GeneratePendingList = () => {
   }, [searchTerm]);
 
   useEffect(() => {
-    if (manager) {
-      applyFilters(
-        manager,
-        selectedCompany,
-        debouncedSearchTerm,
-        selectedStatus,
-        selectedCategory,
-        minPending,
-        maxPending,
-        dateRange,
-      );
-    }
-  }, [
-    manager,
-    selectedCompany,
-    debouncedSearchTerm,
-    selectedStatus,
-    selectedCategory,
-    minPending,
-    maxPending,
-    dateRange,
-    applyFilters,
-  ]);
-
-  useEffect(() => {
     if (manager && companies.length === 0) {
       setCompanies(["all", ...Object.keys(manager.companyStats)]);
       setCategories(["all", ...manager.itemCategories]);
@@ -2347,112 +2214,46 @@ const GeneratePendingList = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [
-    debouncedSearchTerm,
-    selectedCompany,
-    selectedStatus,
-    selectedCategory,
-    minPending,
-    maxPending,
-    dateRange,
-    pageSize,
-  ]);
+  }, [debouncedSearchTerm, selectedCompany, selectedStatus, selectedCategory, minPending, maxPending, dateRange, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const handleDispatchUpdate = (updateData) => {
-    // Check if this is a bulk update
-    if (updateData.isBulk && updateData.updates) {
-      // Bulk update
-      const newData = [...data];
-      const updates = updateData.updates || [];
+  const handleDispatchUpdate = useCallback(async (payload) => {
+    const result = payload.isBulk
+      ? await pendingPoApi.createBulkDispatch(payload)
+      : await pendingPoApi.createDispatch(payload);
 
-      updates.forEach((update) => {
-        const itemKey = getItemKey(update.item);
-        const index = newData.findIndex(
-          (entry) => getItemKey(entry) === itemKey,
-        );
+    await loadPurchaseOrders({ quiet: true });
 
-        if (index !== -1 && !update.skipped) {
-          const updatedItem = {
-            ...newData[index],
-            dispatched: update.dispatched,
-            pending: update.pending,
-            status: update.status,
-            total: update.pending * (Number(newData[index].rate) || 0),
-            lastDispatch: update.dispatchEntry,
-          };
-
-          newData[index] = updatedItem;
-
-          // Update dispatch history
-          if (update.dispatchEntry) {
-            setDispatchHistory((current) => ({
-              ...current,
-              [itemKey]: [...(current[itemKey] || []), update.dispatchEntry],
-            }));
-          }
-        }
-      });
-
-      setData(newData);
-      setManager(new PendingPOManager(newData));
-
-      const successCount = updateData.totalProcessed || 0;
-      const failCount = updateData.totalFailed || 0;
-
-      let message = `Successfully dispatched ${successCount} items`;
-      if (failCount > 0) {
-        message += `, ${failCount} item(s) skipped`;
-      }
-      showNotification(message, successCount > 0 ? "success" : "warning");
-    } else if (!updateData.isBulk && updateData.dispatchEntry) {
-      // Single item update
-      const itemKey = getItemKey(selectedItemForDispatch);
-      const index = data.findIndex((entry) => getItemKey(entry) === itemKey);
-
-      if (index !== -1) {
-        const updatedItem = {
-          ...data[index],
-          dispatched: updateData.dispatched,
-          pending: updateData.pending,
-          status: updateData.status,
-          total: updateData.pending * (Number(data[index].rate) || 0),
-          lastDispatch: updateData.lastDispatch,
-        };
-
-        const newData = [...data];
-        newData[index] = updatedItem;
-        setData(newData);
-        setManager(new PendingPOManager(newData));
-
-        if (updateData.dispatchEntry) {
-          setDispatchHistory((current) => ({
-            ...current,
-            [itemKey]: [...(current[itemKey] || []), updateData.dispatchEntry],
-          }));
-        }
-
-        showNotification(
-          `Dispatch updated successfully! New pending: ${updateData.pending}`,
-          "success",
-        );
-      }
+    if (payload.isBulk) {
+      const successCount = Number(result.totalProcessed ?? result.successful?.length ?? 0);
+      const failCount = Number(result.totalFailed ?? result.failed?.length ?? 0);
+      showNotification(
+        `${successCount} item(s) dispatched${failCount ? `, ${failCount} skipped` : ""}`,
+        failCount ? "warning" : "success",
+      );
+    } else {
+      showNotification(
+        `Dispatch saved. New pending quantity: ${result.updatedPO?.pending ?? "-"}`,
+        "success",
+      );
     }
-  };
 
-  const openDispatchModal = (item) => {
+    return result;
+  }, [loadPurchaseOrders]);
+
+  const openDispatchModal = useCallback((item) => {
     const itemKey = getItemKey(item);
     setSelectedItemForDispatch({
       ...item,
       dispatchHistory: dispatchHistory[itemKey] || [],
     });
     setIsDispatchModalOpen(true);
-  };
+  }, [dispatchHistory, getItemKey]);
 
-  const openMultipleDispatchModal = () => {
+  const openMultipleDispatchModal = useCallback(() => {
     const itemsToDispatch = data.filter(
       (item) => selectedItems.has(getItemKey(item)) && (item.pending || 0) > 0,
     );
@@ -2462,7 +2263,6 @@ const GeneratePendingList = () => {
       return;
     }
 
-    // Pass the dispatch history for each item
     const itemsWithHistory = itemsToDispatch.map((item) => ({
       ...item,
       dispatchHistory: dispatchHistory[getItemKey(item)] || [],
@@ -2470,7 +2270,7 @@ const GeneratePendingList = () => {
 
     setSelectedItemForDispatch(itemsWithHistory);
     setIsMultipleDispatchModalOpen(true);
-  };
+  }, [data, selectedItems, getItemKey, dispatchHistory]);
 
   const closeDispatchModal = useCallback(() => {
     setIsDispatchModalOpen(false);
@@ -2478,24 +2278,24 @@ const GeneratePendingList = () => {
     setSelectedItemForDispatch(null);
   }, []);
 
-  const openGlobalHistory = () => {
+  const openGlobalHistory = useCallback(() => {
     setIsGlobalHistoryOpen(true);
-  };
+  }, []);
 
-  const showNotification = (message, type = "info") => {
+  const showNotification = useCallback((message, type = "info") => {
     setNotification({ message, type });
-  };
+  }, []);
 
-  const formatCurrency = (value) => {
+  const formatCurrency = useCallback((value) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
-  };
+  }, []);
 
-  const formatDate = (dateStr) => {
+  const formatDate = useCallback((dateStr) => {
     if (!dateStr) return "-";
     try {
       const date = new Date(dateStr);
@@ -2508,18 +2308,15 @@ const GeneratePendingList = () => {
     } catch {
       return dateStr;
     }
-  };
+  }, []);
 
-  const getCompletionPercentage = (item) => {
+  const getCompletionPercentage = useCallback((item) => {
     const total = Number(item?.poQty) || 0;
     if (total <= 0) return 0;
-    return Math.min(
-      100,
-      Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100),
-    );
-  };
+    return Math.min(100, Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100));
+  }, []);
 
-  const getRiskMeta = (item) => {
+  const getRiskMeta = useCallback((item) => {
     if ((Number(item?.pending) || 0) <= 0) {
       return {
         label: "Completed",
@@ -2548,9 +2345,9 @@ const GeneratePendingList = () => {
       dot: "bg-blue-500",
       badge: "bg-blue-50 text-blue-700 ring-blue-200",
     };
-  };
+  }, [getCompletionPercentage]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedCompany("all");
     setSearchTerm("");
     setSelectedStatus("all");
@@ -2558,22 +2355,21 @@ const GeneratePendingList = () => {
     setMinPending("");
     setMaxPending("");
     setDateRange({ start: "", end: "" });
-  };
+  }, []);
 
-  const handleSort = (key) => {
+  const handleSort = useCallback((key) => {
     setSortConfig((current) => ({
       key,
-      direction:
-        current.key === key && current.direction === "asc" ? "desc" : "asc",
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
     }));
-  };
+  }, []);
 
-  const getSortIcon = (key) => {
+  const getSortIcon = useCallback((key) => {
     if (sortConfig.key !== key) return ArrowUpDown;
     return sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
-  };
+  }, [sortConfig]);
 
-  const renderSortHeader = (label, key, align = "left") => {
+  const renderSortHeader = useCallback((label, key, align = "left") => {
     const SortIcon = getSortIcon(key);
     return (
       <button
@@ -2589,9 +2385,9 @@ const GeneratePendingList = () => {
         />
       </button>
     );
-  };
+  }, [getSortIcon, handleSort, sortConfig.key]);
 
-  const toggleItemSelection = (item) => {
+  const toggleItemSelection = useCallback((item) => {
     const itemKey = getItemKey(item);
     setSelectedItems((current) => {
       const next = new Set(current);
@@ -2599,12 +2395,11 @@ const GeneratePendingList = () => {
       else next.add(itemKey);
       return next;
     });
-  };
+  }, [getItemKey]);
 
-  const togglePageSelection = () => {
+  const togglePageSelection = useCallback(() => {
     const pageKeys = paginatedData.map(getItemKey);
-    const allSelected =
-      pageKeys.length > 0 && pageKeys.every((key) => selectedItems.has(key));
+    const allSelected = pageKeys.length > 0 && pageKeys.every((key) => selectedItems.has(key));
 
     setSelectedItems((current) => {
       const next = new Set(current);
@@ -2614,9 +2409,26 @@ const GeneratePendingList = () => {
       });
       return next;
     });
-  };
+  }, [paginatedData, getItemKey, selectedItems]);
 
-  const exportRows = (rows, label = "filtered") => {
+  const handleHoverStart = useCallback((key) => {
+    setIsHovered(key);
+  }, []);
+
+  const handleHoverEnd = useCallback(() => {
+    setIsHovered(null);
+  }, []);
+
+  const handleDispatchClick = useCallback((item) => {
+    const itemKey = getItemKey(item);
+    setSelectedItemForDispatch({
+      ...item,
+      dispatchHistory: dispatchHistory[itemKey] || [],
+    });
+    setIsDispatchModalOpen(true);
+  }, [dispatchHistory, getItemKey]);
+
+  const exportRows = useCallback((rows, label = "filtered") => {
     if (!rows.length) {
       showNotification("No records available to export", "warning");
       return;
@@ -2640,65 +2452,28 @@ const GeneratePendingList = () => {
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     worksheet["!cols"] = [
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 13 },
-      { wch: 13 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 36 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 12 },
-      { wch: 16 },
+      { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 13 },
+      { wch: 18 }, { wch: 16 }, { wch: 36 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 },
+      { wch: 12 }, { wch: 16 },
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pending PO");
     const stamp = new Date().toISOString().split("T")[0];
     XLSX.writeFile(workbook, `pending-po-${label}-${stamp}.xlsx`);
     showNotification(`${rows.length} records exported`, "success");
-  };
+  }, [getCompletionPercentage, showNotification]);
 
-  const downloadTemplate = () => {
-    const worksheet = XLSX.utils.aoa_to_sheet([
-      [
-        "Company Name",
-        "PO Number",
-        "PO Date",
-        "Delivery Date",
-        "Drawing",
-        "Item Code",
-        "Item Description",
-        "PO Qty",
-        "Dispatched Qty",
-        "Rate",
-      ],
-    ]);
-    worksheet["!cols"] = [
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 13 },
-      { wch: 13 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 36 },
-      { wch: 12 },
-      { wch: 15 },
-      { wch: 12 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "PO Import");
-    XLSX.writeFile(workbook, "pending-po-import-template.xlsx");
-    showNotification("Blank import template downloaded", "success");
-  };
+  const downloadTemplate = useCallback(async () => {
+    try {
+      await pendingPoApi.downloadTemplate();
+      showNotification("Import template downloaded", "success");
+    } catch (error) {
+      showNotification(getApiErrorMessage(error, "Template could not be downloaded"), "error");
+    }
+  }, [showNotification]);
 
-  const handlePrint = () => window.print();
-
-  // Render notification
-  const renderNotification = () => {
+  const renderNotification = useCallback(() => {
     if (!notification) return null;
 
     const variants = {
@@ -2731,15 +2506,13 @@ const GeneratePendingList = () => {
         className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-2xl border p-3 pr-4 shadow-2xl shadow-slate-900/10 ${variant.classes} animate-slideIn`}
         role="status"
       >
-        <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}
-        >
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}>
           <NotificationIcon className="h-4 w-4" />
         </span>
         <span className="text-sm font-medium">{notification.message}</span>
       </div>
     );
-  };
+  }, [notification]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/70 to-indigo-50 p-3 text-slate-900 sm:p-5 lg:p-6">
@@ -2753,18 +2526,8 @@ const GeneratePendingList = () => {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
           }
-          .animate-slideIn {
-            animation: slideIn 0.3s ease-out;
-          }
-          .animate-fadeInUp {
-            animation: fadeInUp 0.5s ease-out;
-          }
-          .premium-grid {
-            background-image:
-              linear-gradient(rgba(255,255,255,.075) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,.075) 1px, transparent 1px);
-            background-size: 28px 28px;
-          }
+          .animate-slideIn { animation: slideIn 0.3s ease-out; }
+          .animate-fadeInUp { animation: fadeInUp 0.5s ease-out; }
           .thin-scrollbar::-webkit-scrollbar { width: 7px; height: 7px; }
           .thin-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
           .thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -2773,18 +2536,11 @@ const GeneratePendingList = () => {
               animation: none !important;
             }
           }
-          @media print {
-            body { background: white !important; }
-            .no-print { display: none !important; }
-            .print-card { box-shadow: none !important; break-inside: avoid; }
-            .print-table { overflow: visible !important; }
-          }
         `}
       </style>
 
       {renderNotification()}
 
-      {/* Dispatch Modal */}
       <DispatchModal
         isOpen={isDispatchModalOpen}
         onClose={closeDispatchModal}
@@ -2793,7 +2549,6 @@ const GeneratePendingList = () => {
         dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
       />
 
-      {/* Multiple Dispatch Modal */}
       <MultipleDispatchModal
         isOpen={isMultipleDispatchModalOpen}
         onClose={closeDispatchModal}
@@ -2802,18 +2557,16 @@ const GeneratePendingList = () => {
         dispatchHistory={dispatchHistory}
       />
 
-      {/* Global Dispatch History Modal */}
       <GlobalDispatchHistoryModal
         isOpen={isGlobalHistoryOpen}
         onClose={() => setIsGlobalHistoryOpen(false)}
         dispatchHistory={dispatchHistory}
-        formatCurrency={formatCurrency}
         formatDate={formatDate}
       />
 
       <div className="mx-auto max-w-[1600px]">
         {/* Header */}
-        <header className=" relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
+        <header className="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-indigo-300/20 blur-3xl" />
 
@@ -2824,7 +2577,7 @@ const GeneratePendingList = () => {
               </div>
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center  gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-white backdrop-blur-sm">
                     <Sparkles className="h-3 w-3" /> Operations workspace
                   </span>
                 </div>
@@ -2832,8 +2585,7 @@ const GeneratePendingList = () => {
                   Pending PO
                 </h1>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-white">
-                  Track commitments, prioritize pending quantities, and record
-                  every dispatch from one responsive workspace.
+                  Track commitments, prioritize pending quantities, and record every dispatch from one responsive workspace.
                 </p>
               </div>
             </div>
@@ -2851,12 +2603,27 @@ const GeneratePendingList = () => {
                 className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
               >
                 <Upload className="h-4 w-4" />
-                {uploadedFile ? "Replace Excel" : "Upload Excel"}
+                {data.length > 0 ? "Import / update Excel" : "Upload Excel"}
               </label>
 
-              {uploadedFile && (
+              {isDataReady && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    loadPurchaseOrders().catch((error) =>
+                      showNotification(getApiErrorMessage(error, "Refresh failed"), "error"),
+                    )
+                  }
+                  disabled={isLoading || isPending}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading || isPending ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+              )}
+
+              {data.length > 0 && (
                 <>
-                  {/* View Dispatch History Button */}
                   <button
                     type="button"
                     onClick={openGlobalHistory}
@@ -2879,19 +2646,21 @@ const GeneratePendingList = () => {
             </div>
           </div>
 
-          {uploadedFile && (
+          {isDataReady && (
             <div className="relative mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/15 bg-slate-950/10 px-4 py-3 text-xs text-blue-50 backdrop-blur-sm">
               <span className="flex min-w-0 items-center gap-2 font-medium">
                 <FileSpreadsheet className="h-4 w-4 shrink-0" />
                 <span className="max-w-[280px] truncate">
-                  {uploadedFile.name}
+                  {uploadedFile?.name || "Saved purchase-order records"}
                 </span>
               </span>
-              <span>{(uploadedFile.size / 1024).toFixed(1)} KB</span>
+              {uploadedFile?.size ? (
+                <span>{(uploadedFile.size / 1024).toFixed(1)} KB imported</span>
+              ) : null}
               <span>{manager?.summary.totalPOs || 0} purchase orders</span>
               <span>{manager?.summary.totalCompanies || 0} companies</span>
               <span className="ml-auto flex items-center gap-1.5 text-blue-100">
-                <ShieldCheck className="h-3.5 w-3.5" /> Parsed and ready
+                <ShieldCheck className="h-3.5 w-3.5" /> Synced with database
               </span>
             </div>
           )}
@@ -2914,11 +2683,7 @@ const GeneratePendingList = () => {
                 onClick={() => setShowAnalytics((current) => !current)}
                 className="no-print inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
               >
-                {showAnalytics ? (
-                  <EyeOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" />
-                )}
+                {showAnalytics ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 {showAnalytics ? "Hide insights" : "Show insights"}
               </button>
             </div>
@@ -2940,7 +2705,6 @@ const GeneratePendingList = () => {
                 tone="emerald"
                 progress={manager.summary.dispatchedPercentage}
               />
-
               <StatCard
                 label="Active portfolio"
                 value={`${manager.summary.totalCompanies} companies`}
@@ -2955,12 +2719,8 @@ const GeneratePendingList = () => {
                 <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">
-                        Fulfilment overview
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Quantity-weighted progress
-                      </p>
+                      <p className="text-sm font-bold text-slate-900">Fulfilment overview</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Quantity-weighted progress</p>
                     </div>
                     <Gauge className="h-5 w-5 text-blue-600" />
                   </div>
@@ -2984,33 +2744,16 @@ const GeneratePendingList = () => {
                     </div>
                     <div className="min-w-0 flex-1 space-y-3">
                       {[
-                        [
-                          "Completed",
-                          manager.summary.completedItems,
-                          "bg-emerald-500",
-                        ],
-                        [
-                          "In progress",
-                          manager.summary.partialItems,
-                          "bg-blue-500",
-                        ],
-                        [
-                          "Not started",
-                          manager.summary.untouchedItems,
-                          "bg-rose-500",
-                        ],
+                        ["Completed", manager.summary.completedItems, "bg-emerald-500"],
+                        ["In progress", manager.summary.partialItems, "bg-blue-500"],
+                        ["Not started", manager.summary.untouchedItems, "bg-rose-500"],
                       ].map(([label, value, color]) => (
-                        <div
-                          key={label}
-                          className="flex items-center justify-between gap-3 text-xs"
-                        >
+                        <div key={label} className="flex items-center justify-between gap-3 text-xs">
                           <span className="flex items-center gap-2 text-slate-500">
                             <span className={`h-2 w-2 rounded-full ${color}`} />
                             {label}
                           </span>
-                          <span className="font-bold text-slate-800">
-                            {value}
-                          </span>
+                          <span className="font-bold text-slate-800">{value}</span>
                         </div>
                       ))}
                     </div>
@@ -3020,27 +2763,18 @@ const GeneratePendingList = () => {
                 <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">
-                        Company workload
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Highest pending quantity first
-                      </p>
+                      <p className="text-sm font-bold text-slate-900">Company workload</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Highest pending quantity first</p>
                     </div>
                     <BarChart3 className="h-5 w-5 text-blue-600" />
                   </div>
                   <div className="mt-4 space-y-3.5">
                     {companyRanking.map((company) => {
-                      const maxPending = Math.max(
-                        1,
-                        ...companyRanking.map((entry) => entry.totalPending),
-                      );
+                      const maxPending = Math.max(1, ...companyRanking.map((entry) => entry.totalPending));
                       return (
                         <div key={company.company}>
                           <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-                            <span className="truncate font-medium text-slate-700">
-                              {company.company}
-                            </span>
+                            <span className="truncate font-medium text-slate-700">{company.company}</span>
                             <span className="shrink-0 font-bold text-slate-900">
                               {company.totalPending.toLocaleString("en-IN")}
                             </span>
@@ -3048,9 +2782,7 @@ const GeneratePendingList = () => {
                           <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                              style={{
-                                width: `${(company.totalPending / maxPending) * 100}%`,
-                              }}
+                              style={{ width: `${(company.totalPending / maxPending) * 100}%` }}
                             />
                           </div>
                         </div>
@@ -3073,9 +2805,7 @@ const GeneratePendingList = () => {
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Filters
-                    </h3>
+                    <h3 className="text-sm font-bold text-slate-900">Filters</h3>
                     {activeFilterCount > 0 && (
                       <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
                         {activeFilterCount} active
@@ -3099,11 +2829,7 @@ const GeneratePendingList = () => {
                   onClick={() => setShowFilters((current) => !current)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  {showFilters ? (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5" />
-                  )}
+                  {showFilters ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   {showFilters ? "Collapse" : "Expand"}
                 </button>
               </div>
@@ -3159,6 +2885,22 @@ const GeneratePendingList = () => {
                           {category === "all" ? "All categories" : category}
                         </option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Status
+                    </label>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    >
+                      <option value="all">All statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="partial">Partial</option>
+                      <option value="completed">Completed</option>
                     </select>
                   </div>
 
@@ -3235,12 +2977,8 @@ const GeneratePendingList = () => {
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-50">
               <RefreshCw className="h-7 w-7 animate-spin text-blue-600" />
             </div>
-            <p className="mt-5 font-semibold text-slate-800">
-              Building your PO workspace
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              Reading, validating, and organizing the Excel records...
-            </p>
+            <p className="mt-5 font-semibold text-slate-800">Loading your PO workspace</p>
+            <p className="mt-1 text-sm text-slate-400">Reading saved purchase orders and dispatch history...</p>
           </div>
         ) : data.length > 0 ? (
           <section className="print-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.45)] animate-fadeInUp">
@@ -3248,17 +2986,13 @@ const GeneratePendingList = () => {
             <div className="no-print flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900">
-                    Purchase order
-                  </h2>
+                  <h2 className="text-base font-bold text-slate-900">Purchase order</h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    {filteredData.length.toLocaleString("en-IN")} of{" "}
-                    {data.length.toLocaleString("en-IN")}
+                    {filteredData.length.toLocaleString("en-IN")} of {data.length.toLocaleString("en-IN")}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Select records, sort columns, or open an item to record
-                  dispatch
+                  Select records, sort columns, or open an item to record dispatch
                 </p>
               </div>
 
@@ -3285,7 +3019,6 @@ const GeneratePendingList = () => {
                       </button>
                     </div>
 
-                    {/* Multiple Dispatch Button */}
                     <button
                       type="button"
                       onClick={openMultipleDispatchModal}
@@ -3324,9 +3057,7 @@ const GeneratePendingList = () => {
                           type="checkbox"
                           checked={
                             paginatedData.length > 0 &&
-                            paginatedData.every((item) =>
-                              selectedItems.has(getItemKey(item)),
-                            )
+                            paginatedData.every((item) => selectedItems.has(getItemKey(item)))
                           }
                           onChange={togglePageSelection}
                           className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
@@ -3371,153 +3102,35 @@ const GeneratePendingList = () => {
                   <tbody className="divide-y divide-gray-100">
                     {paginatedData.map((item, index) => {
                       const itemKey = getItemKey(item);
-                      const historyCount =
-                        dispatchHistory[itemKey]?.length || 0;
-                      const isItemHovered = isHovered === itemKey;
-                      const completion = getCompletionPercentage(item);
-                      const risk = getRiskMeta(item);
                       const isSelected = selectedItems.has(itemKey);
+                      const isItemHovered = isHovered === itemKey;
 
                       return (
-                        <tr
+                        <TableRow
                           key={itemKey}
-                          className={`hover:bg-blue-50 ${
-                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                          }`}
-                          onMouseEnter={() => setIsHovered(itemKey)}
-                          onMouseLeave={() => setIsHovered(null)}
-                        >
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleItemSelection(item)}
-                              className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-                              aria-label={`Select ${item.po} ${item.item}`}
-                            />
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <div className="flex items-center gap-2.5">
-                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
-                                {(item.company || "?").charAt(0).toUpperCase()}
-                              </span>
-                              <div className="min-w-0">
-                                <p
-                                  className="max-w-[145px] truncate text-sm font-semibold text-slate-800"
-                                  title={item.company}
-                                >
-                                  {item.company || "Unknown"}
-                                </p>
-                                <p className="text-[11px] text-slate-400">
-                                  {getCategory(item.item)}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <p className="font-mono text-sm font-semibold text-slate-800">
-                              {item.po || "—"}
-                            </p>
-                            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
-                              <CalendarDays className="h-3 w-3" />
-                              {formatDate(item.poDate)}
-                            </p>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <p
-                              className="max-w-[240px] truncate text-sm font-medium text-slate-800"
-                              title={item.item}
-                            >
-                              {item.item || "Unnamed item"}
-                            </p>
-                            <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
-                              <span>{item.itemCode || "No code"}</span>
-                              <span className="h-1 w-1 rounded-full bg-slate-300" />
-                              <span>{item.drawing || "No drawing"}</span>
-                            </div>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                              <span className="font-semibold text-slate-600">
-                                {completion.toFixed(0)}%
-                              </span>
-                              <span className="text-slate-400">fulfilled</span>
-                            </div>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                                style={{ width: `${completion}%` }}
-                              />
-                            </div>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            {Number(item.poQty || 0).toLocaleString("en-IN")}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            {Number(item.dispatched || 0).toLocaleString(
-                              "en-IN",
-                            )}
-                          </td>
-                          <td
-                            className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
-                          >
-                            {Number(item.pending || 0).toLocaleString("en-IN")}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            {formatCurrency(item.rate)}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            {formatCurrency(item.total)}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
-                            >
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full ${risk.dot}`}
-                              />
-                              {risk.label}
-                            </span>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                            <button
-                              onClick={() => openDispatchModal(item)}
-                              className={`relative mx-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                                isItemHovered
-                                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                                  : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                              }`}
-                              title={
-                                item.pending > 0
-                                  ? "Record dispatch"
-                                  : "View dispatch history"
-                              }
-                            >
-                              {item.pending > 0 ? (
-                                <Truck className="h-3.5 w-3.5" />
-                              ) : (
-                                <History className="h-3.5 w-3.5" />
-                              )}
-                              {item.pending > 0 ? "Dispatch" : "Review"}
-                              {historyCount > 0 && (
-                                <span
-                                  className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${isItemHovered ? "bg-white/20" : "bg-blue-200 text-blue-800"}`}
-                                >
-                                  {historyCount}
-                                </span>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
+                          item={item}
+                          itemKey={itemKey}
+                          isSelected={isSelected}
+                          isItemHovered={isItemHovered}
+                          onToggleSelection={toggleItemSelection}
+                          onDispatchClick={handleDispatchClick}
+                          onHoverStart={handleHoverStart}
+                          onHoverEnd={handleHoverEnd}
+                          dispatchHistory={dispatchHistory}
+                          getCompletionPercentage={getCompletionPercentage}
+                          getRiskMeta={getRiskMeta}
+                          formatCurrency={formatCurrency}
+                          formatDate={formatDate}
+                          getCategory={getCategory}
+                          index={index}
+                        />
                       );
                     })}
                     {paginatedData.length === 0 && (
                       <tr>
                         <td colSpan="12" className="px-6 py-16 text-center">
                           <Search className="mx-auto h-8 w-8 text-slate-300" />
-                          <p className="mt-3 text-sm font-semibold text-slate-700">
-                            No records match these filters
-                          </p>
+                          <p className="mt-3 text-sm font-semibold text-slate-700">No records match these filters</p>
                           <button
                             type="button"
                             onClick={clearFilters}
@@ -3544,19 +3157,14 @@ const GeneratePendingList = () => {
                       : (currentPage - 1) * pageSize + 1}
                     –{Math.min(currentPage * pageSize, sortedData.length)}
                   </strong>{" "}
-                  of{" "}
-                  <strong className="text-slate-800">
-                    {sortedData.length}
-                  </strong>
+                  of <strong className="text-slate-800">{sortedData.length}</strong>
                 </span>
                 {filteredManager && (
                   <>
                     <span>
                       Pending{" "}
                       <strong className="text-rose-600">
-                        {filteredManager.summary.totalPending.toLocaleString(
-                          "en-IN",
-                        )}
+                        {filteredManager.summary.totalPending.toLocaleString("en-IN")}
                       </strong>
                     </span>
                     <span>
@@ -3596,9 +3204,7 @@ const GeneratePendingList = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setCurrentPage((page) => Math.max(1, page - 1))
-                    }
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     disabled={currentPage === 1}
                     className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Previous page"
@@ -3610,9 +3216,7 @@ const GeneratePendingList = () => {
                   </span>
                   <button
                     type="button"
-                    onClick={() =>
-                      setCurrentPage((page) => Math.min(totalPages, page + 1))
-                    }
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                     disabled={currentPage === totalPages}
                     className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Next page"
@@ -3639,7 +3243,7 @@ const GeneratePendingList = () => {
               <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-600/25">
                 <FileSpreadsheet className="h-9 w-9" />
               </div>
-              
+
               <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
                 Start with your source file
               </p>
@@ -3647,8 +3251,7 @@ const GeneratePendingList = () => {
                 Turn your pending PO sheet into an operating dashboard
               </h2>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-                Upload an Excel file and the workspace will organize quantities,
-                company workload, progress, and dispatch history.
+                Upload an Excel file and the workspace will organize quantities, company workload, progress, and dispatch history.
               </p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
                 <label
@@ -3669,16 +3272,13 @@ const GeneratePendingList = () => {
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and
-                  .xls
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and .xls
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> No data
-                  leaves this screen
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Saved to your database
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Instant
-                  analytics
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Instant analytics
                 </span>
               </div>
             </div>
