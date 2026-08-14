@@ -3244,6 +3244,7 @@ const GeneratePendingList = () => {
         type: "error",
       });
     });
+    
     return () => controller.abort();
   }, [loadPurchaseOrders]);
 
