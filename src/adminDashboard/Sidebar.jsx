@@ -75,13 +75,7 @@ const menuItems = [
     roles: ["client"],
     group: "Procurement",
   },
-  // {
-  //   title: "QR Code",
-  //   icon: <ShoppingBag size={18} />,
-  //   path: "/qr",
-  //   roles: ["admin"],
-  //   group: "Procurement",
-  // },
+ 
   {
     title: "Purchase Order(PO)",
     icon: <ShoppingBag size={18} />,
@@ -90,21 +84,15 @@ const menuItems = [
     group: "Procurement",
   },
   {
-    title: "Request RFQ",
+    title: "Client RFQs",
     icon: <FileMinus size={18} />,
     path: "/request-rfq",
     roles: ["client", "admin"],
     group: "Procurement",
   },
-  // {
-  //   title: "Import Old data",
-  //   icon: <FileMinus size={18} />,
-  //   path: "/import-old-data",
-  //   roles: ["admin"],
-  //   group: "Procurement",
-  // },
+ 
   {
-    title: "Quote Details",
+    title: "Website Quotes",
     icon: <MessageSquareQuote size={18} />,
     path: "/quote-details",
     roles: ["admin"],
@@ -128,36 +116,28 @@ const menuItems = [
   },
 
   {
-    title: "Update Dispatch",
+    title: "Dispatch Management",
     icon: <PackageCheck size={18} />,
     path: "/update-dispatch",
     roles: ["admin"],
     group: "Order Management",
   },
   {
-    title: "Rejection Items",
+    title: "Rejected Items",
     icon: <Ban size={18} />,
     path: "/rejection-items",
     roles: ["admin", "client","qc"],
     group: "Order Management",
   },
-  // {
-  //   title: "Supervisor",
-  //   icon: <Ban size={18} />,
-  //   path: "/supervisor",
-  //   roles: ["admin", "client"],
-  //   group: "Order Management",
-  // },
-  // Engineering & Quality
   {
-    title: "QC Reports",
+    title: "Quality Reports",
     icon: <TbReportSearch size={18} />,
     path: "/qc-reports",
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
   },
   {
-    title: "QC Inspection",
+    title: "Quality Inspection",
     icon: <Book  size={18} />,
     path: "/qc-inspection",
     roles: ["client", "admin","qc"],
@@ -171,22 +151,12 @@ const menuItems = [
     group: "Engineering & Quality",
   },
   {
-    title: "Generate Pendinglist",
+    title: "Pending List",
     icon: <PenTool size={18} />,
     path: "/generate/pendinglist",
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
   },
-
-  // {
-  //   title: "Drawing & Documents",
-  //   icon: <PenTool size={18} />,
-  //   path: "/drawing-details",
-  //   roles: ["admin"],
-  //   group: "Engineering & Quality",
-  // },
-
-  // Production
   {
     title: "Inventory",
     icon: <Warehouse size={18} />,
@@ -211,7 +181,7 @@ const menuItems = [
     group: "Product Catalog",
   },
   {
-    title: "Products",
+    title: "Product Catalog",
     icon: <ShoppingCart size={18} />,
     path: "/admin/products",
     roles: ["admin"],
@@ -227,7 +197,7 @@ const menuItems = [
     group: "CRM",
   },
   {
-    title: "Contact Details",
+    title: "Contacts",
     icon: <Contact size={18} />,
     path: "/contact-details",
     roles: ["admin"],
@@ -252,7 +222,7 @@ const menuItems = [
 
   // Content Management
   {
-    title: "Blogs",
+    title: "Blog Management",
     icon: <PencilLine size={18} />,
     path: "/blog-details",
     roles: ["admin"],
@@ -261,7 +231,7 @@ const menuItems = [
 
   // Administration
   {
-    title: "Users",
+    title: "User Management",
     icon: <Users size={18} />,
     path: "/users",
     roles: ["admin"],
@@ -291,7 +261,7 @@ const menuItems = [
 
   // Support
   {
-    title: "Support Ticket",
+    title: "Support Tickets",
     icon: <Tickets size={18} />,
     path: "/support-ticket",
     roles: ["client", "admin"],
