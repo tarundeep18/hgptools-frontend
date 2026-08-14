@@ -52,7 +52,7 @@ import { Link } from "react-router-dom";
 
 const ai = new GoogleGenAI({
   apiKey:
-    import.meta.env.REACT_APP_GEMINI_API_KEY });
+    import.meta.env.VITE_REACT_APP_GEMINI_API_KEY});
 
 // Updated schema with orderNumber as required
 const orderItemSchema = {
