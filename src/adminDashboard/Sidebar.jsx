@@ -27,6 +27,7 @@ import {
   History,
   Ban,
   Book,
+  List,
 } from "lucide-react";
 
 import { MdPeopleAlt } from "react-icons/md";
@@ -152,7 +153,7 @@ const menuItems = [
   },
   {
     title: "Pending List",
-    icon: <PenTool size={18} />,
+    icon: <List  size={18} />,
     path: "/generate/pendinglist",
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",

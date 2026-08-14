@@ -3244,7 +3244,7 @@ const GeneratePendingList = () => {
         type: "error",
       });
     });
-    
+
     return () => controller.abort();
   }, [loadPurchaseOrders]);
 
@@ -3849,7 +3849,7 @@ const GeneratePendingList = () => {
                   Portfolio snapshot
                 </p>
                 <h2 className="mt-1 text-lg font-bold tracking-tight text-slate-900">
-                  Dispatch performance at a glance
+                  Dispatch performance
                 </h2>
               </div>
               <button
