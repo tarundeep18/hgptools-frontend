@@ -10086,7 +10086,7 @@ const QC = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/30">
       <div className="bg-white rounded-2xl shadow-lg mb-8 overflow-hidden">
         {/* Header */}
-        <div className="relative overflow-hidden bg-blue-700 border-b border-blue-700/50 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 shadow-xl">
+        <div className="relative overflow-hidden   bg-blue-700 border-b border-blue-700/50 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 shadow-xl">
           {/* Subtle ambient light effects for depth */}
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-10 w-64 h-64 bg-indigo-600/10 rounded-full blur-2xl pointer-events-none" />
