@@ -1,5 +1,11 @@
 import React from "react";
-import { useState, useCallback, useMemo, useEffect, useTransition } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useTransition,
+} from "react";
 import * as XLSX from "xlsx";
 import {
   createDispatchRequestId,
@@ -18,6 +24,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ChevronsLeft,
   ChevronsRight,
   CircleAlert,
@@ -48,15 +56,19 @@ import {
   X,
   AlertCircle,
   Layers,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 // ============================================
 // DISPATCH HISTORY BILL DETAILS COMPONENT
 // ============================================
-const DispatchBillDetails = React.memo(function DispatchBillDetails({ 
-  billNumber, 
-  entries, 
-  onClose 
+const DispatchBillDetails = React.memo(function DispatchBillDetails({
+  billNumber,
+  entries,
+  onClose,
+  onEditDispatch,
+  onDeleteDispatch,
 }) {
   const totalItems = entries.length;
   const totalQuantity = entries.reduce(
@@ -67,6 +79,25 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
   const transportMode = entries[0]?.transportMode;
   const remarks = entries[0]?.remarks;
   const receivedBy = entries[0]?.receivedBy;
+
+  const handleEdit = useCallback(
+    (entry) => {
+      onEditDispatch?.(entry, billNumber);
+    },
+    [onEditDispatch, billNumber],
+  );
+
+  const handleDelete = useCallback(
+    (dispatchId, poId) => {
+      if (!dispatchId) return;
+      if (
+        window.confirm("Are you sure you want to delete this dispatch entry?")
+      ) {
+        onDeleteDispatch?.(dispatchId, poId);
+      }
+    },
+    [onDeleteDispatch],
+  );
 
   return (
     <div
@@ -150,23 +181,48 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">#</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">PO Number</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Company</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Item</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Qty Dispatched</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">Pending</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    #
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    PO Number
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    Company
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">
+                    Item
+                  </th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
+                    Qty Dispatched
+                  </th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
+                    Pending
+                  </th>
+                  <th className="text-center px-3 py-2 text-xs font-semibold text-gray-600">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {entries.map((entry, idx) => (
-                  <tr key={entry.po + idx} className="hover:bg-blue-50 transition">
-                    <td className="px-3 py-2 text-xs text-gray-500">{idx + 1}</td>
+                  <tr
+                    key={entry.po + idx}
+                    className="hover:bg-blue-50 transition"
+                  >
+                    <td className="px-3 py-2 text-xs text-gray-500">
+                      {idx + 1}
+                    </td>
                     <td className="px-3 py-2 font-mono text-sm font-semibold text-gray-800">
                       {entry.po || "-"}
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{entry.company || "-"}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate" title={entry.item}>
+                    <td className="px-3 py-2 text-sm text-gray-700">
+                      {entry.company || "-"}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-sm text-gray-700 max-w-[200px] truncate"
+                      title={entry.item}
+                    >
                       {entry.item || "-"}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-green-600">
@@ -174,6 +230,30 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
                     </td>
                     <td className="px-3 py-2 text-right text-gray-600">
                       {entry.newPending ?? entry.pending ?? 0}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleEdit(entry)}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition"
+                          title="Edit dispatch"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const dispatchId = entry._id || entry.id;
+                            const poId = entry.poId;
+                            if (dispatchId && poId) {
+                              handleDelete(dispatchId, poId);
+                            }
+                          }}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                          title="Delete dispatch"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -198,218 +278,269 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
 // ============================================
 // GLOBAL DISPATCH HISTORY MODAL
 // ============================================
-const GlobalDispatchHistoryModal = React.memo(function GlobalDispatchHistoryModal({
-  isOpen,
-  onClose,
-  dispatchHistory,
-  formatDate,
-}) {
-  const [selectedBill, setSelectedBill] = useState(null);
-  const [showBillDetails, setShowBillDetails] = useState(false);
+const GlobalDispatchHistoryModal = React.memo(
+  function GlobalDispatchHistoryModal({
+    isOpen,
+    onClose,
+    dispatchHistory,
+    formatDate,
+    onDispatchEdit,
+    onDispatchDelete,
+  }) {
+    const [selectedBill, setSelectedBill] = useState(null);
+    const [showBillDetails, setShowBillDetails] = useState(false);
 
-  const allBills = useMemo(() => {
-    const bills = {};
-    Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
-      history.forEach((entry) => {
-        const bill = entry.billNumber || "Unknown Bill";
-        if (!bills[bill]) {
-          bills[bill] = {
-            billNumber: bill,
-            entries: [],
-            dispatchDate: entry.dispatchDate,
-            transportMode: entry.transportMode,
-            remarks: entry.remarks,
-            receivedBy: entry.receivedBy,
-            totalItems: 0,
-            totalQuantity: 0,
-          };
-        }
-        bills[bill].entries.push({
-          ...entry,
-          itemKey,
-          po: entry.po || "Unknown PO",
-          company: entry.company || "Unknown Company",
-          item: entry.item || "Unknown Item",
+    const allBills = useMemo(() => {
+      const bills = {};
+      Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
+        history.forEach((entry) => {
+          const bill = entry.billNumber || "Unknown Bill";
+          if (!bills[bill]) {
+            bills[bill] = {
+              billNumber: bill,
+              entries: [],
+              dispatchDate: entry.dispatchDate,
+              transportMode: entry.transportMode,
+              remarks: entry.remarks,
+              receivedBy: entry.receivedBy,
+              totalItems: 0,
+              totalQuantity: 0,
+            };
+          }
+          bills[bill].entries.push({
+            ...entry,
+            itemKey,
+            po: entry.po || "Unknown PO",
+            company: entry.company || "Unknown Company",
+            item: entry.item || "Unknown Item",
+            poId: entry.poId || entry.poId,
+          });
+          bills[bill].totalItems += 1;
+          bills[bill].totalQuantity += entry.dispatchQty || 0;
         });
-        bills[bill].totalItems += 1;
-        bills[bill].totalQuantity += entry.dispatchQty || 0;
       });
-    });
-    return Object.values(bills).sort(
-      (a, b) => new Date(b.dispatchDate) - new Date(a.dispatchDate),
+      return Object.values(bills).sort(
+        (a, b) => new Date(b.dispatchDate) - new Date(a.dispatchDate),
+      );
+    }, [dispatchHistory]);
+
+    const totalBills = allBills.length;
+    const totalItemsDispatched = allBills.reduce(
+      (sum, bill) => sum + bill.totalItems,
+      0,
     );
-  }, [dispatchHistory]);
+    const totalQuantityDispatched = allBills.reduce(
+      (sum, bill) => sum + bill.totalQuantity,
+      0,
+    );
 
-  const totalBills = allBills.length;
-  const totalItemsDispatched = allBills.reduce(
-    (sum, bill) => sum + bill.totalItems,
-    0,
-  );
-  const totalQuantityDispatched = allBills.reduce(
-    (sum, bill) => sum + bill.totalQuantity,
-    0,
-  );
+    const handleEditDispatch = useCallback(
+      (entry, billNumber) => {
+        setShowBillDetails(false);
+        setSelectedBill(null);
+        onDispatchEdit?.(entry, billNumber);
+      },
+      [onDispatchEdit],
+    );
 
-  if (!isOpen) return null;
+    const handleDeleteDispatch = useCallback(
+      async (dispatchId, poId) => {
+        if (!dispatchId) return;
+        try {
+          await onDispatchDelete?.({ dispatchId, poId });
+          setShowBillDetails(false);
+          setSelectedBill(null);
+        } catch (error) {
+          console.error("Failed to delete dispatch:", error);
+        }
+      },
+      [onDispatchDelete],
+    );
 
-  return (
-    <>
-      {showBillDetails && selectedBill && (
-        <DispatchBillDetails
-          billNumber={selectedBill.billNumber}
-          entries={selectedBill.entries}
-          onClose={() => {
-            setShowBillDetails(false);
-            setSelectedBill(null);
-          }}
-        />
-      )}
+    if (!isOpen) return null;
 
-      <div
-        className="fixed inset-0 z-[70] overflow-y-auto p-2 sm:p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="global-history-modal-title"
-      >
-        <div className="flex min-h-screen items-center justify-center">
-          <div
-            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm transition-all duration-300"
-            onClick={onClose}
-            aria-hidden="true"
+    return (
+      <>
+        {showBillDetails && selectedBill && (
+          <DispatchBillDetails
+            billNumber={selectedBill.billNumber}
+            entries={selectedBill.entries}
+            onClose={() => {
+              setShowBillDetails(false);
+              setSelectedBill(null);
+            }}
+            onEditDispatch={handleEditDispatch}
+            onDeleteDispatch={handleDeleteDispatch}
           />
+        )}
 
-          <div className="relative w-full max-w-6xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
-              <div className="absolute inset-0 opacity-10">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
-                    backgroundSize: "20px 20px",
-                  }}
-                />
+        <div
+          className="fixed inset-0 z-[70] overflow-y-auto p-2 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="global-history-modal-title"
+        >
+          <div className="flex min-h-screen items-center justify-center">
+            <div
+              className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm transition-all duration-300"
+              onClick={onClose}
+              aria-hidden="true"
+            />
+
+            <div className="relative w-full max-w-6xl overflow-hidden bg-white rounded-3xl shadow-2xl shadow-slate-950/25 ring-1 ring-white/20 transition-all duration-300 animate-fadeIn">
+              <div className="relative overflow-hidden bg-gradient-to-r from-indigo-700 via-purple-600 to-blue-700 px-5 py-4 sm:px-6">
+                <div className="absolute inset-0 opacity-10">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage:
+                        "radial-gradient(circle at 20% 50%, white 1px, transparent 1px)",
+                      backgroundSize: "20px 20px",
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
+                      <History className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3
+                        id="global-history-modal-title"
+                        className="text-lg font-bold tracking-tight text-white"
+                      >
+                        Dispatch History
+                      </h3>
+                      <p className="text-sm text-blue-100">
+                        {totalBills} bills · {totalItemsDispatched} items ·{" "}
+                        {totalQuantityDispatched} units
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                    aria-label="Close history dialog"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-white/15">
-                    <History className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3
-                      id="global-history-modal-title"
-                      className="text-lg font-bold tracking-tight text-white"
-                    >
-                      Dispatch History
-                    </h3>
-                    <p className="text-sm text-blue-100">
-                      {totalBills} bills · {totalItemsDispatched} items ·{" "}
-                      {totalQuantityDispatched} units
-                    </p>
-                  </div>
+              <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                <div className="px-4 py-5 sm:px-6">
+                  {allBills.length === 0 ? (
+                    <div className="text-center py-12">
+                      <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                      <p className="text-gray-500 text-lg">
+                        No dispatch history available
+                      </p>
+                      <p className="text-gray-400 text-sm mt-1">
+                        Dispatch some items to see history here
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {allBills.map((bill) => (
+                        <div
+                          key={bill.billNumber}
+                          className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => {
+                            setSelectedBill(bill);
+                            setShowBillDetails(true);
+                          }}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="font-mono font-bold text-indigo-600 text-sm">
+                                  #{bill.billNumber}
+                                </span>
+                                <span className="text-gray-300">|</span>
+                                <span className="text-xs text-gray-500">
+                                  {bill.dispatchDate
+                                    ? formatDate(bill.dispatchDate)
+                                    : "-"}
+                                </span>
+                                {bill.transportMode && (
+                                  <>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-xs text-gray-500">
+                                      🚚 {bill.transportMode}
+                                    </span>
+                                  </>
+                                )}
+                                {bill.receivedBy && (
+                                  <>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-xs text-gray-500">
+                                      👤 {bill.receivedBy}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  📦{" "}
+                                  <strong className="text-gray-700">
+                                    {bill.totalItems}
+                                  </strong>{" "}
+                                  item{bill.totalItems > 1 ? "s" : ""}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  📊{" "}
+                                  <strong className="text-gray-700">
+                                    {bill.totalQuantity}
+                                  </strong>{" "}
+                                  units
+                                </span>
+                                {bill.remarks && (
+                                  <span className="text-gray-400">
+                                    💬{" "}
+                                    {bill.remarks.length > 30
+                                      ? bill.remarks.substring(0, 30) + "..."
+                                      : bill.remarks}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBill(bill);
+                                  setShowBillDetails(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
+                              >
+                                View Details
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex justify-end">
                 <button
                   onClick={onClose}
-                  className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
-                  aria-label="Close history dialog"
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 bg-white rounded-lg hover:bg-gray-100 transition border border-gray-200"
                 >
-                  <X className="w-6 h-6" />
+                  Close
                 </button>
               </div>
             </div>
-
-            <div className="thin-scrollbar bg-slate-50 max-h-[calc(100vh-8rem)] overflow-y-auto">
-              <div className="px-4 py-5 sm:px-6">
-                {allBills.length === 0 ? (
-                  <div className="text-center py-12">
-                    <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500 text-lg">No dispatch history available</p>
-                    <p className="text-gray-400 text-sm mt-1">Dispatch some items to see history here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {allBills.map((bill) => (
-                      <div
-                        key={bill.billNumber}
-                        className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
-                        onClick={() => {
-                          setSelectedBill(bill);
-                          setShowBillDetails(true);
-                        }}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <span className="font-mono font-bold text-indigo-600 text-sm">
-                                #{bill.billNumber}
-                              </span>
-                              <span className="text-gray-300">|</span>
-                              <span className="text-xs text-gray-500">
-                                {bill.dispatchDate ? formatDate(bill.dispatchDate) : "-"}
-                              </span>
-                              {bill.transportMode && (
-                                <>
-                                  <span className="text-gray-300">|</span>
-                                  <span className="text-xs text-gray-500">🚚 {bill.transportMode}</span>
-                                </>
-                              )}
-                              {bill.receivedBy && (
-                                <>
-                                  <span className="text-gray-300">|</span>
-                                  <span className="text-xs text-gray-500">👤 {bill.receivedBy}</span>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs text-gray-500">
-                              <span className="flex items-center gap-1">
-                                📦 <strong className="text-gray-700">{bill.totalItems}</strong> item{bill.totalItems > 1 ? "s" : ""}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                📊 <strong className="text-gray-700">{bill.totalQuantity}</strong> units
-                              </span>
-                              {bill.remarks && (
-                                <span className="text-gray-400">
-                                  💬 {bill.remarks.length > 30 ? bill.remarks.substring(0, 30) + "..." : bill.remarks}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedBill(bill);
-                                setShowBillDetails(true);
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition"
-                            >
-                              View Details
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex justify-end">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 bg-white rounded-lg hover:bg-gray-100 transition border border-gray-200"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
-      </div>
-    </>
-  );
-});
+      </>
+    );
+  },
+);
 
 // ============================================
 // MULTIPLE DISPATCH MODAL COMPONENT
@@ -530,7 +661,8 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     });
 
     if (!hasValidQuantity) {
-      newErrors.dispatchQty = "Please enter valid quantities for at least one item";
+      newErrors.dispatchQty =
+        "Please enter valid quantities for at least one item";
     }
     if (invalidItems.length > 0) {
       newErrors.dispatchQty = `Invalid quantities for: ${invalidItems.join(", ")}`;
@@ -544,54 +676,79 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [selectedItems, individualQuantities, dispatchDate, billNumber, getItemKey]);
+  }, [
+    selectedItems,
+    individualQuantities,
+    dispatchDate,
+    billNumber,
+    getItemKey,
+  ]);
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!validate()) return;
 
-    setIsSubmitting(true);
-    setErrors((current) => ({ ...current, form: "" }));
+      setIsSubmitting(true);
+      setErrors((current) => ({ ...current, form: "" }));
 
-    try {
-      const items = selectedItems
-        .map((item) => ({
-          poId: item._id,
-          dispatchQty: Number(individualQuantities[getItemKey(item)]) || 0,
-        }))
-        .filter((item) => item.dispatchQty > 0);
+      try {
+        const items = selectedItems
+          .map((item) => ({
+            poId: item._id,
+            dispatchQty: Number(individualQuantities[getItemKey(item)]) || 0,
+          }))
+          .filter((item) => item.dispatchQty > 0);
 
-      await onDispatchUpdate({
-        isBulk: true,
-        requestId: createDispatchRequestId(),
-        items,
-        dispatchDate,
-        billNumber: billNumber.trim(),
-        remarks: remarks.trim(),
-        transportMode: transportMode.trim(),
-        trackingNumber: trackingNumber.trim(),
-        receivedBy: receivedBy.trim(),
-      });
-      onClose();
-    } catch (error) {
-      setErrors((current) => ({
-        ...current,
-        form: getApiErrorMessage(error, "Bulk dispatch could not be saved"),
+        await onDispatchUpdate({
+          isBulk: true,
+          requestId: createDispatchRequestId(),
+          items,
+          dispatchDate,
+          billNumber: billNumber.trim(),
+          remarks: remarks.trim(),
+          transportMode: transportMode.trim(),
+          trackingNumber: trackingNumber.trim(),
+          receivedBy: receivedBy.trim(),
+        });
+        onClose();
+      } catch (error) {
+        setErrors((current) => ({
+          ...current,
+          form: getApiErrorMessage(error, "Bulk dispatch could not be saved"),
+        }));
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      validate,
+      selectedItems,
+      individualQuantities,
+      getItemKey,
+      onDispatchUpdate,
+      dispatchDate,
+      billNumber,
+      remarks,
+      transportMode,
+      trackingNumber,
+      receivedBy,
+      onClose,
+    ],
+  );
+
+  const handleIndividualQuantityChange = useCallback(
+    (itemKey, value) => {
+      setIndividualQuantities((prev) => ({
+        ...prev,
+        [itemKey]: value,
       }));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [validate, selectedItems, individualQuantities, getItemKey, onDispatchUpdate, dispatchDate, billNumber, remarks, transportMode, trackingNumber, receivedBy, onClose]);
-
-  const handleIndividualQuantityChange = useCallback((itemKey, value) => {
-    setIndividualQuantities((prev) => ({
-      ...prev,
-      [itemKey]: value,
-    }));
-    if (errors.dispatchQty) {
-      setErrors((current) => ({ ...current, dispatchQty: "" }));
-    }
-  }, [errors.dispatchQty]);
+      if (errors.dispatchQty) {
+        setErrors((current) => ({ ...current, dispatchQty: "" }));
+      }
+    },
+    [errors.dispatchQty],
+  );
 
   const truncateText = useCallback((text, maxLength = 60) => {
     if (!text) return "-";
@@ -693,7 +850,9 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Total Items</p>
-                        <p className="font-medium text-gray-800">{selectedItems.length} POs</p>
+                        <p className="font-medium text-gray-800">
+                          {selectedItems.length} POs
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -756,7 +915,9 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   <span className="text-gray-300">|</span>
                                   <span className="text-xs text-gray-500">
                                     {group.dispatchDate
-                                      ? new Date(group.dispatchDate).toLocaleDateString("en-IN", {
+                                      ? new Date(
+                                          group.dispatchDate,
+                                        ).toLocaleDateString("en-IN", {
                                           day: "2-digit",
                                           month: "short",
                                           year: "numeric",
@@ -766,18 +927,27 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   {group.transportMode && (
                                     <>
                                       <span className="text-gray-300">|</span>
-                                      <span className="text-xs text-gray-500">🚚 {group.transportMode}</span>
+                                      <span className="text-xs text-gray-500">
+                                        🚚 {group.transportMode}
+                                      </span>
                                     </>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                  <span>📦 {group.totalItems} item{group.totalItems > 1 ? "s" : ""}</span>
+                                  <span>
+                                    📦 {group.totalItems} item
+                                    {group.totalItems > 1 ? "s" : ""}
+                                  </span>
                                   <span>📊 {group.totalQuantity} units</span>
-                                  {group.receivedBy && <span>👤 {group.receivedBy}</span>}
+                                  {group.receivedBy && (
+                                    <span>👤 {group.receivedBy}</span>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-indigo-600 font-medium">View Details</span>
+                                <span className="text-xs text-indigo-600 font-medium">
+                                  View Details
+                                </span>
                                 <ChevronRight className="w-4 h-4 text-gray-400" />
                               </div>
                             </div>
@@ -793,14 +963,18 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                     <label className="block text-sm font-medium text-gray-700">
                       Set Quantity Per Item
                     </label>
-                    <span className="text-xs text-gray-500">Enter quantity for each item below</span>
+                    <span className="text-xs text-gray-500">
+                      Enter quantity for each item below
+                    </span>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                     <div className="space-y-3">
                       {selectedItems.map((item) => {
                         const itemKey = getItemKey(item);
-                        const historyCount = dispatchHistory[itemKey]?.length || 0;
-                        const individualQty = individualQuantities[itemKey] || "";
+                        const historyCount =
+                          dispatchHistory[itemKey]?.length || 0;
+                        const individualQty =
+                          individualQuantities[itemKey] || "";
                         const maxQty = item.pending || 0;
 
                         return (
@@ -835,7 +1009,10 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   {item.drawing && (
                                     <>
                                       <span className="text-gray-300">|</span>
-                                      <span className="text-gray-500 font-mono" title={item.drawing}>
+                                      <span
+                                        className="text-gray-500 font-mono"
+                                        title={item.drawing}
+                                      >
                                         📐 {item.drawing}
                                       </span>
                                     </>
@@ -852,16 +1029,24 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
 
                                 <div className="mt-1">
                                   <span className="text-xs text-gray-500">
-                                    Pending: <span className="font-semibold text-rose-600">{maxQty}</span>
+                                    Pending:{" "}
+                                    <span className="font-semibold text-rose-600">
+                                      {maxQty}
+                                    </span>
                                     {item.poQty && (
-                                      <span className="text-gray-400"> (Total: {item.poQty})</span>
+                                      <span className="text-gray-400">
+                                        {" "}
+                                        (Total: {item.poQty})
+                                      </span>
                                     )}
                                   </span>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-2 sm:ml-4">
-                                <span className="text-xs text-gray-500 whitespace-nowrap">Qty:</span>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  Qty:
+                                </span>
                                 <input
                                   type="number"
                                   min="0"
@@ -869,12 +1054,17 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   value={individualQty}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    handleIndividualQuantityChange(itemKey, val);
+                                    handleIndividualQuantityChange(
+                                      itemKey,
+                                      val,
+                                    );
                                   }}
                                   className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                   placeholder="Enter qty"
                                 />
-                                <span className="text-xs text-gray-400 whitespace-nowrap">/ {maxQty}</span>
+                                <span className="text-xs text-gray-400 whitespace-nowrap">
+                                  / {maxQty}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -950,7 +1140,9 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Remarks
+                    </label>
                     <textarea
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
@@ -968,8 +1160,11 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       <div>
                         <p className="font-semibold">Bulk Dispatch Summary</p>
                         <p className="text-xs text-blue-600">
-                          This will dispatch specified quantities across {selectedItems.length} items.
-                          {Object.values(individualQuantities).some((qty) => Number(qty) > 0)
+                          This will dispatch specified quantities across{" "}
+                          {selectedItems.length} items.
+                          {Object.values(individualQuantities).some(
+                            (qty) => Number(qty) > 0,
+                          )
                             ? ` Total items with quantity: ${Object.values(individualQuantities).filter((qty) => Number(qty) > 0).length}`
                             : " Please enter quantities for items you want to dispatch."}
                         </p>
@@ -1016,7 +1211,36 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
 // ============================================
 // DISPATCH HISTORY ITEM COMPONENT
 // ============================================
-const DispatchHistoryItem = React.memo(function DispatchHistoryItem({ entry, index }) {
+const DispatchHistoryItem = React.memo(function DispatchHistoryItem({
+  entry,
+  index,
+  onEdit,
+  onDelete,
+  isEditable = false,
+}) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      if (!showDeleteConfirm) {
+        setShowDeleteConfirm(true);
+        return;
+      }
+      onDelete?.(entry._id || entry.id);
+      setShowDeleteConfirm(false);
+    },
+    [showDeleteConfirm, onDelete, entry],
+  );
+
+  const handleEditClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      onEdit?.(entry);
+    },
+    [onEdit, entry],
+  );
+
   return (
     <div className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm border border-gray-100 animate-slideIn">
       <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">
@@ -1035,10 +1259,14 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({ entry, ind
             })}
           </span>
           {entry.billNumber && (
-            <span className="text-xs text-gray-500">Bill: {entry.billNumber}</span>
+            <span className="text-xs text-gray-500">
+              Bill: {entry.billNumber}
+            </span>
           )}
           {entry.transportMode && (
-            <span className="text-xs text-gray-500">Mode: {entry.transportMode}</span>
+            <span className="text-xs text-gray-500">
+              Mode: {entry.transportMode}
+            </span>
           )}
           {entry.isBulkDispatch && (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
@@ -1047,28 +1275,67 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({ entry, ind
             </span>
           )}
           {entry.trackingNumber && (
-            <span className="text-xs text-gray-500">Tracking: {entry.trackingNumber}</span>
+            <span className="text-xs text-gray-500">
+              Tracking: {entry.trackingNumber}
+            </span>
           )}
         </div>
         {entry.remarks && (
           <p className="mt-1 text-xs text-gray-500">{entry.remarks}</p>
         )}
         {entry.receivedBy && (
-          <p className="mt-0.5 text-xs text-gray-400">Received by: {entry.receivedBy}</p>
+          <p className="mt-0.5 text-xs text-gray-400">
+            Received by: {entry.receivedBy}
+          </p>
         )}
       </div>
+      {isEditable && (
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={handleEditClick}
+            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+            title="Edit dispatch"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            className={`p-1.5 rounded-lg transition ${
+              showDeleteConfirm
+                ? "text-white bg-red-600 hover:bg-red-700"
+                : "text-red-500 hover:bg-red-50"
+            }`}
+            title={showDeleteConfirm ? "Confirm delete" : "Delete dispatch"}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          {showDeleteConfirm && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(false);
+              }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition text-xs"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 });
 
 // ============================================
-// DISPATCH MODAL COMPONENT
+// DISPATCH MODAL COMPONENT (with Edit/Delete)
 // ============================================
 const DispatchModal = React.memo(function DispatchModal({
   isOpen,
   onClose,
   item,
   onDispatchUpdate,
+  onDispatchEdit,
+  onDispatchDelete,
   dispatchHistory = [],
 }) {
   const [dispatchQty, setDispatchQty] = useState("");
@@ -1084,6 +1351,8 @@ const DispatchModal = React.memo(function DispatchModal({
   const [errors, setErrors] = useState({});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState("dispatch");
+  const [isEditingDispatch, setIsEditingDispatch] = useState(false);
+  const [editingDispatchEntry, setEditingDispatchEntry] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -1097,6 +1366,8 @@ const DispatchModal = React.memo(function DispatchModal({
     setReceivedBy("");
     setErrors({});
     setActiveTab((Number(item?.pending) || 0) > 0 ? "dispatch" : "history");
+    setIsEditingDispatch(false);
+    setEditingDispatchEntry(null);
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1136,55 +1407,76 @@ const DispatchModal = React.memo(function DispatchModal({
     return Object.keys(newErrors).length === 0;
   }, [dispatchQty, item, dispatchDate, billNumber]);
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!validate()) return;
 
-    setIsSubmitting(true);
-    const quantity = Number(dispatchQty);
-    setErrors((current) => ({ ...current, form: "" }));
+      setIsSubmitting(true);
+      const quantity = Number(dispatchQty);
+      setErrors((current) => ({ ...current, form: "" }));
 
-    try {
-      await onDispatchUpdate({
-        isBulk: false,
-        requestId: createDispatchRequestId(),
-        poId: item._id,
-        dispatchQty: quantity,
-        dispatchDate,
-        billNumber: billNumber.trim(),
-        remarks: remarks.trim(),
-        transportMode: transportMode.trim(),
-        trackingNumber: trackingNumber.trim(),
-        receivedBy: receivedBy.trim(),
-      });
-      onClose();
-    } catch (error) {
-      setErrors((current) => ({
-        ...current,
-        form: getApiErrorMessage(error, "Dispatch could not be saved"),
-      }));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [validate, dispatchQty, dispatchDate, billNumber, remarks, transportMode, trackingNumber, receivedBy, onDispatchUpdate, item, onClose]);
+      try {
+        await onDispatchUpdate({
+          isBulk: false,
+          requestId: createDispatchRequestId(),
+          poId: item._id,
+          dispatchQty: quantity,
+          dispatchDate,
+          billNumber: billNumber.trim(),
+          remarks: remarks.trim(),
+          transportMode: transportMode.trim(),
+          trackingNumber: trackingNumber.trim(),
+          receivedBy: receivedBy.trim(),
+        });
+        onClose();
+      } catch (error) {
+        setErrors((current) => ({
+          ...current,
+          form: getApiErrorMessage(error, "Dispatch could not be saved"),
+        }));
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      validate,
+      dispatchQty,
+      dispatchDate,
+      billNumber,
+      remarks,
+      transportMode,
+      trackingNumber,
+      receivedBy,
+      onDispatchUpdate,
+      item,
+      onClose,
+    ],
+  );
 
-  const applyQuickQuantity = useCallback((fraction) => {
-    const maximum = Number(getMaxDispatch()) || 0;
-    const quantity =
-      fraction === 1
-        ? maximum
-        : Math.min(maximum, Math.max(1, Math.ceil(maximum * fraction)));
-    setDispatchQty(String(quantity));
-    if (errors.dispatchQty) {
-      setErrors((current) => ({ ...current, dispatchQty: "" }));
-    }
-  }, [getMaxDispatch, errors.dispatchQty]);
+  const applyQuickQuantity = useCallback(
+    (fraction) => {
+      const maximum = Number(getMaxDispatch()) || 0;
+      const quantity =
+        fraction === 1
+          ? maximum
+          : Math.min(maximum, Math.max(1, Math.ceil(maximum * fraction)));
+      setDispatchQty(String(quantity));
+      if (errors.dispatchQty) {
+        setErrors((current) => ({ ...current, dispatchQty: "" }));
+      }
+    },
+    [getMaxDispatch, errors.dispatchQty],
+  );
 
   const getPendingPercentage = useCallback(() => {
     if (!item) return 0;
     const total = Number(item.poQty) || 0;
     if (total <= 0) return 0;
-    return Math.min(100, Math.max(0, ((Number(item.pending) || 0) / total) * 100));
+    return Math.min(
+      100,
+      Math.max(0, ((Number(item.pending) || 0) / total) * 100),
+    );
   }, [item]);
 
   const getProgressColor = useCallback(() => {
@@ -1193,6 +1485,89 @@ const DispatchModal = React.memo(function DispatchModal({
     if (percentage > 25) return "bg-amber-500";
     return "bg-emerald-500";
   }, [getPendingPercentage]);
+
+  const handleEditDispatch = useCallback((entry) => {
+    setEditingDispatchEntry(entry);
+    setIsEditingDispatch(true);
+    setDispatchQty(String(entry.dispatchQty || 0));
+    setDispatchDate(
+      entry.dispatchDate
+        ? entry.dispatchDate.split("T")[0]
+        : new Date().toISOString().split("T")[0],
+    );
+    setBillNumber(entry.billNumber || "");
+    setRemarks(entry.remarks || "");
+    setTransportMode(entry.transportMode || "");
+    setTrackingNumber(entry.trackingNumber || "");
+    setReceivedBy(entry.receivedBy || "");
+    setActiveTab("dispatch");
+  }, []);
+
+  const handleUpdateDispatch = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!validate()) return;
+
+      setIsSubmitting(true);
+      setErrors((current) => ({ ...current, form: "" }));
+
+      try {
+        await onDispatchEdit?.({
+          dispatchId: editingDispatchEntry._id || editingDispatchEntry.id,
+          poId: item._id,
+          dispatchQty: Number(dispatchQty),
+          dispatchDate,
+          billNumber: billNumber.trim(),
+          remarks: remarks.trim(),
+          transportMode: transportMode.trim(),
+          trackingNumber: trackingNumber.trim(),
+          receivedBy: receivedBy.trim(),
+        });
+        setIsEditingDispatch(false);
+        setEditingDispatchEntry(null);
+        onClose();
+      } catch (error) {
+        setErrors((current) => ({
+          ...current,
+          form: getApiErrorMessage(error, "Dispatch update failed"),
+        }));
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      validate,
+      dispatchQty,
+      dispatchDate,
+      billNumber,
+      remarks,
+      transportMode,
+      trackingNumber,
+      receivedBy,
+      onDispatchEdit,
+      item,
+      editingDispatchEntry,
+      onClose,
+    ],
+  );
+
+  const handleDeleteDispatch = useCallback(
+    async (dispatchId) => {
+      try {
+        await onDispatchDelete?.({
+          dispatchId,
+          poId: item._id,
+        });
+        onClose();
+      } catch (error) {
+        setErrors((current) => ({
+          ...current,
+          form: getApiErrorMessage(error, "Delete failed"),
+        }));
+      }
+    },
+    [onDispatchDelete, item, onClose],
+  );
 
   if (!isOpen || !item) return null;
 
@@ -1254,10 +1629,19 @@ const DispatchModal = React.memo(function DispatchModal({
                   <Truck className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3 id="dispatch-modal-title" className="text-lg font-bold tracking-tight text-white">
-                    Dispatch Management
+                  <h3
+                    id="dispatch-modal-title"
+                    className="text-lg font-bold tracking-tight text-white"
+                  >
+                    {isEditingDispatch
+                      ? "Edit Dispatch"
+                      : "Dispatch Management"}
                   </h3>
-                  <p className="text-sm text-blue-100">Update dispatch details for {item?.po || "PO"}</p>
+                  <p className="text-sm text-blue-100">
+                    {isEditingDispatch
+                      ? `Editing dispatch for ${item?.po || "PO"}`
+                      : `Update dispatch details for ${item?.po || "PO"}`}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1265,9 +1649,15 @@ const DispatchModal = React.memo(function DispatchModal({
                   type="button"
                   onClick={() => setIsFullscreen((current) => !current)}
                   className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Open fullscreen"}
+                  aria-label={
+                    isFullscreen ? "Exit fullscreen" : "Open fullscreen"
+                  }
                 >
-                  {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                  {isFullscreen ? (
+                    <Minimize2 className="h-5 w-5" />
+                  ) : (
+                    <Maximize2 className="h-5 w-5" />
+                  )}
                 </button>
                 <button
                   onClick={onClose}
@@ -1301,7 +1691,9 @@ const DispatchModal = React.memo(function DispatchModal({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Company</p>
-                      <p className="font-medium text-gray-800">{item?.company}</p>
+                      <p className="font-medium text-gray-800">
+                        {item?.company}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1317,7 +1709,11 @@ const DispatchModal = React.memo(function DispatchModal({
                             : "bg-yellow-100 text-yellow-800"
                         }`}
                       >
-                        {item?.pending === 0 ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
+                        {item?.pending === 0 ? (
+                          <CheckCircle2 className="h-3 w-3" />
+                        ) : (
+                          <Clock3 className="h-3 w-3" />
+                        )}
                         {item?.pending === 0 ? "Completed" : "Pending"}
                       </span>
                     </div>
@@ -1328,7 +1724,9 @@ const DispatchModal = React.memo(function DispatchModal({
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Pending %</p>
-                      <p className="font-medium text-gray-800">{getPendingPercentage().toFixed(1)}%</p>
+                      <p className="font-medium text-gray-800">
+                        {getPendingPercentage().toFixed(1)}%
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1352,8 +1750,21 @@ const DispatchModal = React.memo(function DispatchModal({
 
               <div className="mb-4 inline-flex rounded-xl bg-slate-200/70 p-1">
                 <button
-                  onClick={() => setActiveTab("dispatch")}
-                  disabled={(Number(item?.pending) || 0) <= 0}
+                  onClick={() => {
+                    setActiveTab("dispatch");
+                    setIsEditingDispatch(false);
+                    setEditingDispatchEntry(null);
+                    setDispatchQty("");
+                    setDispatchDate(new Date().toISOString().split("T")[0]);
+                    setBillNumber("");
+                    setRemarks("");
+                    setTransportMode("");
+                    setTrackingNumber("");
+                    setReceivedBy("");
+                  }}
+                  disabled={
+                    (Number(item?.pending) || 0) <= 0 && !isEditingDispatch
+                  }
                   className={`relative inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                     activeTab === "dispatch"
                       ? "bg-white text-blue-700 shadow-sm"
@@ -1361,7 +1772,7 @@ const DispatchModal = React.memo(function DispatchModal({
                   }`}
                 >
                   <Truck className="w-4 h-4 inline mr-2" />
-                  New Dispatch
+                  {isEditingDispatch ? "Edit Dispatch" : "New Dispatch"}
                 </button>
                 <button
                   onClick={() => setActiveTab("history")}
@@ -1384,7 +1795,14 @@ const DispatchModal = React.memo(function DispatchModal({
                   {dispatchHistory && dispatchHistory.length > 0 ? (
                     <div className="space-y-3">
                       {dispatchHistory.map((entry, index) => (
-                        <DispatchHistoryItem key={entry._id || index} entry={entry} index={index} />
+                        <DispatchHistoryItem
+                          key={entry._id || index}
+                          entry={entry}
+                          index={index}
+                          isEditable={true}
+                          onEdit={handleEditDispatch}
+                          onDelete={handleDeleteDispatch}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -1397,7 +1815,12 @@ const DispatchModal = React.memo(function DispatchModal({
               )}
 
               {activeTab === "dispatch" && (
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form
+                  onSubmit={
+                    isEditingDispatch ? handleUpdateDispatch : handleSubmit
+                  }
+                  className="space-y-4"
+                >
                   {errors.form && (
                     <div
                       className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
@@ -1501,7 +1924,9 @@ const DispatchModal = React.memo(function DispatchModal({
                     </div>
 
                     <div className="sm:col-span-2 transform transition-all hover:scale-[1.01]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Remarks
+                      </label>
                       <textarea
                         value={remarks}
                         onChange={(e) => setRemarks(e.target.value)}
@@ -1513,6 +1938,28 @@ const DispatchModal = React.memo(function DispatchModal({
                   </div>
 
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                    {isEditingDispatch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingDispatch(false);
+                          setEditingDispatchEntry(null);
+                          setDispatchQty("");
+                          setDispatchDate(
+                            new Date().toISOString().split("T")[0],
+                          );
+                          setBillNumber("");
+                          setRemarks("");
+                          setTransportMode("");
+                          setTrackingNumber("");
+                          setReceivedBy("");
+                          setActiveTab("history");
+                        }}
+                        className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={onClose}
@@ -1533,7 +1980,9 @@ const DispatchModal = React.memo(function DispatchModal({
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          Confirm Dispatch
+                          {isEditingDispatch
+                            ? "Update Dispatch"
+                            : "Confirm Dispatch"}
                         </>
                       )}
                     </button>
@@ -1544,6 +1993,703 @@ const DispatchModal = React.memo(function DispatchModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+});
+
+// ============================================
+// EDIT/DELETE PO MODAL COMPONENT
+// ============================================
+// ============================================
+// EDIT/DELETE PO MODAL COMPONENT - FIXED
+// ============================================
+const EditDeleteModal = React.memo(function EditDeleteModal({
+  isOpen,
+  onClose,
+  item,
+  onUpdate,
+  onDelete,
+  formatDate,
+}) {
+  // ✅ ALL HOOKS MUST BE AT THE TOP LEVEL - BEFORE ANY CONDITIONAL RETURNS
+  const [formData, setFormData] = useState({
+    po: "",
+    poDate: "",
+    deliveryDate: "",
+    company: "",
+    item: "",
+    itemCode: "",
+    drawing: "",
+    poQty: "",
+    rate: "",
+    total: "",
+    status: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // ✅ useEffect must be at top level
+  useEffect(() => {
+    if (item && isOpen) {
+      setFormData({
+        po: item.po || "",
+        poDate: item.poDate ? item.poDate.split("T")[0] : "",
+        deliveryDate: item.deliveryDate ? item.deliveryDate.split("T")[0] : "",
+        company: item.company || "",
+        item: item.item || "",
+        itemCode: item.itemCode || "",
+        drawing: item.drawing || "",
+        poQty: item.poQty || "",
+        rate: item.rate || "",
+        total: item.total || "",
+        status: item.status || "Pending",
+      });
+      setErrors({});
+      setShowDeleteConfirm(false);
+    }
+  }, [item, isOpen]);
+
+  // ✅ useCallback hooks must be at top level
+  const handleChange = useCallback(
+    (field, value) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+      if (errors[field]) {
+        setErrors((prev) => ({ ...prev, [field]: "" }));
+      }
+    },
+    [errors],
+  );
+
+  const validate = useCallback(() => {
+    const newErrors = {};
+    if (!formData.po.trim()) newErrors.po = "PO number is required";
+    if (!formData.company.trim()) newErrors.company = "Company is required";
+    if (!formData.item.trim()) newErrors.item = "Item description is required";
+    if (!formData.poQty || Number(formData.poQty) <= 0) {
+      newErrors.poQty = "PO quantity must be greater than 0";
+    }
+    if (!formData.rate || Number(formData.rate) <= 0) {
+      newErrors.rate = "Rate must be greater than 0";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData]);
+
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!validate()) return;
+
+      setIsSubmitting(true);
+      try {
+        const updateData = {
+          ...formData,
+          poQty: Number(formData.poQty),
+          rate: Number(formData.rate),
+          total: Number(formData.poQty) * Number(formData.rate),
+        };
+        await onUpdate(item._id, updateData);
+        onClose();
+      } catch (error) {
+        setErrors((prev) => ({
+          ...prev,
+          form: getApiErrorMessage(error, "Update failed"),
+        }));
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [formData, validate, onUpdate, item, onClose],
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onDelete(item._id);
+      onClose();
+    } catch (error) {
+      setErrors((prev) => ({
+        ...prev,
+        form: getApiErrorMessage(error, "Delete failed"),
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [showDeleteConfirm, onDelete, item, onClose]);
+
+  // ✅ Conditional return comes AFTER all hooks
+  if (!isOpen || !item) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="flex min-h-screen items-center justify-center">
+        <div
+          className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+
+        <div className="relative w-full max-w-2xl overflow-hidden bg-white rounded-2xl shadow-2xl animate-fadeIn">
+          <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  Edit Purchase Order
+                </h3>
+                <p className="text-sm text-blue-100">
+                  #{item.po} · {item.company}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="grid h-8 w-8 place-items-center rounded-lg text-white hover:bg-white/15 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6">
+            {errors.form && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 mb-4">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{errors.form}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> PO Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.po}
+                  onChange={(e) => handleChange("po", e.target.value)}
+                  className={`w-full px-3 py-2 border ${errors.po ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                />
+                {errors.po && (
+                  <p className="text-xs text-red-600 mt-1">{errors.po}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Company
+                </label>
+                <input
+                  type="text"
+                  value={formData.company}
+                  onChange={(e) => handleChange("company", e.target.value)}
+                  className={`w-full px-3 py-2 border ${errors.company ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                />
+                {errors.company && (
+                  <p className="text-xs text-red-600 mt-1">{errors.company}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  PO Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.poDate}
+                  onChange={(e) => handleChange("poDate", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Delivery Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.deliveryDate}
+                  onChange={(e) => handleChange("deliveryDate", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Item Description
+                </label>
+                <input
+                  type="text"
+                  value={formData.item}
+                  onChange={(e) => handleChange("item", e.target.value)}
+                  className={`w-full px-3 py-2 border ${errors.item ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                />
+                {errors.item && (
+                  <p className="text-xs text-red-600 mt-1">{errors.item}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Item Code
+                </label>
+                <input
+                  type="text"
+                  value={formData.itemCode}
+                  onChange={(e) => handleChange("itemCode", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Drawing Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.drawing}
+                  onChange={(e) => handleChange("drawing", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> PO Quantity
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.poQty}
+                  onChange={(e) => handleChange("poQty", e.target.value)}
+                  className={`w-full px-3 py-2 border ${errors.poQty ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                />
+                {errors.poQty && (
+                  <p className="text-xs text-red-600 mt-1">{errors.poQty}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="text-red-500">*</span> Rate (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.rate}
+                  onChange={(e) => handleChange("rate", e.target.value)}
+                  className={`w-full px-3 py-2 border ${errors.rate ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                />
+                {errors.rate && (
+                  <p className="text-xs text-red-600 mt-1">{errors.rate}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange("status", e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Value (₹)
+                </label>
+                <input
+                  type="text"
+                  value={
+                    Number(formData.poQty || 0) * Number(formData.rate || 0)
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                  disabled
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
+              <div>
+                {!showDeleteConfirm ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete PO
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    Confirm Delete
+                  </button>
+                )}
+                {showDeleteConfirm && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="ml-2 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================
+// COMPANY ACCORDION ROW COMPONENT
+// ============================================
+// ============================================
+// COMPANY ACCORDION ROW COMPONENT - FIXED
+// ============================================
+const CompanyAccordion = React.memo(function CompanyAccordion({
+  company,
+  items,
+  isExpanded,
+  onToggle,
+  selectedItems,
+  onToggleSelection,
+  onDispatchClick,
+  onEditClick,
+  onDeleteClick,
+  dispatchHistory,
+  getCompletionPercentage,
+  getRiskMeta,
+  formatCurrency,
+  formatDate,
+  getCategory,
+  getItemKey,
+}) {
+  const historyCount = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const key = getItemKey(item);
+      return sum + (dispatchHistory[key]?.length || 0);
+    }, 0);
+  }, [items, dispatchHistory, getItemKey]);
+
+  const totalPending = useMemo(() => {
+    return items.reduce((sum, item) => sum + (item.pending || 0), 0);
+  }, [items]);
+
+  const totalPOQty = useMemo(() => {
+    return items.reduce((sum, item) => sum + (item.poQty || 0), 0);
+  }, [items]);
+
+  const completionPercentage = useMemo(() => {
+    if (totalPOQty === 0) return 0;
+    const dispatched = totalPOQty - totalPending;
+    return Math.round((dispatched / totalPOQty) * 100);
+  }, [totalPOQty, totalPending]);
+
+  const allSelected = useMemo(() => {
+    return items.length > 0 && items.every((item) => selectedItems.has(getItemKey(item)));
+  }, [items, selectedItems, getItemKey]);
+
+  const handleSelectAll = useCallback((e) => {
+    e.stopPropagation();
+    items.forEach((item) => {
+      onToggleSelection(item);
+    });
+  }, [items, onToggleSelection]);
+
+  return (
+    <div className="border border-gray-200 rounded-lg mb-2 overflow-hidden bg-white shadow-sm hover:shadow-md transition-all">
+      {/* Company Header - Clickable to expand/collapse */}
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-blue-50 transition-colors"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700 ring-1 ring-blue-100">
+              {(company || "?").charAt(0).toUpperCase()}
+            </span>
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-[300px]">
+                {company || "Unknown Company"}
+              </h3>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                <span>{items.length} PO{items.length > 1 ? "s" : ""}</span>
+                <span className="text-gray-300">|</span>
+                <span className="flex items-center gap-1">
+                  <Clock3 className="w-3 h-3" />
+                  {totalPending.toLocaleString()} pending
+                </span>
+                <span className="text-gray-300">|</span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                  {completionPercentage}% complete
+                </span>
+                {historyCount > 0 && (
+                  <>
+                    <span className="text-gray-300">|</span>
+                    <span className="flex items-center gap-1 text-blue-600">
+                      <History className="w-3 h-3" />
+                      {historyCount} dispatch{historyCount > 1 ? "es" : ""}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={handleSelectAll}
+            className="p-1.5 rounded hover:bg-blue-100 transition"
+            title={allSelected ? "Deselect all" : "Select all"}
+          >
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => {}}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </button>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Table */}
+      {isExpanded && (
+        <div className="overflow-x-auto border-t border-gray-200">
+          <table className="w-full border-collapse text-sm text-center">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={() => {}}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                    aria-label={`Select all items for ${company}`}
+                  />
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  PO details
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Item / drawing
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Progress
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  PO qty
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Dispatched
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Pending
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Unit rate
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Pending value
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Priority
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {items.map((item, index) => {
+                const itemKey = getItemKey(item);
+                const isSelected = selectedItems.has(itemKey);
+                const itemHistoryCount = dispatchHistory[itemKey]?.length || 0;
+                const completion = getCompletionPercentage(item);
+                const risk = getRiskMeta(item);
+
+                return (
+                  <tr
+                    key={itemKey}
+                    className={`hover:bg-blue-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+                  >
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelection(item)}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                        aria-label={`Select ${item.po} ${item.item}`}
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <p className="font-mono text-sm font-semibold text-slate-800">
+                        {item.po || "—"}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 justify-center">
+                        <CalendarDays className="h-3 w-3" />
+                        {formatDate(item.poDate)}
+                      </p>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <p
+                        className="max-w-[200px] truncate text-sm font-medium text-slate-800"
+                        title={item.item}
+                      >
+                        {item.item || "Unnamed item"}
+                      </p>
+                      <div className="mt-1 flex items-center justify-center gap-2 text-[11px] text-slate-400">
+                        <span>{item.itemCode || "No code"}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span>{item.drawing || "No drawing"}</span>
+                      </div>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-600">
+                          {completion.toFixed(0)}%
+                        </span>
+                        <span className="text-slate-400">fulfilled</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                          style={{ width: `${completion}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      {Number(item.poQty || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      {Number(item.dispatched || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td
+                      className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
+                    >
+                      {Number(item.pending || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      {formatCurrency(item.rate)}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      {formatCurrency(item.total)}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
+                        {risk.label}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onDispatchClick(item)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
+                          title={item.pending > 0 ? "Record dispatch" : "View dispatch history"}
+                        >
+                          {item.pending > 0 ? (
+                            <Truck className="h-3.5 w-3.5" />
+                          ) : (
+                            <History className="h-3.5 w-3.5" />
+                          )}
+                          {itemHistoryCount > 0 && (
+                            <span className="ml-0.5 rounded-full bg-blue-200 px-1.5 py-0.5 text-[9px] text-blue-800">
+                              {itemHistoryCount}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => onEditClick(item)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition"
+                          title="Edit PO"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteClick(item)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition"
+                          title="Delete PO"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 });
@@ -1560,13 +2706,29 @@ class PendingPOManager {
   }
 
   calculateSummary() {
-    const totalPending = this.data.reduce((sum, item) => sum + (item.pending || 0), 0);
-    const totalDispatched = this.data.reduce((sum, item) => sum + (item.dispatched || 0), 0);
-    const totalPOQty = this.data.reduce((sum, item) => sum + (item.poQty || 0), 0);
-    const totalValue = this.data.reduce((sum, item) => sum + (item.total || 0), 0);
+    const totalPending = this.data.reduce(
+      (sum, item) => sum + (item.pending || 0),
+      0,
+    );
+    const totalDispatched = this.data.reduce(
+      (sum, item) => sum + (item.dispatched || 0),
+      0,
+    );
+    const totalPOQty = this.data.reduce(
+      (sum, item) => sum + (item.poQty || 0),
+      0,
+    );
+    const totalValue = this.data.reduce(
+      (sum, item) => sum + (item.total || 0),
+      0,
+    );
     const uniquePOs = new Set(this.data.map((item) => item.po).filter(Boolean));
-    const uniqueCompanies = new Set(this.data.map((item) => item.company).filter(Boolean));
-    const uniqueDrawings = new Set(this.data.map((item) => item.drawing).filter(Boolean));
+    const uniqueCompanies = new Set(
+      this.data.map((item) => item.company).filter(Boolean),
+    );
+    const uniqueDrawings = new Set(
+      this.data.map((item) => item.drawing).filter(Boolean),
+    );
     const completedItems = this.data.filter((item) => item.pending <= 0).length;
     const partialItems = this.data.filter(
       (item) => item.pending > 0 && item.dispatched > 0,
@@ -1588,7 +2750,8 @@ class PendingPOManager {
       partialItems,
       untouchedItems,
       pendingPercentage: totalPOQty > 0 ? (totalPending / totalPOQty) * 100 : 0,
-      dispatchedPercentage: totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
+      dispatchedPercentage:
+        totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
     };
   }
 
@@ -1623,8 +2786,10 @@ class PendingPOManager {
     Object.keys(stats).forEach((company) => {
       const s = stats[company];
       s.totalPOs = s.poCount.size;
-      s.completionRate = s.itemCount > 0 ? (s.completedItems / s.itemCount) * 100 : 0;
-      s.pendingRate = s.itemCount > 0 ? (s.pendingItems / s.itemCount) * 100 : 0;
+      s.completionRate =
+        s.itemCount > 0 ? (s.completedItems / s.itemCount) * 100 : 0;
+      s.pendingRate =
+        s.itemCount > 0 ? (s.pendingItems / s.itemCount) * 100 : 0;
       s.avgPendingPerPO = s.totalPOs > 0 ? s.totalPending / s.totalPOs : 0;
       delete s.poCount;
     });
@@ -1640,7 +2805,10 @@ class PendingPOManager {
         categories.add("Bus Bars");
       } else if (desc.toLowerCase().includes("heat sink")) {
         categories.add("Heat Sinks");
-      } else if (desc.toLowerCase().includes("accessory") || desc.toLowerCase().includes("assembly")) {
+      } else if (
+        desc.toLowerCase().includes("accessory") ||
+        desc.toLowerCase().includes("assembly")
+      ) {
         categories.add("Accessories");
       } else if (desc.toLowerCase().includes("hardware")) {
         categories.add("Hardware");
@@ -1686,25 +2854,39 @@ class PendingPOManager {
     if (filters.category && filters.category !== "all") {
       filtered = filtered.filter((item) => {
         const desc = item.item || "";
-        if (filters.category === "Bus Bars") return desc.toLowerCase().includes("bus bar");
-        if (filters.category === "Heat Sinks") return desc.toLowerCase().includes("heat sink");
+        if (filters.category === "Bus Bars")
+          return desc.toLowerCase().includes("bus bar");
+        if (filters.category === "Heat Sinks")
+          return desc.toLowerCase().includes("heat sink");
         if (filters.category === "Accessories")
-          return desc.toLowerCase().includes("accessory") || desc.toLowerCase().includes("assembly");
-        if (filters.category === "Hardware") return desc.toLowerCase().includes("hardware");
-        if (filters.category === "Plates") return desc.toLowerCase().includes("plate");
+          return (
+            desc.toLowerCase().includes("accessory") ||
+            desc.toLowerCase().includes("assembly")
+          );
+        if (filters.category === "Hardware")
+          return desc.toLowerCase().includes("hardware");
+        if (filters.category === "Plates")
+          return desc.toLowerCase().includes("plate");
         return true;
       });
     }
 
     if (filters.minPending !== undefined && filters.minPending !== "") {
-      filtered = filtered.filter((item) => item.pending >= Number(filters.minPending));
+      filtered = filtered.filter(
+        (item) => item.pending >= Number(filters.minPending),
+      );
     }
 
     if (filters.maxPending !== undefined && filters.maxPending !== "") {
-      filtered = filtered.filter((item) => item.pending <= Number(filters.maxPending));
+      filtered = filtered.filter(
+        (item) => item.pending <= Number(filters.maxPending),
+      );
     }
 
-    if (filters.dateRange && (filters.dateRange.start || filters.dateRange.end)) {
+    if (
+      filters.dateRange &&
+      (filters.dateRange.start || filters.dateRange.end)
+    ) {
       const start = filters.dateRange.start
         ? new Date(`${filters.dateRange.start}T00:00:00`)
         : new Date(-8640000000000000);
@@ -1743,15 +2925,15 @@ class PendingPOManager {
 }
 
 // ============================================
-// STAT CARD COMPONENT - FIXED
+// STAT CARD COMPONENT
 // ============================================
-const StatCard = React.memo(function StatCard({ 
-  label, 
-  value, 
-  helper, 
-  icon: Icon, 
-  tone = "blue", 
-  progress 
+const StatCard = React.memo(function StatCard({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  tone = "blue",
+  progress,
 }) {
   const tones = {
     blue: {
@@ -1813,149 +2995,6 @@ const StatCard = React.memo(function StatCard({
 });
 
 // ============================================
-// TABLE ROW COMPONENT - NEW
-// ============================================
-const TableRow = React.memo(function TableRow({
-  item,
-  itemKey,
-  isSelected,
-  isItemHovered,
-  onToggleSelection,
-  onDispatchClick,
-  onHoverStart,
-  onHoverEnd,
-  dispatchHistory,
-  getCompletionPercentage,
-  getRiskMeta,
-  formatCurrency,
-  formatDate,
-  getCategory,
-  index
-}) {
-  const historyCount = dispatchHistory[itemKey]?.length || 0;
-  const completion = getCompletionPercentage(item);
-  const risk = getRiskMeta(item);
-
-  return (
-    <tr
-      className={`hover:bg-blue-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
-      onMouseEnter={() => onHoverStart(itemKey)}
-      onMouseLeave={onHoverEnd}
-    >
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelection(item)}
-          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-          aria-label={`Select ${item.po} ${item.item}`}
-        />
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
-            {(item.company || "?").charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <p
-              className="max-w-[145px] truncate text-sm font-semibold text-slate-800"
-              title={item.company}
-            >
-              {item.company || "Unknown"}
-            </p>
-            <p className="text-[11px] text-slate-400">
-              {getCategory(item.item)}
-            </p>
-          </div>
-        </div>
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <p className="font-mono text-sm font-semibold text-slate-800">
-          {item.po || "—"}
-        </p>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
-          <CalendarDays className="h-3 w-3" />
-          {formatDate(item.poDate)}
-        </p>
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <p
-          className="max-w-[240px] truncate text-sm font-medium text-slate-800"
-          title={item.item}
-        >
-          {item.item || "Unnamed item"}
-        </p>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
-          <span>{item.itemCode || "No code"}</span>
-          <span className="h-1 w-1 rounded-full bg-slate-300" />
-          <span>{item.drawing || "No drawing"}</span>
-        </div>
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <div className="mb-1.5 flex items-center justify-between text-[11px]">
-          <span className="font-semibold text-slate-600">
-            {completion.toFixed(0)}%
-          </span>
-          <span className="text-slate-400">fulfilled</span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-            style={{ width: `${completion}%` }}
-          />
-        </div>
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        {Number(item.poQty || 0).toLocaleString("en-IN")}
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        {Number(item.dispatched || 0).toLocaleString("en-IN")}
-      </td>
-      <td
-        className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
-      >
-        {Number(item.pending || 0).toLocaleString("en-IN")}
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        {formatCurrency(item.rate)}
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        {formatCurrency(item.total)}
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
-          {risk.label}
-        </span>
-      </td>
-      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-        <button
-          onClick={() => onDispatchClick(item)}
-          className={`relative mx-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-            isItemHovered
-              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-              : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-          }`}
-          title={item.pending > 0 ? "Record dispatch" : "View dispatch history"}
-        >
-          {item.pending > 0 ? <Truck className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
-          {item.pending > 0 ? "Dispatch" : "Review"}
-          {historyCount > 0 && (
-            <span
-              className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${isItemHovered ? "bg-white/20" : "bg-blue-200 text-blue-800"}`}
-            >
-              {historyCount}
-            </span>
-          )}
-        </button>
-      </td>
-    </tr>
-  );
-});
-
-// ============================================
 // MAIN COMPONENT
 // ============================================
 const GeneratePendingList = () => {
@@ -1974,44 +3013,52 @@ const GeneratePendingList = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [viewMode, setViewMode] = useState("table");
+  const [viewMode, setViewMode] = useState("accordion");
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [notification, setNotification] = useState(null);
   const [selectedItemForDispatch, setSelectedItemForDispatch] = useState(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
-  const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] = useState(false);
+  const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] =
+    useState(false);
   const [dispatchHistory, setDispatchHistory] = useState({});
   const [isHovered, setIsHovered] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [isGlobalHistoryOpen, setIsGlobalHistoryOpen] = useState(false);
-
-  // ✅ Use useTransition for smoother updates
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedItemForEdit, setSelectedItemForEdit] = useState(null);
   const [isPending, startTransition] = useTransition();
+  const [expandedCompanies, setExpandedCompanies] = useState(new Set());
 
   const getCategory = useCallback((description = "") => {
     const value = String(description).toLowerCase();
     if (value.includes("bus bar")) return "Bus Bars";
     if (value.includes("heat sink")) return "Heat Sinks";
-    if (value.includes("accessory") || value.includes("assembly")) return "Accessories";
+    if (value.includes("accessory") || value.includes("assembly"))
+      return "Accessories";
     if (value.includes("hardware")) return "Hardware";
     if (value.includes("plate")) return "Plates";
     return "Others";
   }, []);
 
-  const getItemKey = useCallback((item) =>
-    String(
-      item?._id ||
-        [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
-          .filter(Boolean)
-          .join("::"),
-    ), []
+  const getItemKey = useCallback(
+    (item) =>
+      String(
+        item?._id ||
+          [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
+            .filter(Boolean)
+            .join("::"),
+      ),
+    [],
   );
 
-  // ✅ Use useMemo for filtered data instead of state
+  const showNotification = useCallback((message, type = "info") => {
+    setNotification({ message, type });
+  }, []);
+
   const filteredData = useMemo(() => {
     if (!manager) return [];
     const filters = {
@@ -2035,45 +3082,26 @@ const GeneratePendingList = () => {
     dateRange,
   ]);
 
+  const groupedByCompany = useMemo(() => {
+    const groups = {};
+    filteredData.forEach((item) => {
+      const company = item.company || "Unknown Company";
+      if (!groups[company]) {
+        groups[company] = [];
+      }
+      groups[company].push(item);
+    });
+    return groups;
+  }, [filteredData]);
+
+  const companyList = useMemo(() => {
+    return Object.keys(groupedByCompany).sort();
+  }, [groupedByCompany]);
+
   const filteredManager = useMemo(
     () => (filteredData.length > 0 ? new PendingPOManager(filteredData) : null),
     [filteredData],
   );
-
-  const sortedData = useMemo(() => {
-    if (!sortConfig.key) return filteredData;
-
-    return [...filteredData].sort((first, second) => {
-      const firstValue = first?.[sortConfig.key];
-      const secondValue = second?.[sortConfig.key];
-      const firstNumber = Number(firstValue);
-      const secondNumber = Number(secondValue);
-
-      let comparison = 0;
-      if (
-        Number.isFinite(firstNumber) &&
-        Number.isFinite(secondNumber) &&
-        firstValue !== "" &&
-        secondValue !== ""
-      ) {
-        comparison = firstNumber - secondNumber;
-      } else {
-        comparison = String(firstValue ?? "").localeCompare(
-          String(secondValue ?? ""),
-          undefined,
-          { numeric: true, sensitivity: "base" },
-        );
-      }
-
-      return sortConfig.direction === "asc" ? comparison : -comparison;
-    });
-  }, [filteredData, sortConfig]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedData.slice(start, start + pageSize);
-  }, [sortedData, currentPage, pageSize]);
 
   const selectedRows = useMemo(
     () => data.filter((item) => selectedItems.has(getItemKey(item))),
@@ -2100,7 +3128,15 @@ const GeneratePendingList = () => {
         dateRange.start,
         dateRange.end,
       ].filter(Boolean).length,
-    [searchTerm, selectedCompany, selectedStatus, selectedCategory, minPending, maxPending, dateRange],
+    [
+      searchTerm,
+      selectedCompany,
+      selectedStatus,
+      selectedCategory,
+      minPending,
+      maxPending,
+      dateRange,
+    ],
   );
 
   useEffect(() => {
@@ -2109,88 +3145,102 @@ const GeneratePendingList = () => {
     return () => window.clearTimeout(timer);
   }, [notification]);
 
-  // ✅ Optimized loadPurchaseOrders with startTransition
-  const loadPurchaseOrders = useCallback(async ({ quiet = false, signal } = {}) => {
-    if (!quiet) setIsLoading(true);
-    try {
-      const result = await pendingPoApi.listAll({ signal });
-      const records = result.records || [];
-      const nextManager = new PendingPOManager(records);
-      const nextHistory = {};
-
-      records.forEach((item) => {
-        nextHistory[getItemKey(item)] = Array.isArray(item.dispatchHistory)
-          ? item.dispatchHistory
-          : [];
-      });
-
-      startTransition(() => {
-        setData(records);
-        setManager(nextManager);
-        setDispatchHistory(nextHistory);
-        setCompanies(["all", ...Object.keys(nextManager.companyStats)]);
-        setCategories(["all", ...nextManager.itemCategories]);
-        setSelectedItems(new Set());
-        setIsDataReady(true);
-        if (!quiet) setIsLoading(false);
-      });
-    } catch (error) {
-      if (!quiet) {
-        setIsLoading(false);
-        setNotification({
-          message: getApiErrorMessage(error, "Could not load purchase orders"),
-          type: "error",
-        });
-      }
-    }
-  }, [getItemKey, startTransition]);
-
-  const handleFileUpload = useCallback(async (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (!/\.(xlsx|xls)$/i.test(file.name)) {
-        showNotification("Please upload an .xlsx or .xls file", "error");
-        event.target.value = "";
-        return;
-      }
-
-      setIsLoading(true);
-
+  const loadPurchaseOrders = useCallback(
+    async ({ quiet = false, signal } = {}) => {
+      if (!quiet) setIsLoading(true);
       try {
-        const result = await pendingPoApi.importFile(file);
-        setUploadedFile(file);
-        setSelectedItems(new Set());
-        setSortConfig({ key: null, direction: "asc" });
-        setCurrentPage(1);
-        clearFilters();
-        await loadPurchaseOrders({ quiet: true });
+        const result = await pendingPoApi.listAll({ signal });
+        const records = result.records || [];
+        const nextManager = new PendingPOManager(records);
+        const nextHistory = {};
 
-        const warningCount = Number(result.skipped || 0);
-        showNotification(
-          `${result.inserted || 0} inserted, ${result.updated || 0} updated${
-            warningCount ? `, ${warningCount} skipped` : ""
-          }`,
-          warningCount ? "warning" : "success",
-        );
+        records.forEach((item) => {
+          nextHistory[getItemKey(item)] = Array.isArray(item.dispatchHistory)
+            ? item.dispatchHistory
+            : [];
+        });
+
+        startTransition(() => {
+          setData(records);
+          setManager(nextManager);
+          setDispatchHistory(nextHistory);
+          setCompanies(["all", ...Object.keys(nextManager.companyStats)]);
+          setCategories(["all", ...nextManager.itemCategories]);
+          setSelectedItems(new Set());
+          setIsDataReady(true);
+          if (!quiet) setIsLoading(false);
+        });
       } catch (error) {
-        console.error("Error importing file:", error);
-        showNotification(
-          getApiErrorMessage(error, "Could not import the file. Please check its columns."),
-          "error",
-        );
-      } finally {
-        setIsLoading(false);
-        event.target.value = "";
+        if (!quiet) {
+          setIsLoading(false);
+          setNotification({
+            message: getApiErrorMessage(
+              error,
+              "Could not load purchase orders",
+            ),
+            type: "error",
+          });
+        }
       }
-    }
-  }, [loadPurchaseOrders]);
+    },
+    [getItemKey, startTransition],
+  );
+
+  const handleFileUpload = useCallback(
+    async (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        if (!/\.(xlsx|xls)$/i.test(file.name)) {
+          showNotification("Please upload an .xlsx or .xls file", "error");
+          event.target.value = "";
+          return;
+        }
+
+        setIsLoading(true);
+
+        try {
+          const result = await pendingPoApi.importFile(file);
+          setUploadedFile(file);
+          setSelectedItems(new Set());
+          setSortConfig({ key: null, direction: "asc" });
+          setCurrentPage(1);
+          clearFilters();
+          await loadPurchaseOrders({ quiet: true });
+
+          const warningCount = Number(result.skipped || 0);
+          showNotification(
+            `${result.inserted || 0} inserted, ${result.updated || 0} updated${
+              warningCount ? `, ${warningCount} skipped` : ""
+            }`,
+            warningCount ? "warning" : "success",
+          );
+        } catch (error) {
+          console.error("Error importing file:", error);
+          showNotification(
+            getApiErrorMessage(
+              error,
+              "Could not import the file. Please check its columns.",
+            ),
+            "error",
+          );
+        } finally {
+          setIsLoading(false);
+          event.target.value = "";
+        }
+      }
+    },
+    [loadPurchaseOrders, showNotification],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     loadPurchaseOrders({ signal: controller.signal }).catch((error) => {
       if (error?.code === "ERR_CANCELED") return;
       setNotification({
-        message: getApiErrorMessage(error, "Saved purchase orders could not be loaded"),
+        message: getApiErrorMessage(
+          error,
+          "Saved purchase orders could not be loaded",
+        ),
         type: "error",
       });
     });
@@ -2212,46 +3262,77 @@ const GeneratePendingList = () => {
     }
   }, [manager, companies.length]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearchTerm, selectedCompany, selectedStatus, selectedCategory, minPending, maxPending, dateRange, pageSize]);
+  const handleDispatchUpdate = useCallback(
+    async (payload) => {
+      const result = payload.isBulk
+        ? await pendingPoApi.createBulkDispatch(payload)
+        : await pendingPoApi.createDispatch(payload);
 
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
+      await loadPurchaseOrders({ quiet: true });
 
-  const handleDispatchUpdate = useCallback(async (payload) => {
-    const result = payload.isBulk
-      ? await pendingPoApi.createBulkDispatch(payload)
-      : await pendingPoApi.createDispatch(payload);
+      if (payload.isBulk) {
+        const successCount = Number(
+          result.totalProcessed ?? result.successful?.length ?? 0,
+        );
+        const failCount = Number(
+          result.totalFailed ?? result.failed?.length ?? 0,
+        );
+        showNotification(
+          `${successCount} item(s) dispatched${failCount ? `, ${failCount} skipped` : ""}`,
+          failCount ? "warning" : "success",
+        );
+      } else {
+        showNotification(
+          `Dispatch saved. New pending quantity: ${result.updatedPO?.pending ?? "-"}`,
+          "success",
+        );
+      }
 
-    await loadPurchaseOrders({ quiet: true });
+      return result;
+    },
+    [loadPurchaseOrders, showNotification],
+  );
 
-    if (payload.isBulk) {
-      const successCount = Number(result.totalProcessed ?? result.successful?.length ?? 0);
-      const failCount = Number(result.totalFailed ?? result.failed?.length ?? 0);
-      showNotification(
-        `${successCount} item(s) dispatched${failCount ? `, ${failCount} skipped` : ""}`,
-        failCount ? "warning" : "success",
-      );
-    } else {
-      showNotification(
-        `Dispatch saved. New pending quantity: ${result.updatedPO?.pending ?? "-"}`,
-        "success",
-      );
-    }
+  const handleDispatchEdit = useCallback(
+    async (payload) => {
+      try {
+        const result = await pendingPoApi.updateDispatch(payload);
+        await loadPurchaseOrders({ quiet: true });
+        showNotification("Dispatch updated successfully", "success");
+        return result;
+      } catch (error) {
+        showNotification(getApiErrorMessage(error, "Update failed"), "error");
+        throw error;
+      }
+    },
+    [loadPurchaseOrders, showNotification],
+  );
 
-    return result;
-  }, [loadPurchaseOrders]);
+  const handleDispatchDelete = useCallback(
+    async (payload) => {
+      try {
+        await pendingPoApi.deleteDispatch(payload);
+        await loadPurchaseOrders({ quiet: true });
+        showNotification("Dispatch deleted successfully", "success");
+      } catch (error) {
+        showNotification(getApiErrorMessage(error, "Delete failed"), "error");
+        throw error;
+      }
+    },
+    [loadPurchaseOrders, showNotification],
+  );
 
-  const openDispatchModal = useCallback((item) => {
-    const itemKey = getItemKey(item);
-    setSelectedItemForDispatch({
-      ...item,
-      dispatchHistory: dispatchHistory[itemKey] || [],
-    });
-    setIsDispatchModalOpen(true);
-  }, [dispatchHistory, getItemKey]);
+  const openDispatchModal = useCallback(
+    (item) => {
+      const itemKey = getItemKey(item);
+      setSelectedItemForDispatch({
+        ...item,
+        dispatchHistory: dispatchHistory[itemKey] || [],
+      });
+      setIsDispatchModalOpen(true);
+    },
+    [dispatchHistory, getItemKey],
+  );
 
   const openMultipleDispatchModal = useCallback(() => {
     const itemsToDispatch = data.filter(
@@ -2270,7 +3351,7 @@ const GeneratePendingList = () => {
 
     setSelectedItemForDispatch(itemsWithHistory);
     setIsMultipleDispatchModalOpen(true);
-  }, [data, selectedItems, getItemKey, dispatchHistory]);
+  }, [data, selectedItems, getItemKey, dispatchHistory, showNotification]);
 
   const closeDispatchModal = useCallback(() => {
     setIsDispatchModalOpen(false);
@@ -2280,10 +3361,6 @@ const GeneratePendingList = () => {
 
   const openGlobalHistory = useCallback(() => {
     setIsGlobalHistoryOpen(true);
-  }, []);
-
-  const showNotification = useCallback((message, type = "info") => {
-    setNotification({ message, type });
   }, []);
 
   const formatCurrency = useCallback((value) => {
@@ -2313,39 +3390,45 @@ const GeneratePendingList = () => {
   const getCompletionPercentage = useCallback((item) => {
     const total = Number(item?.poQty) || 0;
     if (total <= 0) return 0;
-    return Math.min(100, Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100));
+    return Math.min(
+      100,
+      Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100),
+    );
   }, []);
 
-  const getRiskMeta = useCallback((item) => {
-    if ((Number(item?.pending) || 0) <= 0) {
-      return {
-        label: "Completed",
-        dot: "bg-emerald-500",
-        badge: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-      };
-    }
+  const getRiskMeta = useCallback(
+    (item) => {
+      if ((Number(item?.pending) || 0) <= 0) {
+        return {
+          label: "Completed",
+          dot: "bg-emerald-500",
+          badge: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+        };
+      }
 
-    const remaining = 100 - getCompletionPercentage(item);
-    if (remaining >= 75) {
+      const remaining = 100 - getCompletionPercentage(item);
+      if (remaining >= 75) {
+        return {
+          label: "High pending",
+          dot: "bg-rose-500",
+          badge: "bg-rose-50 text-rose-700 ring-rose-200",
+        };
+      }
+      if (remaining >= 35) {
+        return {
+          label: "Needs attention",
+          dot: "bg-amber-500",
+          badge: "bg-amber-50 text-amber-700 ring-amber-200",
+        };
+      }
       return {
-        label: "High pending",
-        dot: "bg-rose-500",
-        badge: "bg-rose-50 text-rose-700 ring-rose-200",
+        label: "Near completion",
+        dot: "bg-blue-500",
+        badge: "bg-blue-50 text-blue-700 ring-blue-200",
       };
-    }
-    if (remaining >= 35) {
-      return {
-        label: "Needs attention",
-        dot: "bg-amber-500",
-        badge: "bg-amber-50 text-amber-700 ring-amber-200",
-      };
-    }
-    return {
-      label: "Near completion",
-      dot: "bg-blue-500",
-      badge: "bg-blue-50 text-blue-700 ring-blue-200",
-    };
-  }, [getCompletionPercentage]);
+    },
+    [getCompletionPercentage],
+  );
 
   const clearFilters = useCallback(() => {
     setSelectedCompany("all");
@@ -2360,56 +3443,31 @@ const GeneratePendingList = () => {
   const handleSort = useCallback((key) => {
     setSortConfig((current) => ({
       key,
-      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
     }));
   }, []);
 
-  const getSortIcon = useCallback((key) => {
-    if (sortConfig.key !== key) return ArrowUpDown;
-    return sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
-  }, [sortConfig]);
+  const getSortIcon = useCallback(
+    (key) => {
+      if (sortConfig.key !== key) return ArrowUpDown;
+      return sortConfig.direction === "asc" ? ArrowUp : ArrowDown;
+    },
+    [sortConfig],
+  );
 
-  const renderSortHeader = useCallback((label, key, align = "left") => {
-    const SortIcon = getSortIcon(key);
-    return (
-      <button
-        type="button"
-        onClick={() => handleSort(key)}
-        className={`group inline-flex w-full items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 transition hover:text-blue-700 ${
-          align === "right" ? "justify-end" : "justify-start"
-        }`}
-      >
-        {label}
-        <SortIcon
-          className={`h-3 w-3 ${sortConfig.key === key ? "text-blue-600" : "text-slate-300 group-hover:text-blue-500"}`}
-        />
-      </button>
-    );
-  }, [getSortIcon, handleSort, sortConfig.key]);
-
-  const toggleItemSelection = useCallback((item) => {
-    const itemKey = getItemKey(item);
-    setSelectedItems((current) => {
-      const next = new Set(current);
-      if (next.has(itemKey)) next.delete(itemKey);
-      else next.add(itemKey);
-      return next;
-    });
-  }, [getItemKey]);
-
-  const togglePageSelection = useCallback(() => {
-    const pageKeys = paginatedData.map(getItemKey);
-    const allSelected = pageKeys.length > 0 && pageKeys.every((key) => selectedItems.has(key));
-
-    setSelectedItems((current) => {
-      const next = new Set(current);
-      pageKeys.forEach((key) => {
-        if (allSelected) next.delete(key);
-        else next.add(key);
+  const toggleItemSelection = useCallback(
+    (item) => {
+      const itemKey = getItemKey(item);
+      setSelectedItems((current) => {
+        const next = new Set(current);
+        if (next.has(itemKey)) next.delete(itemKey);
+        else next.add(itemKey);
+        return next;
       });
-      return next;
-    });
-  }, [paginatedData, getItemKey, selectedItems]);
+    },
+    [getItemKey],
+  );
 
   const handleHoverStart = useCallback((key) => {
     setIsHovered(key);
@@ -2419,57 +3477,136 @@ const GeneratePendingList = () => {
     setIsHovered(null);
   }, []);
 
-  const handleDispatchClick = useCallback((item) => {
-    const itemKey = getItemKey(item);
-    setSelectedItemForDispatch({
-      ...item,
-      dispatchHistory: dispatchHistory[itemKey] || [],
+  const handleDispatchClick = useCallback(
+    (item) => {
+      const itemKey = getItemKey(item);
+      setSelectedItemForDispatch({
+        ...item,
+        dispatchHistory: dispatchHistory[itemKey] || [],
+      });
+      setIsDispatchModalOpen(true);
+    },
+    [dispatchHistory, getItemKey],
+  );
+
+  const handleEditClick = useCallback((item) => {
+    setSelectedItemForEdit(item);
+    setIsEditModalOpen(true);
+  }, []);
+
+  const handleDeleteClick = useCallback((item) => {
+    setSelectedItemForEdit(item);
+    setIsEditModalOpen(true);
+  }, []);
+
+  const handleUpdatePO = useCallback(
+    async (id, updateData) => {
+      try {
+        const result = await pendingPoApi.updatePO(id, updateData);
+        await loadPurchaseOrders({ quiet: true });
+        showNotification("Purchase order updated successfully", "success");
+        return result;
+      } catch (error) {
+        showNotification(getApiErrorMessage(error, "Update failed"), "error");
+        throw error;
+      }
+    },
+    [loadPurchaseOrders, showNotification],
+  );
+
+  const handleDeletePO = useCallback(
+    async (id) => {
+      try {
+        await pendingPoApi.deletePO(id);
+        await loadPurchaseOrders({ quiet: true });
+        showNotification("Purchase order deleted successfully", "success");
+      } catch (error) {
+        showNotification(getApiErrorMessage(error, "Delete failed"), "error");
+        throw error;
+      }
+    },
+    [loadPurchaseOrders, showNotification],
+  );
+
+  const toggleCompany = useCallback((company) => {
+    setExpandedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(company)) {
+        next.delete(company);
+      } else {
+        next.add(company);
+      }
+      return next;
     });
-    setIsDispatchModalOpen(true);
-  }, [dispatchHistory, getItemKey]);
+  }, []);
 
-  const exportRows = useCallback((rows, label = "filtered") => {
-    if (!rows.length) {
-      showNotification("No records available to export", "warning");
-      return;
-    }
+  const expandAll = useCallback(() => {
+    const allCompanies = new Set(companyList);
+    setExpandedCompanies(allCompanies);
+  }, [companyList]);
 
-    const exportData = rows.map((item) => ({
-      Company: item.company,
-      "PO Number": item.po,
-      "PO Date": item.poDate,
-      "Delivery Date": item.deliveryDate || "",
-      Drawing: item.drawing,
-      "Item Code": item.itemCode,
-      "Item Description": item.item,
-      "PO Quantity": item.poQty,
-      Dispatched: item.dispatched,
-      Pending: item.pending,
-      "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
-      Status: item.status,
-      "Unit Rate": item.rate,
-      "Pending Value": item.total,
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    worksheet["!cols"] = [
-      { wch: 24 }, { wch: 16 }, { wch: 13 }, { wch: 13 },
-      { wch: 18 }, { wch: 16 }, { wch: 36 }, { wch: 12 },
-      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 },
-      { wch: 12 }, { wch: 16 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Pending PO");
-    const stamp = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(workbook, `pending-po-${label}-${stamp}.xlsx`);
-    showNotification(`${rows.length} records exported`, "success");
-  }, [getCompletionPercentage, showNotification]);
+  const collapseAll = useCallback(() => {
+    setExpandedCompanies(new Set());
+  }, []);
+
+  const exportRows = useCallback(
+    (rows, label = "filtered") => {
+      if (!rows.length) {
+        showNotification("No records available to export", "warning");
+        return;
+      }
+
+      const exportData = rows.map((item) => ({
+        Company: item.company,
+        "PO Number": item.po,
+        "PO Date": item.poDate,
+        "Delivery Date": item.deliveryDate || "",
+        Drawing: item.drawing,
+        "Item Code": item.itemCode,
+        "Item Description": item.item,
+        "PO Quantity": item.poQty,
+        Dispatched: item.dispatched,
+        Pending: item.pending,
+        "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
+        Status: item.status,
+        "Unit Rate": item.rate,
+        "Pending Value": item.total,
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      worksheet["!cols"] = [
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 13 },
+        { wch: 13 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 36 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 16 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Pending PO");
+      const stamp = new Date().toISOString().split("T")[0];
+      XLSX.writeFile(workbook, `pending-po-${label}-${stamp}.xlsx`);
+      showNotification(`${rows.length} records exported`, "success");
+    },
+    [getCompletionPercentage, showNotification],
+  );
 
   const downloadTemplate = useCallback(async () => {
     try {
       await pendingPoApi.downloadTemplate();
       showNotification("Import template downloaded", "success");
     } catch (error) {
-      showNotification(getApiErrorMessage(error, "Template could not be downloaded"), "error");
+      showNotification(
+        getApiErrorMessage(error, "Template could not be downloaded"),
+        "error",
+      );
     }
   }, [showNotification]);
 
@@ -2506,7 +3643,9 @@ const GeneratePendingList = () => {
         className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-2xl border p-3 pr-4 shadow-2xl shadow-slate-900/10 ${variant.classes} animate-slideIn`}
         role="status"
       >
-        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}>
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}
+        >
           <NotificationIcon className="h-4 w-4" />
         </span>
         <span className="text-sm font-medium">{notification.message}</span>
@@ -2541,14 +3680,31 @@ const GeneratePendingList = () => {
 
       {renderNotification()}
 
+      {/* Edit/Delete PO Modal */}
+      <EditDeleteModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedItemForEdit(null);
+        }}
+        item={selectedItemForEdit}
+        onUpdate={handleUpdatePO}
+        onDelete={handleDeletePO}
+        formatDate={formatDate}
+      />
+
+      {/* Dispatch Modal */}
       <DispatchModal
         isOpen={isDispatchModalOpen}
         onClose={closeDispatchModal}
         item={selectedItemForDispatch}
         onDispatchUpdate={handleDispatchUpdate}
+        onDispatchEdit={handleDispatchEdit}
+        onDispatchDelete={handleDispatchDelete}
         dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
       />
 
+      {/* Multiple Dispatch Modal */}
       <MultipleDispatchModal
         isOpen={isMultipleDispatchModalOpen}
         onClose={closeDispatchModal}
@@ -2557,11 +3713,22 @@ const GeneratePendingList = () => {
         dispatchHistory={dispatchHistory}
       />
 
+      {/* Global History Modal */}
       <GlobalDispatchHistoryModal
         isOpen={isGlobalHistoryOpen}
         onClose={() => setIsGlobalHistoryOpen(false)}
         dispatchHistory={dispatchHistory}
         formatDate={formatDate}
+        onDispatchEdit={(entry, billNumber) => {
+          setIsGlobalHistoryOpen(false);
+          setSelectedItemForDispatch({
+            ...entry,
+            dispatchHistory: dispatchHistory[entry.itemKey] || [],
+            _id: entry.poId || entry.poId,
+          });
+          setIsDispatchModalOpen(true);
+        }}
+        onDispatchDelete={handleDispatchDelete}
       />
 
       <div className="mx-auto max-w-[1600px]">
@@ -2585,7 +3752,8 @@ const GeneratePendingList = () => {
                   Pending PO
                 </h1>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-white">
-                  Track commitments, prioritize pending quantities, and record every dispatch from one responsive workspace.
+                  Track commitments, prioritize pending quantities, and record
+                  every dispatch from one responsive workspace.
                 </p>
               </div>
             </div>
@@ -2611,13 +3779,18 @@ const GeneratePendingList = () => {
                   type="button"
                   onClick={() =>
                     loadPurchaseOrders().catch((error) =>
-                      showNotification(getApiErrorMessage(error, "Refresh failed"), "error"),
+                      showNotification(
+                        getApiErrorMessage(error, "Refresh failed"),
+                        "error",
+                      ),
                     )
                   }
                   disabled={isLoading || isPending}
                   className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-50"
                 >
-                  <RefreshCw className={`h-4 w-4 ${isLoading || isPending ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 ${isLoading || isPending ? "animate-spin" : ""}`}
+                  />
                   Refresh
                 </button>
               )}
@@ -2683,7 +3856,11 @@ const GeneratePendingList = () => {
                 onClick={() => setShowAnalytics((current) => !current)}
                 className="no-print inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
               >
-                {showAnalytics ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showAnalytics ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
                 {showAnalytics ? "Hide insights" : "Show insights"}
               </button>
             </div>
@@ -2719,8 +3896,12 @@ const GeneratePendingList = () => {
                 <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Fulfilment overview</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Quantity-weighted progress</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        Fulfilment overview
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Quantity-weighted progress
+                      </p>
                     </div>
                     <Gauge className="h-5 w-5 text-blue-600" />
                   </div>
@@ -2744,16 +3925,33 @@ const GeneratePendingList = () => {
                     </div>
                     <div className="min-w-0 flex-1 space-y-3">
                       {[
-                        ["Completed", manager.summary.completedItems, "bg-emerald-500"],
-                        ["In progress", manager.summary.partialItems, "bg-blue-500"],
-                        ["Not started", manager.summary.untouchedItems, "bg-rose-500"],
+                        [
+                          "Completed",
+                          manager.summary.completedItems,
+                          "bg-emerald-500",
+                        ],
+                        [
+                          "In progress",
+                          manager.summary.partialItems,
+                          "bg-blue-500",
+                        ],
+                        [
+                          "Not started",
+                          manager.summary.untouchedItems,
+                          "bg-rose-500",
+                        ],
                       ].map(([label, value, color]) => (
-                        <div key={label} className="flex items-center justify-between gap-3 text-xs">
+                        <div
+                          key={label}
+                          className="flex items-center justify-between gap-3 text-xs"
+                        >
                           <span className="flex items-center gap-2 text-slate-500">
                             <span className={`h-2 w-2 rounded-full ${color}`} />
                             {label}
                           </span>
-                          <span className="font-bold text-slate-800">{value}</span>
+                          <span className="font-bold text-slate-800">
+                            {value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -2763,18 +3961,27 @@ const GeneratePendingList = () => {
                 <article className="print-card rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_14px_40px_-25px_rgba(15,23,42,0.35)] xl:col-span-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">Company workload</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Highest pending quantity first</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        Company workload
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Highest pending quantity first
+                      </p>
                     </div>
                     <BarChart3 className="h-5 w-5 text-blue-600" />
                   </div>
                   <div className="mt-4 space-y-3.5">
                     {companyRanking.map((company) => {
-                      const maxPending = Math.max(1, ...companyRanking.map((entry) => entry.totalPending));
+                      const maxPending = Math.max(
+                        1,
+                        ...companyRanking.map((entry) => entry.totalPending),
+                      );
                       return (
                         <div key={company.company}>
                           <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-                            <span className="truncate font-medium text-slate-700">{company.company}</span>
+                            <span className="truncate font-medium text-slate-700">
+                              {company.company}
+                            </span>
                             <span className="shrink-0 font-bold text-slate-900">
                               {company.totalPending.toLocaleString("en-IN")}
                             </span>
@@ -2782,7 +3989,9 @@ const GeneratePendingList = () => {
                           <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                              style={{ width: `${(company.totalPending / maxPending) * 100}%` }}
+                              style={{
+                                width: `${(company.totalPending / maxPending) * 100}%`,
+                              }}
                             />
                           </div>
                         </div>
@@ -2805,7 +4014,9 @@ const GeneratePendingList = () => {
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">Filters</h3>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Filters
+                    </h3>
                     {activeFilterCount > 0 && (
                       <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
                         {activeFilterCount} active
@@ -2829,7 +4040,11 @@ const GeneratePendingList = () => {
                   onClick={() => setShowFilters((current) => !current)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  {showFilters ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showFilters ? (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
                   {showFilters ? "Collapse" : "Expand"}
                 </button>
               </div>
@@ -2971,14 +4186,18 @@ const GeneratePendingList = () => {
           </section>
         )}
 
-        {/* Main Data Table */}
+        {/* Main Data Table - Accordion View */}
         {isLoading ? (
           <div className="rounded-3xl border border-blue-100 bg-white p-12 text-center shadow-xl shadow-blue-900/5">
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-50">
               <RefreshCw className="h-7 w-7 animate-spin text-blue-600" />
             </div>
-            <p className="mt-5 font-semibold text-slate-800">Loading your PO workspace</p>
-            <p className="mt-1 text-sm text-slate-400">Reading saved purchase orders and dispatch history...</p>
+            <p className="mt-5 font-semibold text-slate-800">
+              Loading your PO workspace
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Reading saved purchase orders and dispatch history...
+            </p>
           </div>
         ) : data.length > 0 ? (
           <section className="print-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.45)] animate-fadeInUp">
@@ -2986,13 +4205,15 @@ const GeneratePendingList = () => {
             <div className="no-print flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900">Purchase order</h2>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Purchase orders by Company
+                  </h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    {filteredData.length.toLocaleString("en-IN")} of {data.length.toLocaleString("en-IN")}
+                    {companyList.length} companies · {filteredData.length} POs
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Select records, sort columns, or open an item to record dispatch
+                  Click on a company to expand and view PO details
                 </p>
               </div>
 
@@ -3030,141 +4251,99 @@ const GeneratePendingList = () => {
                   </>
                 )}
 
+                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                  <button
+                    type="button"
+                    onClick={expandAll}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-white hover:text-blue-700"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Expand All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAll}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-white hover:text-blue-700"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    Collapse All
+                  </button>
+                </div>
+
                 <div className="flex rounded-xl bg-slate-100 p-1">
                   <button
                     type="button"
-                    onClick={() => setViewMode("table")}
+                    onClick={() => setViewMode("accordion")}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                      viewMode === "table"
+                      viewMode === "accordion"
                         ? "bg-white text-blue-700 shadow-sm"
                         : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
-                    <Table2 className="h-3.5 w-3.5" /> Table
+                    <Building2 className="h-3.5 w-3.5" /> Companies
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Table View */}
-            {viewMode === "table" && (
-              <div className="bg-white border border-gray-300 overflow-auto">
-                <table className="w-full border-collapse text-sm text-center">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={
-                            paginatedData.length > 0 &&
-                            paginatedData.every((item) => selectedItems.has(getItemKey(item)))
-                          }
-                          onChange={togglePageSelection}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-                          aria-label="Select all records on this page"
-                        />
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Company", "company")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("PO details", "po")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Item / drawing", "item")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Progress", "pending")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("PO qty", "poQty", "right")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Dispatched", "dispatched", "right")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Pending", "pending", "right")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Unit rate", "rate", "right")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        {renderSortHeader("Pending value", "total", "right")}
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        Priority
-                      </th>
-                      <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {paginatedData.map((item, index) => {
-                      const itemKey = getItemKey(item);
-                      const isSelected = selectedItems.has(itemKey);
-                      const isItemHovered = isHovered === itemKey;
-
-                      return (
-                        <TableRow
-                          key={itemKey}
-                          item={item}
-                          itemKey={itemKey}
-                          isSelected={isSelected}
-                          isItemHovered={isItemHovered}
-                          onToggleSelection={toggleItemSelection}
-                          onDispatchClick={handleDispatchClick}
-                          onHoverStart={handleHoverStart}
-                          onHoverEnd={handleHoverEnd}
-                          dispatchHistory={dispatchHistory}
-                          getCompletionPercentage={getCompletionPercentage}
-                          getRiskMeta={getRiskMeta}
-                          formatCurrency={formatCurrency}
-                          formatDate={formatDate}
-                          getCategory={getCategory}
-                          index={index}
-                        />
-                      );
-                    })}
-                    {paginatedData.length === 0 && (
-                      <tr>
-                        <td colSpan="12" className="px-6 py-16 text-center">
-                          <Search className="mx-auto h-8 w-8 text-slate-300" />
-                          <p className="mt-3 text-sm font-semibold text-slate-700">No records match these filters</p>
-                          <button
-                            type="button"
-                            onClick={clearFilters}
-                            className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                          >
-                            Clear all filters
-                          </button>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {/* Accordion View */}
+            <div className="p-4 bg-gray-50">
+              {companyList.length === 0 ? (
+                <div className="text-center py-12">
+                  <Building2 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500 text-lg">No companies found</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Try adjusting your filters
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {companyList.map((company) => (
+                    <CompanyAccordion
+                      key={company}
+                      company={company}
+                      items={groupedByCompany[company]}
+                      isExpanded={expandedCompanies.has(company)}
+                      onToggle={() => toggleCompany(company)}
+                      selectedItems={selectedItems}
+                      onToggleSelection={toggleItemSelection}
+                      onDispatchClick={handleDispatchClick}
+                      onEditClick={handleEditClick}
+                      onDeleteClick={handleDeleteClick}
+                      dispatchHistory={dispatchHistory}
+                      getCompletionPercentage={getCompletionPercentage}
+                      getRiskMeta={getRiskMeta}
+                      formatCurrency={formatCurrency}
+                      formatDate={formatDate}
+                      getCategory={getCategory}
+                      getItemKey={getItemKey}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Footer */}
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                 <span>
-                  Showing{" "}
                   <strong className="text-slate-800">
-                    {sortedData.length === 0
-                      ? 0
-                      : (currentPage - 1) * pageSize + 1}
-                    –{Math.min(currentPage * pageSize, sortedData.length)}
+                    {companyList.length}
                   </strong>{" "}
-                  of <strong className="text-slate-800">{sortedData.length}</strong>
+                  companies ·{" "}
+                  <strong className="text-slate-800">
+                    {filteredData.length}
+                  </strong>{" "}
+                  POs
                 </span>
                 {filteredManager && (
                   <>
                     <span>
                       Pending{" "}
                       <strong className="text-rose-600">
-                        {filteredManager.summary.totalPending.toLocaleString("en-IN")}
+                        {filteredManager.summary.totalPending.toLocaleString(
+                          "en-IN",
+                        )}
                       </strong>
                     </span>
                     <span>
@@ -3175,64 +4354,10 @@ const GeneratePendingList = () => {
                     </span>
                   </>
                 )}
-              </div>
-
-              <div className="no-print flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-slate-500">
-                  Rows
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
-                  >
-                    {[10, 15, 25, 50].map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="ml-1 flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="First page"
-                  >
-                    <ChevronsLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    disabled={currentPage === 1}
-                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="min-w-[76px] px-2 text-center text-xs font-semibold text-slate-700">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    disabled={currentPage === totalPages}
-                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Next page"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Last page"
-                  >
-                    <ChevronsRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <span>
+                  {expandedCompanies.size} company
+                  {expandedCompanies.size > 1 ? "ies" : ""} expanded
+                </span>
               </div>
             </div>
           </section>
@@ -3251,7 +4376,8 @@ const GeneratePendingList = () => {
                 Turn your pending PO sheet into an operating dashboard
               </h2>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-                Upload an Excel file and the workspace will organize quantities, company workload, progress, and dispatch history.
+                Upload an Excel file and the workspace will organize quantities,
+                company workload, progress, and dispatch history.
               </p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
                 <label
@@ -3272,13 +4398,16 @@ const GeneratePendingList = () => {
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and .xls
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and
+                  .xls
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Saved to your database
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Saved to
+                  your database
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Instant analytics
+                  <Check className="h-3.5 w-3.5 text-emerald-500" /> Instant
+                  analytics
                 </span>
               </div>
             </div>
