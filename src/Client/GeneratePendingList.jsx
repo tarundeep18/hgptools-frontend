@@ -7174,11 +7174,11 @@ const GeneratePendingList = () => {
                   >
                     <ChevronsRight className="h-4 w-4" />
                   </button>
+                  
                 </div>
               </div>
             </div>
           </section>
-          
         ) : (
           <section className="relative overflow-hidden rounded-3xl border border-blue-100 bg-white px-5 py-14 text-center shadow-[0_24px_70px_-40px_rgba(30,64,175,0.5)] animate-fadeInUp sm:py-20">
             <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-80 -translate-x-1/2 rounded-full bg-blue-100/80 blur-3xl" />
