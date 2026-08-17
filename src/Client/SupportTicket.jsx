@@ -1177,7 +1177,7 @@ const ClientSupportSystem = () => {
               <p className="text-sm text-gray-600 mb-3">
                 Emergency assistance available
               </p>
-              <p className="text-lg font-bold text-blue-600">+91-129-1234567</p>
+              <p className="text-lg font-bold text-blue-600">+91-8375076646</p>
             </div>
 
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 text-center hover:shadow-xl transition-all duration-300 group">

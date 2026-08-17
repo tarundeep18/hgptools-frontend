@@ -2444,15 +2444,21 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   }, [totalPOQty, totalPending]);
 
   const allSelected = useMemo(() => {
-    return items.length > 0 && items.every((item) => selectedItems.has(getItemKey(item)));
+    return (
+      items.length > 0 &&
+      items.every((item) => selectedItems.has(getItemKey(item)))
+    );
   }, [items, selectedItems, getItemKey]);
 
-  const handleSelectAll = useCallback((e) => {
-    e.stopPropagation();
-    items.forEach((item) => {
-      onToggleSelection(item);
-    });
-  }, [items, onToggleSelection]);
+  const handleSelectAll = useCallback(
+    (e) => {
+      e.stopPropagation();
+      items.forEach((item) => {
+        onToggleSelection(item);
+      });
+    },
+    [items, onToggleSelection],
+  );
 
   return (
     <div className="border border-gray-200 rounded-lg mb-2 overflow-hidden bg-white shadow-sm hover:shadow-md transition-all">
@@ -2471,7 +2477,9 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                 {company || "Unknown Company"}
               </h3>
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                <span>{items.length} PO{items.length > 1 ? "s" : ""}</span>
+                <span>
+                  {items.length} PO{items.length > 1 ? "s" : ""}
+                </span>
                 <span className="text-gray-300">|</span>
                 <span className="flex items-center gap-1">
                   <Clock3 className="w-3 h-3" />
@@ -2645,7 +2653,9 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${risk.badge}`}
                       >
-                        <span className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${risk.dot}`}
+                        />
                         {risk.label}
                       </span>
                     </td>
@@ -2654,7 +2664,11 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                         <button
                           onClick={() => onDispatchClick(item)}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
-                          title={item.pending > 0 ? "Record dispatch" : "View dispatch history"}
+                          title={
+                            item.pending > 0
+                              ? "Record dispatch"
+                              : "View dispatch history"
+                          }
                         >
                           {item.pending > 0 ? (
                             <Truck className="h-3.5 w-3.5" />
