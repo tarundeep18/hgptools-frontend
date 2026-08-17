@@ -192,21 +192,21 @@ export default function DashboardLayout() {
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? "dark" : ""}`}>
       {/* Mobile Sidebar Toggle Button */}
-     {/* Mobile Sidebar Toggle */}
-<div className="fixed top-4 left-4 z-[120] md:hidden">
-  <button
-    type="button"
-    onClick={() => setSidebarOpen((open) => !open)}
-    className={`p-2 rounded-md shadow-sm transition-colors ${
-      darkMode
-        ? "bg-gray-800 text-white hover:bg-gray-700"
-        : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-    }`}
-    aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-  >
-    {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-  </button>
-</div>
+      {/* Mobile Sidebar Toggle */}
+      <div className="fixed top-4 left-4 z-[120] md:hidden">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((open) => !open)}
+          className={`p-2 rounded-md shadow-sm transition-colors ${
+            darkMode
+              ? "bg-gray-800 text-white hover:bg-gray-700"
+              : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+          }`}
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
 
       {/* Overlay */}
       {sidebarOpen && (
@@ -217,9 +217,9 @@ export default function DashboardLayout() {
       )}
 
       {/* Sidebar */}
-   <div
-  ref={sidebarRef}
-  className={`
+      <div
+        ref={sidebarRef}
+        className={`
     fixed md:relative
     inset-y-0 left-0
     z-[100]
@@ -230,23 +230,20 @@ export default function DashboardLayout() {
     transition-transform duration-300 ease-in-out
     ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
     md:translate-x-0
-    ${darkMode
-      ? "bg-gray-900 text-gray-100"
-      : "bg-white text-gray-800"
-    }
+    ${darkMode ? "bg-gray-900 text-gray-100" : "bg-white text-gray-800"}
   `}
->
-  <Sidebar darkMode={darkMode} />
-</div>
+      >
+        <Sidebar darkMode={darkMode} />
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Navbar */}
-      <header
-  className={`sticky top-0 z-30 w-full shadow-sm ${
-    darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
-  }`}
->
+        <header
+          className={`sticky top-0 z-30 w-full shadow-sm ${
+            darkMode ? "bg-gray-900 text-white" : "bg-white text-gray-800"
+          }`}
+        >
           {/* Top Row */}
           <div
             className={`min-h-20 flex items-center 

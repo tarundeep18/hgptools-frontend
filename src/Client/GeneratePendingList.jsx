@@ -4,6 +4,7 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  useRef,
   useTransition,
 } from "react";
 import * as XLSX from "xlsx";
@@ -50,7 +51,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  Table2,
   Truck,
   Upload,
   X,
@@ -59,6 +59,1183 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
+
+const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const MAX_BILL_NUMBER_LENGTH = 100;
+const MAX_SHORT_TEXT_LENGTH = 200;
+const MAX_REMARKS_LENGTH = 1000;
+
+const toFiniteNumber = (value, fallback = 0) => {
+  if (typeof value === "string" && value.trim() === "") return fallback;
+  const normalized =
+    typeof value === "string" ? value.replace(/,/g, "").trim() : value;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const toNonNegativeNumber = (value, fallback = 0) =>
+  Math.max(0, toFiniteNumber(value, fallback));
+
+const normalizeText = (value) => String(value ?? "").trim();
+
+const getLocalDateInputValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const toDateInputValue = (value) => {
+  if (!value) return "";
+  const stringValue = String(value);
+  const dateOnlyMatch = stringValue.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateOnlyMatch) return dateOnlyMatch[1];
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : getLocalDateInputValue(date);
+};
+
+const getDateTimestamp = (value) => {
+  if (!value) return null;
+  const dateOnly = toDateInputValue(value);
+  if (!dateOnly) return null;
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+};
+
+const formatDateValue = (value) => {
+  const timestamp = getDateTimestamp(value);
+  if (timestamp === null) return value ? String(value) : "-";
+  return new Date(timestamp).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const isCancelledRecord = (item) =>
+  normalizeText(item?.status).toLowerCase() === "cancelled";
+
+const getItemCategory = (description = "") => {
+  const value = normalizeText(description).toLowerCase();
+  if (value.includes("bus bar")) return "Bus Bars";
+  if (value.includes("heat sink")) return "Heat Sinks";
+  if (value.includes("accessory") || value.includes("assembly")) {
+    return "Accessories";
+  }
+  if (value.includes("hardware")) return "Hardware";
+  if (value.includes("plate")) return "Plates";
+  return "Others";
+};
+
+const normalizeDispatchEntry = (entry = {}, parent = {}) => ({
+  ...entry,
+  _id: normalizeText(entry._id || entry.id),
+  id: normalizeText(entry.id || entry._id),
+  poId: normalizeText(entry.poId || parent._id),
+  itemKey: normalizeText(entry.itemKey || parent.itemKey),
+  po: normalizeText(entry.po || parent.po),
+  company: normalizeText(entry.company || parent.company),
+  item: normalizeText(entry.item || parent.item),
+  itemCode: normalizeText(entry.itemCode || parent.itemCode),
+  drawing: normalizeText(entry.drawing || parent.drawing),
+  dispatchQty: toNonNegativeNumber(entry.dispatchQty),
+  newPending:
+    entry.newPending === undefined || entry.newPending === null
+      ? undefined
+      : toNonNegativeNumber(entry.newPending),
+});
+
+const normalizePurchaseOrder = (record = {}, index = 0) => {
+  const issues = [];
+  const warnings = [];
+  const id = normalizeText(record._id || record.id);
+  const po = normalizeText(record.po);
+  const rawCompany = normalizeText(record.company);
+  const company = rawCompany || "Unknown Company";
+  const item = normalizeText(record.item);
+  const poQty = toNonNegativeNumber(record.poQty ?? record.quantity);
+  const hasDispatched =
+    record.dispatched !== undefined &&
+    record.dispatched !== null &&
+    record.dispatched !== "";
+  const rawDispatched = hasDispatched
+    ? toNonNegativeNumber(record.dispatched)
+    : Math.max(0, poQty - toNonNegativeNumber(record.pending, poQty));
+  const dispatched = Math.min(rawDispatched, poQty);
+  const pending = Math.max(0, poQty - dispatched);
+  const suppliedPending = toFiniteNumber(record.pending, pending);
+  const rate = toNonNegativeNumber(record.rate);
+
+  if (!id)
+    warnings.push("Missing database id; edit and dispatch are unavailable");
+  if (!po) issues.push("Missing PO number");
+  if (!rawCompany) issues.push("Missing company");
+  if (!item) issues.push("Missing item description");
+  if (poQty <= 0) issues.push("PO quantity must be greater than zero");
+  if (rate <= 0) warnings.push("Unit rate is missing or zero");
+  if (rawDispatched > poQty)
+    issues.push("Dispatched quantity exceeds PO quantity");
+  if (Math.abs(suppliedPending - pending) > 0.000001) {
+    warnings.push(
+      "Pending quantity was recalculated as PO quantity minus dispatched",
+    );
+  }
+  const poDateTimestamp = getDateTimestamp(record.poDate);
+  const deliveryDateTimestamp = getDateTimestamp(record.deliveryDate);
+  if (!record.poDate) warnings.push("PO date is missing");
+  if (!record.deliveryDate) warnings.push("Delivery date is missing");
+  if (record.poDate && poDateTimestamp === null) issues.push("Invalid PO date");
+  if (record.deliveryDate && deliveryDateTimestamp === null) {
+    issues.push("Invalid delivery date");
+  }
+  if (
+    poDateTimestamp !== null &&
+    deliveryDateTimestamp !== null &&
+    deliveryDateTimestamp < poDateTimestamp
+  ) {
+    issues.push("Delivery date is before PO date");
+  }
+
+  const rawStatus = normalizeText(record.status);
+  const protectedStatus = ["on hold", "cancelled"].includes(
+    rawStatus.toLowerCase(),
+  );
+  const status = protectedStatus
+    ? rawStatus.toLowerCase() === "on hold"
+      ? "On Hold"
+      : "Cancelled"
+    : pending <= 0
+      ? "Completed"
+      : dispatched > 0
+        ? "In Progress"
+        : "Pending";
+  const itemKey = id || `record-${index}-${po}-${company}`;
+  const normalized = {
+    ...record,
+    _id: id,
+    itemKey,
+    po,
+    company,
+    item,
+    itemCode: normalizeText(record.itemCode),
+    drawing: normalizeText(record.drawing),
+    poQty,
+    dispatched,
+    pending,
+    rate,
+    total: pending * rate,
+    status,
+    _dataIssues: issues,
+    _dataWarnings: warnings,
+  };
+
+  normalized.dispatchHistory = Array.isArray(record.dispatchHistory)
+    ? record.dispatchHistory.map((entry) =>
+        normalizeDispatchEntry(entry, normalized),
+      )
+    : [];
+
+  return normalized;
+};
+
+const extractPurchaseOrderRecords = (result) => {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.records)) return result.records;
+  if (Array.isArray(result?.data?.records)) return result.data.records;
+  if (Array.isArray(result?.data)) return result.data;
+  throw new Error("The server returned an invalid purchase-order response");
+};
+
+const getDispatchGroupKey = (entry, itemKey = "") => {
+  const billNumber = normalizeText(entry?.billNumber) || "Unknown Bill";
+  const date = toDateInputValue(entry?.dispatchDate) || "unknown-date";
+  const fallback = normalizeText(entry?._id || entry?.id || itemKey);
+  return `${billNumber}::${date}::${billNumber === "Unknown Bill" ? fallback : ""}`;
+};
+
+const getPurchaseOrderKey = (item) => {
+  const directKey = normalizeText(item?._id || item?.itemKey);
+  if (directKey) return directKey;
+  const composite = [
+    item?.company,
+    item?.po,
+    item?.itemCode,
+    item?.drawing,
+    item?.item,
+  ]
+    .map(normalizeText)
+    .filter(Boolean)
+    .join("::");
+  return composite || "unidentified-purchase-order";
+};
+
+const normalizeMergeKeyPart = (value) =>
+  normalizeText(value).toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
+
+const getMergedItemKey = (item) =>
+  [item?.company, item?.item, item?.drawing]
+    .map(normalizeMergeKeyPart)
+    .join("::");
+
+const getSourcePurchaseOrders = (row) =>
+  row?._isMerged && Array.isArray(row._sourceItems)
+    ? row._sourceItems
+    : row
+      ? [row]
+      : [];
+
+const getEarliestDateValue = (items, field, { pendingOnly = false } = {}) => {
+  const candidates = items
+    .filter((item) => !pendingOnly || toNonNegativeNumber(item.pending) > 0)
+    .map((item) => ({
+      value: item?.[field],
+      timestamp: getDateTimestamp(item?.[field]),
+    }))
+    .filter((entry) => entry.timestamp !== null)
+    .sort((left, right) => left.timestamp - right.timestamp);
+  return candidates[0]?.value || "";
+};
+
+const getMergedStatus = (items, pending, dispatched) => {
+  if (items.length === 0) return "Pending";
+  if (items.every(isCancelledRecord)) return "Cancelled";
+  if (pending <= 0) return "Completed";
+
+  const activeItems = items.filter((item) => !isCancelledRecord(item));
+  if (
+    activeItems.length > 0 &&
+    activeItems.every(
+      (item) => normalizeText(item.status).toLowerCase() === "on hold",
+    )
+  ) {
+    return "On Hold";
+  }
+
+  const hasBlockedItems = items.some((item) =>
+    ["on hold", "cancelled"].includes(normalizeText(item.status).toLowerCase()),
+  );
+  if (hasBlockedItems) return "Mixed";
+  return dispatched > 0 ? "In Progress" : "Pending";
+};
+
+/**
+ * Produces display-only rows. Source PO records are retained in _sourceItems,
+ * so dispatch, history, selection, export, and API payloads still use the
+ * underlying database records.
+ */
+const mergePurchaseOrderRows = (items = []) => {
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const mergeKey = getMergedItemKey(item);
+    if (!groups.has(mergeKey)) groups.set(mergeKey, []);
+    groups.get(mergeKey).push(item);
+  });
+
+  return Array.from(groups.entries()).map(([mergeKey, sourceItems]) => {
+    // Keep a single database record as a normal row. Previously every display
+    // row was marked as merged, which permanently hid the Edit/Delete buttons.
+    if (sourceItems.length === 1) return sourceItems[0];
+
+    const activeItems = sourceItems.filter((item) => !isCancelledRecord(item));
+    const quantityItems = activeItems.length > 0 ? activeItems : sourceItems;
+    const poNumbers = Array.from(
+      new Set(
+        sourceItems.map((item) => normalizeText(item.po)).filter(Boolean),
+      ),
+    ).sort((left, right) =>
+      left.localeCompare(right, "en", { numeric: true, sensitivity: "base" }),
+    );
+    const itemCodes = Array.from(
+      new Set(
+        sourceItems.map((item) => normalizeText(item.itemCode)).filter(Boolean),
+      ),
+    );
+    const rates = Array.from(
+      new Set(quantityItems.map((item) => toNonNegativeNumber(item.rate))),
+    );
+    const poQty = quantityItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.poQty),
+      0,
+    );
+    const dispatched = quantityItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.dispatched),
+      0,
+    );
+    const pending = quantityItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.pending),
+      0,
+    );
+    const total = quantityItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.total),
+      0,
+    );
+    const weightedRate =
+      pending > 0
+        ? total / pending
+        : poQty > 0
+          ? quantityItems.reduce(
+              (sum, item) =>
+                sum +
+                toNonNegativeNumber(item.poQty) *
+                  toNonNegativeNumber(item.rate),
+              0,
+            ) / poQty
+          : 0;
+    const dispatchableItems = sourceItems.filter((item) => {
+      const status = normalizeText(item.status).toLowerCase();
+      return (
+        toNonNegativeNumber(item.pending) > 0 &&
+        Boolean(item._id) &&
+        status !== "cancelled" &&
+        status !== "on hold"
+      );
+    });
+    const dataIssues = Array.from(
+      new Set(sourceItems.flatMap((item) => item._dataIssues || [])),
+    );
+    const dataWarnings = Array.from(
+      new Set(sourceItems.flatMap((item) => item._dataWarnings || [])),
+    );
+    const firstItem = sourceItems[0] || {};
+
+    return {
+      ...firstItem,
+      _id: "",
+      _isMerged: true,
+      _mergeKey: `merged::${mergeKey}`,
+      itemKey: `merged::${mergeKey}`,
+      _sourceItems: sourceItems,
+      _dispatchableItems: dispatchableItems,
+      _cancelledCount: sourceItems.filter(isCancelledRecord).length,
+      company: firstItem.company || "Unknown Company",
+      item: firstItem.item,
+      drawing: firstItem.drawing,
+      itemCode: itemCodes.join(", "),
+      itemCodes,
+      po: poNumbers.join(", "),
+      poNumbers,
+      poCount: poNumbers.length,
+      poDate: getEarliestDateValue(quantityItems, "poDate"),
+      deliveryDate: getEarliestDateValue(quantityItems, "deliveryDate", {
+        pendingOnly: true,
+      }),
+      poDates: Array.from(
+        new Set(
+          sourceItems
+            .map((item) => toDateInputValue(item.poDate))
+            .filter(Boolean),
+        ),
+      ),
+      deliveryDates: Array.from(
+        new Set(
+          sourceItems
+            .map((item) => toDateInputValue(item.deliveryDate))
+            .filter(Boolean),
+        ),
+      ),
+      poQty,
+      dispatched,
+      pending,
+      rate: weightedRate,
+      rates,
+      total,
+      status: getMergedStatus(sourceItems, pending, dispatched),
+      _hasMixedRates: rates.length > 1,
+      _dataIssues: dataIssues,
+      _dataWarnings: dataWarnings,
+    };
+  });
+};
+
+const EXCEL_IMPORT_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+const normalizeExcelHeader = (value) =>
+  normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+const EXCEL_COLUMN_DEFINITIONS = {
+  po: {
+    header: "PO Number",
+    aliases: [
+      "po",
+      "pono",
+      "ponumber",
+      "purchaseorder",
+      "purchaseorderno",
+      "purchaseordernumber",
+    ],
+  },
+  poDate: {
+    header: "PO Date",
+    aliases: ["podate", "purchaseorderdate", "orderdate"],
+  },
+  company: {
+    header: "Company",
+    aliases: [
+      "company",
+      "companyname",
+      "customer",
+      "customername",
+      "party",
+      "partyname",
+      "vendor",
+      "vendorname",
+    ],
+  },
+  item: {
+    header: "Item Description",
+    aliases: [
+      "item",
+      "itemname",
+      "itemdescription",
+      "description",
+      "descriptionofgoods",
+      "part",
+      "partname",
+      "product",
+      "productname",
+    ],
+  },
+  itemCode: {
+    header: "Item Code",
+    aliases: [
+      "itemcode",
+      "itemno",
+      "itemnumber",
+      "partcode",
+      "partnumber",
+      "materialcode",
+      "materialno",
+      "productcode",
+      "sku",
+    ],
+  },
+  drawing: {
+    header: "Drawing",
+    aliases: [
+      "drawing",
+      "drawingno",
+      "drawingnumber",
+      "drg",
+      "drgno",
+      "drgnumber",
+    ],
+  },
+  poQty: {
+    header: "PO Quantity",
+    aliases: [
+      "poqty",
+      "poquantity",
+      "quantity",
+      "qty",
+      "orderqty",
+      "orderquantity",
+      "orderedquantity",
+      "quantityordered",
+    ],
+  },
+  dispatched: {
+    header: "Dispatched",
+    aliases: [
+      "dispatched",
+      "dispatchedqty",
+      "dispatchedquantity",
+      "dispatchqty",
+      "supplied",
+      "suppliedqty",
+    ],
+  },
+  pending: {
+    header: "Pending",
+    aliases: ["pending", "pendingqty", "pendingquantity", "balanceqty"],
+  },
+  rate: {
+    header: "Rate",
+    aliases: ["rate", "unitrate", "price", "unitprice", "porate"],
+  },
+  deliveryDate: {
+    header: "Delivery Date",
+    aliases: [
+      "deliverydate",
+      "duedate",
+      "requireddate",
+      "expecteddeliverydate",
+      "scheduledate",
+      "deliveryschedule",
+    ],
+  },
+  status: {
+    header: "Status",
+    aliases: ["status", "postatus", "orderstatus"],
+  },
+};
+
+const getExcelFieldForHeader = (header) => {
+  const normalizedHeader = normalizeExcelHeader(header);
+  return Object.entries(EXCEL_COLUMN_DEFINITIONS).find(([, definition]) =>
+    definition.aliases.includes(normalizedHeader),
+  )?.[0];
+};
+
+const createUniqueExcelHeaders = (values = []) => {
+  const seen = new Map();
+  return values.map((value, index) => {
+    const base = normalizeText(value) || `Column ${index + 1}`;
+    const count = (seen.get(base) || 0) + 1;
+    seen.set(base, count);
+    return count === 1 ? base : `${base} (${count})`;
+  });
+};
+
+const createDateInputFromParts = (year, month, day) => {
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return "";
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+const parseExcelDateValue = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return getLocalDateInputValue(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    return parsed ? createDateInputFromParts(parsed.y, parsed.m, parsed.d) : "";
+  }
+
+  const textValue = normalizeText(value);
+  const indianDateMatch = textValue.match(
+    /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/,
+  );
+  if (indianDateMatch) {
+    return createDateInputFromParts(
+      Number(indianDateMatch[3]),
+      Number(indianDateMatch[2]),
+      Number(indianDateMatch[1]),
+    );
+  }
+
+  const yearFirstMatch = textValue.match(
+    /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/,
+  );
+  if (yearFirstMatch) {
+    return createDateInputFromParts(
+      Number(yearFirstMatch[1]),
+      Number(yearFirstMatch[2]),
+      Number(yearFirstMatch[3]),
+    );
+  }
+  return toDateInputValue(textValue);
+};
+
+const getPreviewRowValidation = (row = {}) => {
+  const issues = [];
+  const warnings = [];
+  const poQty = toFiniteNumber(row.poQty);
+  const dispatched = toFiniteNumber(row.dispatched);
+  const rate = toFiniteNumber(row.rate);
+
+  if (!normalizeText(row.po)) issues.push("PO number is required");
+  if (!normalizeText(row.company)) issues.push("Company is required");
+  if (!normalizeText(row.item)) issues.push("Item description is required");
+  if (!Number.isFinite(poQty) || poQty <= 0) {
+    issues.push("PO quantity must be greater than zero");
+  }
+  if (!Number.isFinite(dispatched) || dispatched < 0) {
+    issues.push("Dispatched quantity cannot be negative");
+  } else if (dispatched > poQty) {
+    issues.push("Dispatched quantity exceeds PO quantity");
+  }
+  if (row._invalidPODate) issues.push("PO date is invalid");
+  if (row._invalidDeliveryDate) issues.push("Delivery date is invalid");
+
+  const poDateTimestamp = getDateTimestamp(row.poDate);
+  const deliveryDateTimestamp = getDateTimestamp(row.deliveryDate);
+  if (
+    poDateTimestamp !== null &&
+    deliveryDateTimestamp !== null &&
+    deliveryDateTimestamp < poDateTimestamp
+  ) {
+    issues.push("Delivery date is before PO date");
+  }
+
+  if (!row.poDate) warnings.push("PO date is blank");
+  if (!row.deliveryDate) warnings.push("Delivery date is blank");
+  if (!Number.isFinite(rate) || rate <= 0) {
+    warnings.push("Unit rate is blank or zero");
+  }
+  if (!normalizeText(row.itemCode)) warnings.push("Item code is blank");
+  if (!normalizeText(row.drawing)) warnings.push("Drawing is blank");
+
+  return { issues, warnings };
+};
+
+const recalculateExcelPreviewRow = (row = {}) => {
+  const poQty = Math.max(0, toFiniteNumber(row.poQty));
+  const dispatched = Math.max(0, toFiniteNumber(row.dispatched));
+  const pending = Math.max(0, poQty - Math.min(dispatched, poQty));
+  const rawStatus = normalizeText(row.status).toLowerCase();
+  const status = ["on hold", "cancelled"].includes(rawStatus)
+    ? rawStatus === "on hold"
+      ? "On Hold"
+      : "Cancelled"
+    : pending <= 0
+      ? "Completed"
+      : dispatched > 0
+        ? "In Progress"
+        : "Pending";
+  const calculated = { ...row, pending, status };
+  const validation = getPreviewRowValidation(calculated);
+  return {
+    ...calculated,
+    _previewIssues: validation.issues,
+    _previewWarnings: validation.warnings,
+  };
+};
+
+const createExcelPreviewRow = (
+  rawRow,
+  index,
+  headers,
+  sourceRowNumber = index + 2,
+) => {
+  const fieldHeaders = {};
+  const fieldValues = {};
+
+  headers.forEach((header) => {
+    const field = getExcelFieldForHeader(header);
+    if (field && !fieldHeaders[field]) {
+      fieldHeaders[field] = header;
+      fieldValues[field] = rawRow[header];
+    }
+  });
+
+  const poDate = parseExcelDateValue(fieldValues.poDate);
+  const deliveryDate = parseExcelDateValue(fieldValues.deliveryDate);
+  const row = {
+    _previewId: `excel-row-${sourceRowNumber}-${index}`,
+    _sourceRowNumber: sourceRowNumber,
+    _originalRow: rawRow,
+    _fieldHeaders: fieldHeaders,
+    _invalidPODate: Boolean(fieldValues.poDate) && !poDate,
+    _invalidDeliveryDate: Boolean(fieldValues.deliveryDate) && !deliveryDate,
+    po: normalizeText(fieldValues.po),
+    poDate,
+    company: normalizeText(fieldValues.company),
+    item: normalizeText(fieldValues.item),
+    itemCode: normalizeText(fieldValues.itemCode),
+    drawing: normalizeText(fieldValues.drawing),
+    poQty:
+      fieldValues.poQty === "" || fieldValues.poQty === undefined
+        ? ""
+        : toFiniteNumber(fieldValues.poQty),
+    dispatched:
+      fieldValues.dispatched === "" || fieldValues.dispatched === undefined
+        ? 0
+        : toFiniteNumber(fieldValues.dispatched),
+    pending: toFiniteNumber(fieldValues.pending),
+    rate:
+      fieldValues.rate === "" || fieldValues.rate === undefined
+        ? ""
+        : toFiniteNumber(fieldValues.rate),
+    deliveryDate,
+    status: normalizeText(fieldValues.status),
+  };
+
+  return recalculateExcelPreviewRow(row);
+};
+
+const parseExcelFileForPreview = async (file) => {
+  const workbook = XLSX.read(await file.arrayBuffer(), {
+    type: "array",
+    cellDates: true,
+  });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("The workbook does not contain a worksheet");
+
+  const worksheet = workbook.Sheets[sheetName];
+  const matrix = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: "",
+    raw: true,
+    blankrows: false,
+  });
+  if (matrix.length === 0) throw new Error("The worksheet is empty");
+
+  let headerRowIndex = -1;
+  let bestHeaderScore = 0;
+  matrix.slice(0, 20).forEach((row, index) => {
+    const score = row.filter((cell) => getExcelFieldForHeader(cell)).length;
+    if (score > bestHeaderScore) {
+      bestHeaderScore = score;
+      headerRowIndex = index;
+    }
+  });
+  if (headerRowIndex < 0 || bestHeaderScore < 2) {
+    throw new Error(
+      "Could not identify the Excel header row. Include columns such as PO Number, Company, Item Description, and PO Quantity.",
+    );
+  }
+
+  const headers = createUniqueExcelHeaders(matrix[headerRowIndex]);
+  const rawRows = matrix
+    .slice(headerRowIndex + 1)
+    .filter((row) => row.some((cell) => normalizeText(cell) !== ""))
+    .map((row) =>
+      headers.reduce((record, header, columnIndex) => {
+        record[header] = row[columnIndex] ?? "";
+        return record;
+      }, {}),
+    );
+  if (rawRows.length === 0) {
+    throw new Error("No purchase-order rows were found below the header row");
+  }
+
+  return {
+    sheetName,
+    rows: rawRows.map((row, index) =>
+      createExcelPreviewRow(row, index, headers, headerRowIndex + index + 2),
+    ),
+  };
+};
+
+const updateExcelPreviewRow = (row, field, value) => {
+  const next = { ...row, [field]: value };
+  if (field === "poDate") next._invalidPODate = false;
+  if (field === "deliveryDate") next._invalidDeliveryDate = false;
+  return recalculateExcelPreviewRow(next);
+};
+
+const toReviewedExcelRow = (row) => {
+  const reviewed = { ...row._originalRow };
+  const values = {
+    po: normalizeText(row.po),
+    poDate: row.poDate || "",
+    company: normalizeText(row.company),
+    item: normalizeText(row.item),
+    itemCode: normalizeText(row.itemCode),
+    drawing: normalizeText(row.drawing),
+    poQty: toNonNegativeNumber(row.poQty),
+    dispatched: toNonNegativeNumber(row.dispatched),
+    pending: toNonNegativeNumber(row.pending),
+    rate: toNonNegativeNumber(row.rate),
+    deliveryDate: row.deliveryDate || "",
+    status: row.status,
+  };
+
+  Object.entries(values).forEach(([field, value]) => {
+    const header =
+      row._fieldHeaders?.[field] || EXCEL_COLUMN_DEFINITIONS[field].header;
+    reviewed[header] = value;
+  });
+  return reviewed;
+};
+
+const buildReviewedExcelFile = (rows, sourceFile, sheetName) => {
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(rows.map(toReviewedExcelRow));
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    normalizeText(sheetName).slice(0, 31) || "Pending PO",
+  );
+  const fileBytes = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  });
+  const baseName = normalizeText(sourceFile?.name).replace(
+    /\.(xlsx|xls)$/i,
+    "",
+  );
+  return new File([fileBytes], `${baseName || "pending-po"}-reviewed.xlsx`, {
+    type: EXCEL_IMPORT_MIME_TYPE,
+  });
+};
+
+// ============================================
+// EXCEL IMPORT PREVIEW COMPONENT
+// ============================================
+const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
+  isOpen,
+  file,
+  sheetName,
+  rows = [],
+  isSubmitting,
+  error,
+  onUpdateRow,
+  onDeleteRow,
+  onCancel,
+  onConfirm,
+}) {
+  const invalidRowCount = useMemo(
+    () => rows.filter((row) => row._previewIssues?.length > 0).length,
+    [rows],
+  );
+  const warningRowCount = useMemo(
+    () => rows.filter((row) => row._previewWarnings?.length > 0).length,
+    [rows],
+  );
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isSubmitting) onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, isSubmitting, onCancel]);
+
+  if (!isOpen) return null;
+
+  const inputClass =
+    "w-full min-w-[120px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 disabled:bg-slate-100";
+  const update = (row, field) => (event) =>
+    onUpdateRow(row._previewId, field, event.target.value);
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="excel-preview-title"
+    >
+      <div className="flex min-h-full items-center justify-center py-2">
+        <div className="relative flex max-h-[calc(100vh-1rem)] w-full max-w-[1600px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-white/20 sm:max-h-[calc(100vh-2rem)]">
+          <div className="relative shrink-0 overflow-hidden bg-gradient-to-r from-indigo-700 via-blue-700 to-cyan-700 px-5 py-4 text-white sm:px-6">
+            <div className="pointer-events-none absolute -right-14 -top-20 h-48 w-48 rounded-full bg-white/15 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/15">
+                  <FileSpreadsheet className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id="excel-preview-title"
+                    className="text-lg font-bold tracking-tight sm:text-xl"
+                  >
+                    Preview Excel data before upload
+                  </h2>
+                  <p className="mt-1 truncate text-xs text-blue-100 sm:text-sm">
+                    {file?.name || "Selected workbook"} · Sheet:{" "}
+                    {sheetName || "-"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isSubmitting}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:bg-white/15 disabled:opacity-50"
+                aria-label="Close Excel preview"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1.5 font-semibold text-blue-700">
+                <Package className="h-3.5 w-3.5" /> {rows.length} row
+                {rows.length === 1 ? "" : "s"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold ${
+                  invalidRowCount
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {invalidRowCount ? (
+                  <AlertCircle className="h-3.5 w-3.5" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                {invalidRowCount
+                  ? `${invalidRowCount} row${invalidRowCount === 1 ? "" : "s"} must be fixed`
+                  : "All required data is ready"}
+              </span>
+              {warningRowCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 font-semibold text-amber-700">
+                  <AlertCircle className="h-3.5 w-3.5" /> {warningRowCount}{" "}
+                  optional warning{warningRowCount === 1 ? "" : "s"}
+                </span>
+              )}
+              <span className="ml-auto text-slate-500">
+                Edit any cell or delete unwanted rows before uploading.
+              </span>
+            </div>
+            {error && (
+              <div
+                className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+                role="alert"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="thin-scrollbar min-h-0 flex-1 overflow-auto bg-slate-100/70 p-3 sm:p-4">
+            {rows.length === 0 ? (
+              <div className="grid min-h-[300px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center">
+                <div>
+                  <FileSpreadsheet className="mx-auto h-10 w-10 text-slate-300" />
+                  <p className="mt-3 font-semibold text-slate-700">
+                    No rows remain in the preview
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Cancel and select the workbook again to restore deleted
+                    rows.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <table className="min-w-[1780px] border-collapse text-left text-xs">
+                  <thead className="sticky top-0 z-10 bg-slate-800 text-white">
+                    <tr>
+                      <th className="px-3 py-3 text-center">Excel row</th>
+                      <th className="px-3 py-3">PO number *</th>
+                      <th className="px-3 py-3">Company *</th>
+                      <th className="px-3 py-3">Item description *</th>
+                      <th className="px-3 py-3">Item code</th>
+                      <th className="px-3 py-3">Drawing</th>
+                      <th className="px-3 py-3">PO date</th>
+                      <th className="px-3 py-3">Delivery date</th>
+                      <th className="px-3 py-3">PO quantity *</th>
+                      <th className="px-3 py-3">Dispatched</th>
+                      <th className="px-3 py-3">Pending</th>
+                      <th className="px-3 py-3">Rate</th>
+                      <th className="min-w-[240px] px-3 py-3">Validation</th>
+                      <th className="px-3 py-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {rows.map((row, index) => {
+                      const hasIssues = row._previewIssues?.length > 0;
+                      const hasWarnings = row._previewWarnings?.length > 0;
+                      return (
+                        <tr
+                          key={row._previewId}
+                          className={`${
+                            hasIssues
+                              ? "bg-rose-50/70"
+                              : index % 2
+                                ? "bg-slate-50/70"
+                                : "bg-white"
+                          } align-top`}
+                        >
+                          <td className="px-3 py-3 text-center font-mono font-semibold text-slate-500">
+                            {row._sourceRowNumber}
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.po}
+                              onChange={update(row, "po")}
+                              disabled={isSubmitting}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.company}
+                              onChange={update(row, "company")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[180px]`}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.item}
+                              onChange={update(row, "item")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[230px]`}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.itemCode}
+                              onChange={update(row, "itemCode")}
+                              disabled={isSubmitting}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.drawing}
+                              onChange={update(row, "drawing")}
+                              disabled={isSubmitting}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="date"
+                              value={row.poDate}
+                              onChange={update(row, "poDate")}
+                              disabled={isSubmitting}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="date"
+                              value={row.deliveryDate}
+                              min={row.poDate || undefined}
+                              onChange={update(row, "deliveryDate")}
+                              disabled={isSubmitting}
+                              className={inputClass}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={row.poQty}
+                              onChange={update(row, "poQty")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={row.dispatched}
+                              onChange={update(row, "dispatched")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                          <td className="px-3 py-3 text-center font-semibold text-rose-600">
+                            {toNonNegativeNumber(row.pending).toLocaleString(
+                              "en-IN",
+                            )}
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.rate}
+                              onChange={update(row, "rate")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            {hasIssues ? (
+                              <ul className="space-y-1 text-[11px] font-medium text-rose-700">
+                                {row._previewIssues.map((issue) => (
+                                  <li key={issue} className="flex gap-1.5">
+                                    <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                    <span>{issue}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : hasWarnings ? (
+                              <div>
+                                <p className="flex items-center gap-1.5 font-semibold text-amber-700">
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  Import allowed
+                                </p>
+                                <p
+                                  className="mt-1 max-w-[230px] text-[10px] leading-4 text-amber-600"
+                                  title={row._previewWarnings.join("; ")}
+                                >
+                                  {row._previewWarnings.join("; ")}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Ready
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => onDeleteRow(row._previewId)}
+                              disabled={isSubmitting}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-2 font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50"
+                              title={`Delete Excel row ${row._sourceRowNumber} from this import`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-slate-500">
+                Required fields are marked with *. Pending quantity is
+                recalculated automatically. Optional warnings do not block the
+                upload.
+              </p>
+              <div className="flex shrink-0 items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSubmitting}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={
+                    isSubmitting || rows.length === 0 || invalidRowCount > 0
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:from-indigo-700 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={
+                    invalidRowCount > 0
+                      ? "Fix or delete rows with red validation errors"
+                      : "Upload the reviewed rows"
+                  }
+                >
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {isSubmitting
+                    ? "Uploading reviewed data..."
+                    : `Upload ${rows.length} reviewed row${rows.length === 1 ? "" : "s"}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 // ============================================
 // DISPATCH HISTORY BILL DETAILS COMPONENT
@@ -70,15 +1247,34 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
   onEditDispatch,
   onDeleteDispatch,
 }) {
-  const totalItems = entries.length;
-  const totalQuantity = entries.reduce(
-    (sum, entry) => sum + (entry.dispatchQty || 0),
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const totalItems = safeEntries.length;
+  const totalQuantity = safeEntries.reduce(
+    (sum, entry) => sum + toNonNegativeNumber(entry.dispatchQty),
     0,
   );
-  const dispatchDate = entries[0]?.dispatchDate;
-  const transportMode = entries[0]?.transportMode;
-  const remarks = entries[0]?.remarks;
-  const receivedBy = entries[0]?.receivedBy;
+  const dispatchDate = safeEntries[0]?.dispatchDate;
+  const transportMode = safeEntries[0]?.transportMode;
+  const trackingNumber = safeEntries[0]?.trackingNumber;
+  const remarks = safeEntries[0]?.remarks;
+  const receivedBy = safeEntries[0]?.receivedBy;
+  const canManage = Boolean(onEditDispatch || onDeleteDispatch);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
 
   const handleEdit = useCallback(
     (entry) => {
@@ -120,8 +1316,10 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
                 <p className="text-sm text-blue-100">Bill #: {billNumber}</p>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="grid h-8 w-8 place-items-center rounded-lg text-white hover:bg-white/15 transition"
+                aria-label="Close bill details"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -133,13 +1331,7 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
               <div>
                 <p className="text-xs text-gray-500">Dispatch Date</p>
                 <p className="text-sm font-semibold text-gray-800">
-                  {dispatchDate
-                    ? new Date(dispatchDate).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "-"}
+                  {formatDateValue(dispatchDate)}
                 </p>
               </div>
               <div>
@@ -166,6 +1358,14 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
                 <p className="text-xs text-gray-500">Received By</p>
                 <p className="text-sm font-semibold text-gray-800">
                   {receivedBy}
+                </p>
+              </div>
+            )}
+            {trackingNumber && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500">Tracking Number</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {trackingNumber}
                 </p>
               </div>
             )}
@@ -199,15 +1399,17 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
                   <th className="text-right px-3 py-2 text-xs font-semibold text-gray-600">
                     Pending
                   </th>
-                  <th className="text-center px-3 py-2 text-xs font-semibold text-gray-600">
-                    Actions
-                  </th>
+                  {canManage && (
+                    <th className="text-center px-3 py-2 text-xs font-semibold text-gray-600">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {entries.map((entry, idx) => (
+                {safeEntries.map((entry, idx) => (
                   <tr
-                    key={entry.po + idx}
+                    key={entry._id || entry.id || `${entry.po}-${idx}`}
                     className="hover:bg-blue-50 transition"
                   >
                     <td className="px-3 py-2 text-xs text-gray-500">
@@ -231,30 +1433,41 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
                     <td className="px-3 py-2 text-right text-gray-600">
                       {entry.newPending ?? entry.pending ?? 0}
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleEdit(entry)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition"
-                          title="Edit dispatch"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const dispatchId = entry._id || entry.id;
-                            const poId = entry.poId;
-                            if (dispatchId && poId) {
-                              handleDelete(dispatchId, poId);
-                            }
-                          }}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded transition"
-                          title="Delete dispatch"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                    {canManage && (
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {onEditDispatch && (
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(entry)}
+                              className="p-1 text-blue-600 hover:bg-blue-50 rounded transition"
+                              title="Edit dispatch"
+                              aria-label={`Edit dispatch ${entry._id || entry.id || idx + 1}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onDeleteDispatch &&
+                            entry.poId &&
+                            (entry._id || entry.id) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    entry._id || entry.id,
+                                    entry.poId,
+                                  )
+                                }
+                                className="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                                title="Delete dispatch"
+                                aria-label={`Delete dispatch ${entry._id || entry.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -263,6 +1476,7 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
 
           <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
             >
@@ -282,7 +1496,7 @@ const GlobalDispatchHistoryModal = React.memo(
   function GlobalDispatchHistoryModal({
     isOpen,
     onClose,
-    dispatchHistory,
+    dispatchHistory = {},
     formatDate,
     onDispatchEdit,
     onDispatchDelete,
@@ -293,36 +1507,58 @@ const GlobalDispatchHistoryModal = React.memo(
     const allBills = useMemo(() => {
       const bills = {};
       Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
+        if (!Array.isArray(history)) return;
         history.forEach((entry) => {
           const bill = entry.billNumber || "Unknown Bill";
-          if (!bills[bill]) {
-            bills[bill] = {
+          const groupKey = getDispatchGroupKey(entry, itemKey);
+          if (!bills[groupKey]) {
+            bills[groupKey] = {
+              groupKey,
               billNumber: bill,
               entries: [],
               dispatchDate: entry.dispatchDate,
               transportMode: entry.transportMode,
+              trackingNumber: entry.trackingNumber,
               remarks: entry.remarks,
               receivedBy: entry.receivedBy,
               totalItems: 0,
               totalQuantity: 0,
             };
           }
-          bills[bill].entries.push({
+          bills[groupKey].entries.push({
             ...entry,
             itemKey,
             po: entry.po || "Unknown PO",
             company: entry.company || "Unknown Company",
             item: entry.item || "Unknown Item",
-            poId: entry.poId || entry.poId,
+            poId: entry.poId,
           });
-          bills[bill].totalItems += 1;
-          bills[bill].totalQuantity += entry.dispatchQty || 0;
+          bills[groupKey].totalItems += 1;
+          bills[groupKey].totalQuantity += toNonNegativeNumber(
+            entry.dispatchQty,
+          );
         });
       });
       return Object.values(bills).sort(
-        (a, b) => new Date(b.dispatchDate) - new Date(a.dispatchDate),
+        (a, b) =>
+          (getDateTimestamp(b.dispatchDate) || 0) -
+          (getDateTimestamp(a.dispatchDate) || 0),
       );
     }, [dispatchHistory]);
+
+    useEffect(() => {
+      if (!isOpen) return undefined;
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      const handleKeyDown = (event) => {
+        if (event.key === "Escape" && !showBillDetails) onClose();
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = previousOverflow;
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }, [isOpen, onClose, showBillDetails]);
 
     const totalBills = allBills.length;
     const totalItemsDispatched = allBills.reduce(
@@ -444,7 +1680,7 @@ const GlobalDispatchHistoryModal = React.memo(
                     <div className="space-y-3">
                       {allBills.map((bill) => (
                         <div
-                          key={bill.billNumber}
+                          key={bill.groupKey}
                           className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer"
                           onClick={() => {
                             setSelectedBill(bill);
@@ -548,14 +1784,14 @@ const GlobalDispatchHistoryModal = React.memo(
 const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
   isOpen,
   onClose,
-  selectedItems = [],
+  selectedItems: selectedItemsInput = [],
   onDispatchUpdate,
   dispatchHistory = {},
+  mergedGroup = null,
 }) {
   const [individualQuantities, setIndividualQuantities] = useState({});
-  const [dispatchDate, setDispatchDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [mergedDispatchQty, setMergedDispatchQty] = useState("");
+  const [dispatchDate, setDispatchDate] = useState(getLocalDateInputValue());
   const [billNumber, setBillNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [transportMode, setTransportMode] = useState("");
@@ -565,12 +1801,28 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
   const [errors, setErrors] = useState({});
   const [selectedBillForDetails, setSelectedBillForDetails] = useState(null);
   const [showBillDetails, setShowBillDetails] = useState(false);
+  const requestIdRef = useRef(createDispatchRequestId());
+  const submitLockRef = useRef(false);
+  const nestedModalOpenRef = useRef(false);
+
+  // The parent uses one state value for both the single-dispatch modal
+  // (an object) and this multiple-dispatch modal (an array). Normalize that
+  // boundary so this component can never call map/reduce on a PO object.
+  const selectedItems = useMemo(() => {
+    if (Array.isArray(selectedItemsInput)) return selectedItemsInput;
+    return selectedItemsInput ? [selectedItemsInput] : [];
+  }, [selectedItemsInput]);
+
+  useEffect(() => {
+    nestedModalOpenRef.current = showBillDetails;
+  }, [showBillDetails]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
     setIndividualQuantities({});
-    setDispatchDate(new Date().toISOString().split("T")[0]);
+    setMergedDispatchQty("");
+    setDispatchDate(getLocalDateInputValue());
     setBillNumber("");
     setRemarks("");
     setTransportMode("");
@@ -579,11 +1831,13 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     setErrors({});
     setSelectedBillForDetails(null);
     setShowBillDetails(false);
+    requestIdRef.current = createDispatchRequestId();
+    submitLockRef.current = false;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !nestedModalOpenRef.current) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
 
@@ -593,55 +1847,122 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     };
   }, [isOpen, onClose]);
 
+  const getItemKey = useCallback((item) => getPurchaseOrderKey(item), []);
+
+  const selectedItemKeys = useMemo(
+    () => new Set(selectedItems.map(getItemKey)),
+    [selectedItems, getItemKey],
+  );
+
   const groupedHistory = useMemo(() => {
     const groups = {};
     Object.entries(dispatchHistory).forEach(([itemKey, history]) => {
+      if (!selectedItemKeys.has(itemKey) || !Array.isArray(history)) return;
       history.forEach((entry) => {
         const bill = entry.billNumber || "Unknown Bill";
-        if (!groups[bill]) {
-          groups[bill] = {
+        const groupKey = getDispatchGroupKey(entry, itemKey);
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            groupKey,
             billNumber: bill,
             entries: [],
             dispatchDate: entry.dispatchDate,
             transportMode: entry.transportMode,
+            trackingNumber: entry.trackingNumber,
             remarks: entry.remarks,
             receivedBy: entry.receivedBy,
             totalItems: 0,
             totalQuantity: 0,
           };
         }
-        groups[bill].entries.push({
+        groups[groupKey].entries.push({
           ...entry,
           itemKey,
           po: entry.po || "Unknown PO",
           company: entry.company || "Unknown Company",
           item: entry.item || "Unknown Item",
         });
-        groups[bill].totalItems += 1;
-        groups[bill].totalQuantity += entry.dispatchQty || 0;
+        groups[groupKey].totalItems += 1;
+        groups[groupKey].totalQuantity += toNonNegativeNumber(
+          entry.dispatchQty,
+        );
       });
     });
     return groups;
-  }, [dispatchHistory]);
-
-  const getItemKey = useCallback(
-    (item) =>
-      String(
-        item?._id ||
-          [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
-            .filter(Boolean)
-            .join("::"),
-      ),
-    [],
-  );
+  }, [dispatchHistory, selectedItemKeys]);
 
   const getTotalPending = useCallback(() => {
-    return selectedItems.reduce((sum, item) => sum + (item.pending || 0), 0);
+    return selectedItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.pending),
+      0,
+    );
   }, [selectedItems]);
 
   const getTotalPendingValue = useCallback(() => {
-    return selectedItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    return selectedItems.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.total),
+      0,
+    );
   }, [selectedItems]);
+
+  const mergedAllocationOrder = useMemo(() => {
+    if (!mergedGroup) return selectedItems;
+    return [...selectedItems].sort((left, right) => {
+      const leftDelivery =
+        getDateTimestamp(left.deliveryDate) ?? Number.POSITIVE_INFINITY;
+      const rightDelivery =
+        getDateTimestamp(right.deliveryDate) ?? Number.POSITIVE_INFINITY;
+      if (leftDelivery !== rightDelivery) return leftDelivery - rightDelivery;
+
+      const leftPODate =
+        getDateTimestamp(left.poDate) ?? Number.POSITIVE_INFINITY;
+      const rightPODate =
+        getDateTimestamp(right.poDate) ?? Number.POSITIVE_INFINITY;
+      if (leftPODate !== rightPODate) return leftPODate - rightPODate;
+
+      return normalizeText(left.po).localeCompare(
+        normalizeText(right.po),
+        "en",
+        {
+          numeric: true,
+          sensitivity: "base",
+        },
+      );
+    });
+  }, [mergedGroup, selectedItems]);
+
+  const handleMergedQuantityChange = useCallback(
+    (value) => {
+      setMergedDispatchQty(value);
+
+      if (value === "") {
+        setIndividualQuantities({});
+        return;
+      }
+
+      const quantity = Number(value);
+      if (
+        !Number.isFinite(quantity) ||
+        !Number.isInteger(quantity) ||
+        quantity < 0
+      ) {
+        return;
+      }
+
+      let remaining = quantity;
+      const allocations = {};
+      mergedAllocationOrder.forEach((item) => {
+        const itemKey = getItemKey(item);
+        const available = toNonNegativeNumber(item.pending);
+        const allocated = Math.min(available, Math.max(0, remaining));
+        allocations[itemKey] = allocated > 0 ? String(allocated) : "";
+        remaining -= allocated;
+      });
+      setIndividualQuantities(allocations);
+      setErrors((current) => ({ ...current, dispatchQty: "" }));
+    },
+    [getItemKey, mergedAllocationOrder],
+  );
 
   const validate = useCallback(() => {
     const newErrors = {};
@@ -650,13 +1971,28 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
 
     selectedItems.forEach((item) => {
       const itemKey = getItemKey(item);
-      const qty = Number(individualQuantities[itemKey]) || 0;
-      const pending = item.pending || 0;
+      const rawQuantity = individualQuantities[itemKey];
+      const qty = Number(rawQuantity);
+      const pending = toNonNegativeNumber(item.pending);
 
-      if (qty > 0 && qty <= pending) {
+      if (rawQuantity === undefined || rawQuantity === "" || qty === 0) {
+        return;
+      }
+      if (!item._id) {
+        invalidItems.push(
+          `${item.po || item.item || "Unknown item"} (missing id)`,
+        );
+      } else if (
+        Number.isFinite(qty) &&
+        Number.isInteger(qty) &&
+        qty > 0 &&
+        qty <= pending
+      ) {
         hasValidQuantity = true;
-      } else if (qty > 0 && qty > pending) {
-        invalidItems.push(`${item.po} (max: ${pending})`);
+      } else {
+        invalidItems.push(
+          `${item.po || item.item || "Unknown item"} (max: ${pending})`,
+        );
       }
     });
 
@@ -667,12 +2003,32 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     if (invalidItems.length > 0) {
       newErrors.dispatchQty = `Invalid quantities for: ${invalidItems.join(", ")}`;
     }
+    if (mergedGroup) {
+      const mergedQuantity = Number(mergedDispatchQty);
+      const totalPending = getTotalPending();
+      if (
+        mergedDispatchQty !== "" &&
+        (!Number.isFinite(mergedQuantity) ||
+          !Number.isInteger(mergedQuantity) ||
+          mergedQuantity <= 0 ||
+          mergedQuantity > totalPending)
+      ) {
+        newErrors.dispatchQty = `Merged dispatch quantity must be a whole number between 1 and ${totalPending.toLocaleString("en-IN")}`;
+      }
+    }
 
     if (!dispatchDate) {
       newErrors.dispatchDate = "Please select a dispatch date";
+    } else if (dispatchDate > getLocalDateInputValue()) {
+      newErrors.dispatchDate = "Dispatch date cannot be in the future";
     }
     if (!billNumber.trim()) {
       newErrors.billNumber = "Please enter a bill number";
+    } else if (billNumber.trim().length > MAX_BILL_NUMBER_LENGTH) {
+      newErrors.billNumber = `Bill number cannot exceed ${MAX_BILL_NUMBER_LENGTH} characters`;
+    }
+    if (remarks.trim().length > MAX_REMARKS_LENGTH) {
+      newErrors.remarks = `Remarks cannot exceed ${MAX_REMARKS_LENGTH} characters`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -681,14 +2037,19 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     individualQuantities,
     dispatchDate,
     billNumber,
+    remarks,
     getItemKey,
+    mergedGroup,
+    mergedDispatchQty,
+    getTotalPending,
   ]);
 
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!validate()) return;
+      if (submitLockRef.current || !validate()) return;
 
+      submitLockRef.current = true;
       setIsSubmitting(true);
       setErrors((current) => ({ ...current, form: "" }));
 
@@ -702,7 +2063,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
 
         await onDispatchUpdate({
           isBulk: true,
-          requestId: createDispatchRequestId(),
+          requestId: requestIdRef.current,
           items,
           dispatchDate,
           billNumber: billNumber.trim(),
@@ -718,6 +2079,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
           form: getApiErrorMessage(error, "Bulk dispatch could not be saved"),
         }));
       } finally {
+        submitLockRef.current = false;
         setIsSubmitting(false);
       }
     },
@@ -743,11 +2105,12 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
         ...prev,
         [itemKey]: value,
       }));
+      if (mergedGroup) setMergedDispatchQty("");
       if (errors.dispatchQty) {
         setErrors((current) => ({ ...current, dispatchQty: "" }));
       }
     },
-    [errors.dispatchQty],
+    [errors.dispatchQty, mergedGroup],
   );
 
   const truncateText = useCallback((text, maxLength = 60) => {
@@ -823,10 +2186,14 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       id="multiple-dispatch-modal-title"
                       className="text-lg font-bold tracking-tight text-white"
                     >
-                      Multiple Dispatch
+                      {mergedGroup
+                        ? "Merged Item Dispatch"
+                        : "Multiple Dispatch"}
                     </h3>
                     <p className="text-sm text-blue-100">
-                      {selectedItems.length} items selected for dispatch
+                      {mergedGroup
+                        ? `${selectedItems.length} eligible PO${selectedItems.length === 1 ? "" : "s"} · ${mergedGroup.item || "Merged item"}`
+                        : `${selectedItems.length} items selected for dispatch`}
                     </p>
                   </div>
                 </div>
@@ -851,7 +2218,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       <div>
                         <p className="text-xs text-gray-500">Total Items</p>
                         <p className="font-medium text-gray-800">
-                          {selectedItems.length} POs
+                          {selectedItems.length} line items
                         </p>
                       </div>
                     </div>
@@ -885,6 +2252,63 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                   </div>
                 </div>
 
+                {mergedGroup && (
+                  <div className="mb-5 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 p-4 shadow-sm">
+                    <div className="grid gap-4 lg:grid-cols-[1fr_220px] lg:items-end">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                            Merged allocation
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {mergedGroup.company} ·{" "}
+                            {mergedGroup.drawing || "No drawing"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">
+                          Enter one total quantity for all related POs
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          The quantity is allocated automatically to the
+                          earliest delivery date first. You can still adjust
+                          each PO below before submitting.
+                        </p>
+                        <p className="mt-2 text-xs text-indigo-700">
+                          Related POs:{" "}
+                          {mergedGroup.poNumbers?.join(", ") || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="merged-dispatch-quantity"
+                          className="mb-1.5 block text-xs font-semibold text-slate-700"
+                        >
+                          Total dispatch quantity
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="merged-dispatch-quantity"
+                            type="number"
+                            min="1"
+                            max={getTotalPending()}
+                            step="1"
+                            inputMode="numeric"
+                            value={mergedDispatchQty}
+                            onChange={(event) =>
+                              handleMergedQuantityChange(event.target.value)
+                            }
+                            placeholder="Enter total"
+                            className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                          />
+                          <span className="whitespace-nowrap text-xs text-slate-500">
+                            / {getTotalPending().toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {Object.keys(groupedHistory).length > 0 && (
                   <div className="mb-5">
                     <div className="flex items-center justify-between mb-3">
@@ -899,7 +2323,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       <div className="space-y-2">
                         {Object.values(groupedHistory).map((group) => (
                           <div
-                            key={group.billNumber}
+                            key={group.groupKey}
                             className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:border-indigo-200 transition-colors cursor-pointer"
                             onClick={() => {
                               setSelectedBillForDetails(group);
@@ -914,15 +2338,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   </span>
                                   <span className="text-gray-300">|</span>
                                   <span className="text-xs text-gray-500">
-                                    {group.dispatchDate
-                                      ? new Date(
-                                          group.dispatchDate,
-                                        ).toLocaleDateString("en-IN", {
-                                          day: "2-digit",
-                                          month: "short",
-                                          year: "numeric",
-                                        })
-                                      : "-"}
+                                    {formatDateValue(group.dispatchDate)}
                                   </span>
                                   {group.transportMode && (
                                     <>
@@ -961,10 +2377,14 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                 <div className="mb-5">
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-medium text-gray-700">
-                      Set Quantity Per Item
+                      {mergedGroup
+                        ? "PO-wise Allocation"
+                        : "Set Quantity Per Item"}
                     </label>
                     <span className="text-xs text-gray-500">
-                      Enter quantity for each item below
+                      {mergedGroup
+                        ? "Review or adjust the automatic allocation"
+                        : "Enter quantity for each item below"}
                     </span>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
@@ -975,7 +2395,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                           dispatchHistory[itemKey]?.length || 0;
                         const individualQty =
                           individualQuantities[itemKey] || "";
-                        const maxQty = item.pending || 0;
+                        const maxQty = toNonNegativeNumber(item.pending);
 
                         return (
                           <div
@@ -1051,6 +2471,8 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                                   type="number"
                                   min="0"
                                   max={maxQty}
+                                  step="1"
+                                  inputMode="numeric"
                                   value={individualQty}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -1099,10 +2521,14 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       <input
                         type="date"
                         value={dispatchDate}
+                        max={getLocalDateInputValue()}
                         onChange={(e) => {
                           setDispatchDate(e.target.value);
                           if (errors.dispatchDate)
-                            setErrors({ ...errors, dispatchDate: "" });
+                            setErrors((current) => ({
+                              ...current,
+                              dispatchDate: "",
+                            }));
                         }}
                         className={`w-full px-3 py-2 border ${errors.dispatchDate ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                       />
@@ -1122,10 +2548,14 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       <input
                         type="text"
                         value={billNumber}
+                        maxLength={MAX_BILL_NUMBER_LENGTH}
                         onChange={(e) => {
                           setBillNumber(e.target.value);
                           if (errors.billNumber)
-                            setErrors({ ...errors, billNumber: "" });
+                            setErrors((current) => ({
+                              ...current,
+                              billNumber: "",
+                            }));
                         }}
                         placeholder="Enter bill number"
                         className={`w-full px-3 py-2 border ${errors.billNumber ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
@@ -1146,10 +2576,59 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                     <textarea
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
+                      maxLength={MAX_REMARKS_LENGTH}
                       placeholder="Additional notes, special instructions, etc."
                       rows="2"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all"
                     />
+                    {errors.remarks && (
+                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.remarks}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Transport Mode
+                      </label>
+                      <input
+                        type="text"
+                        value={transportMode}
+                        onChange={(e) => setTransportMode(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Road, courier, pickup..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tracking / LR Number
+                      </label>
+                      <input
+                        type="text"
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Optional reference"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Received By
+                      </label>
+                      <input
+                        type="text"
+                        value={receivedBy}
+                        onChange={(e) => setReceivedBy(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Receiver name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
 
                   <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
@@ -1176,13 +2655,14 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                     <button
                       type="button"
                       onClick={onClose}
+                      disabled={isSubmitting}
                       className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all transform hover:scale-105"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || selectedItems.length === 0}
                       className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                     >
                       {isSubmitting ? (
@@ -1252,11 +2732,7 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({
             {entry.dispatchQty} units
           </span>
           <span className="text-xs text-gray-500">
-            {new Date(entry.dispatchDate).toLocaleDateString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
+            {formatDateValue(entry.dispatchDate)}
           </span>
           {entry.billNumber && (
             <span className="text-xs text-gray-500">
@@ -1292,6 +2768,7 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({
       {isEditable && (
         <div className="flex items-center gap-1 shrink-0">
           <button
+            type="button"
             onClick={handleEditClick}
             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
             title="Edit dispatch"
@@ -1299,6 +2776,7 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
+            type="button"
             onClick={handleDeleteClick}
             className={`p-1.5 rounded-lg transition ${
               showDeleteConfirm
@@ -1311,6 +2789,7 @@ const DispatchHistoryItem = React.memo(function DispatchHistoryItem({
           </button>
           {showDeleteConfirm && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowDeleteConfirm(false);
@@ -1337,11 +2816,10 @@ const DispatchModal = React.memo(function DispatchModal({
   onDispatchEdit,
   onDispatchDelete,
   dispatchHistory = [],
+  initialDispatchEntry = null,
 }) {
   const [dispatchQty, setDispatchQty] = useState("");
-  const [dispatchDate, setDispatchDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [dispatchDate, setDispatchDate] = useState(getLocalDateInputValue());
   const [billNumber, setBillNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [transportMode, setTransportMode] = useState("");
@@ -1353,21 +2831,47 @@ const DispatchModal = React.memo(function DispatchModal({
   const [activeTab, setActiveTab] = useState("dispatch");
   const [isEditingDispatch, setIsEditingDispatch] = useState(false);
   const [editingDispatchEntry, setEditingDispatchEntry] = useState(null);
+  const requestIdRef = useRef(createDispatchRequestId());
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    setDispatchQty("");
-    setDispatchDate(new Date().toISOString().split("T")[0]);
-    setBillNumber("");
-    setRemarks("");
-    setTransportMode("");
-    setTrackingNumber("");
-    setReceivedBy("");
+    const initialEntryId =
+      initialDispatchEntry?._id || initialDispatchEntry?.id;
+    const shouldEdit = Boolean(initialEntryId);
+    setDispatchQty(
+      shouldEdit ? String(initialDispatchEntry.dispatchQty || 0) : "",
+    );
+    setDispatchDate(
+      shouldEdit
+        ? toDateInputValue(initialDispatchEntry.dispatchDate) ||
+            getLocalDateInputValue()
+        : getLocalDateInputValue(),
+    );
+    setBillNumber(shouldEdit ? initialDispatchEntry.billNumber || "" : "");
+    setRemarks(shouldEdit ? initialDispatchEntry.remarks || "" : "");
+    setTransportMode(
+      shouldEdit ? initialDispatchEntry.transportMode || "" : "",
+    );
+    setTrackingNumber(
+      shouldEdit ? initialDispatchEntry.trackingNumber || "" : "",
+    );
+    setReceivedBy(shouldEdit ? initialDispatchEntry.receivedBy || "" : "");
     setErrors({});
-    setActiveTab((Number(item?.pending) || 0) > 0 ? "dispatch" : "history");
-    setIsEditingDispatch(false);
-    setEditingDispatchEntry(null);
+    setIsFullscreen(false);
+    const itemStatus = normalizeText(item?.status).toLowerCase();
+    const dispatchBlocked = ["on hold", "cancelled"].includes(itemStatus);
+    setActiveTab(
+      shouldEdit ||
+        ((Number(item?.pending) || 0) > 0 && !dispatchBlocked && item?._id)
+        ? "dispatch"
+        : "history",
+    );
+    setIsEditingDispatch(shouldEdit);
+    setEditingDispatchEntry(shouldEdit ? initialDispatchEntry : null);
+    requestIdRef.current = createDispatchRequestId();
+    submitLockRef.current = false;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1380,38 +2884,71 @@ const DispatchModal = React.memo(function DispatchModal({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, item, onClose]);
+  }, [isOpen, item, initialDispatchEntry, onClose]);
 
   const getMaxDispatch = useCallback(() => {
-    return item?.pending || 0;
-  }, [item]);
+    const pending = toNonNegativeNumber(item?.pending);
+    const originalQuantity = isEditingDispatch
+      ? toNonNegativeNumber(editingDispatchEntry?.dispatchQty)
+      : 0;
+    return pending + originalQuantity;
+  }, [item, isEditingDispatch, editingDispatchEntry]);
 
   const validate = useCallback(() => {
     const newErrors = {};
     const quantity = Number(dispatchQty);
-    const pending = Number(item?.pending) || 0;
+    const maximum = getMaxDispatch();
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      newErrors.dispatchQty = "Please enter a valid dispatch quantity";
+    if (
+      !Number.isFinite(quantity) ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+      newErrors.dispatchQty =
+        "Dispatch quantity must be a positive whole number";
     }
-    if (quantity > pending) {
-      newErrors.dispatchQty = `Cannot dispatch more than pending quantity (${pending.toLocaleString("en-IN")})`;
+    if (quantity > maximum) {
+      newErrors.dispatchQty = `Cannot dispatch more than the available quantity (${maximum.toLocaleString("en-IN")})`;
+    }
+    if (!item?._id) {
+      newErrors.form =
+        "This record has no database id. Refresh or re-import it before dispatching.";
+    }
+    const status = normalizeText(item?.status).toLowerCase();
+    if (!isEditingDispatch && ["on hold", "cancelled"].includes(status)) {
+      newErrors.form = `${item.status} purchase orders cannot be dispatched`;
     }
     if (!dispatchDate) {
       newErrors.dispatchDate = "Please select a dispatch date";
+    } else if (dispatchDate > getLocalDateInputValue()) {
+      newErrors.dispatchDate = "Dispatch date cannot be in the future";
     }
     if (!billNumber.trim()) {
       newErrors.billNumber = "Please enter a bill number";
+    } else if (billNumber.trim().length > MAX_BILL_NUMBER_LENGTH) {
+      newErrors.billNumber = `Bill number cannot exceed ${MAX_BILL_NUMBER_LENGTH} characters`;
+    }
+    if (remarks.trim().length > MAX_REMARKS_LENGTH) {
+      newErrors.remarks = `Remarks cannot exceed ${MAX_REMARKS_LENGTH} characters`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [dispatchQty, item, dispatchDate, billNumber]);
+  }, [
+    dispatchQty,
+    item,
+    dispatchDate,
+    billNumber,
+    remarks,
+    getMaxDispatch,
+    isEditingDispatch,
+  ]);
 
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!validate()) return;
+      if (submitLockRef.current || !validate()) return;
 
+      submitLockRef.current = true;
       setIsSubmitting(true);
       const quantity = Number(dispatchQty);
       setErrors((current) => ({ ...current, form: "" }));
@@ -1419,7 +2956,7 @@ const DispatchModal = React.memo(function DispatchModal({
       try {
         await onDispatchUpdate({
           isBulk: false,
-          requestId: createDispatchRequestId(),
+          requestId: requestIdRef.current,
           poId: item._id,
           dispatchQty: quantity,
           dispatchDate,
@@ -1436,6 +2973,7 @@ const DispatchModal = React.memo(function DispatchModal({
           form: getApiErrorMessage(error, "Dispatch could not be saved"),
         }));
       } finally {
+        submitLockRef.current = false;
         setIsSubmitting(false);
       }
     },
@@ -1492,8 +3030,8 @@ const DispatchModal = React.memo(function DispatchModal({
     setDispatchQty(String(entry.dispatchQty || 0));
     setDispatchDate(
       entry.dispatchDate
-        ? entry.dispatchDate.split("T")[0]
-        : new Date().toISOString().split("T")[0],
+        ? toDateInputValue(entry.dispatchDate)
+        : getLocalDateInputValue(),
     );
     setBillNumber(entry.billNumber || "");
     setRemarks(entry.remarks || "");
@@ -1506,14 +3044,20 @@ const DispatchModal = React.memo(function DispatchModal({
   const handleUpdateDispatch = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!validate()) return;
+      if (submitLockRef.current || !validate()) return;
 
+      submitLockRef.current = true;
       setIsSubmitting(true);
       setErrors((current) => ({ ...current, form: "" }));
 
       try {
+        const dispatchId =
+          editingDispatchEntry?._id || editingDispatchEntry?.id;
+        if (!dispatchId) {
+          throw new Error("The selected dispatch entry has no id");
+        }
         await onDispatchEdit?.({
-          dispatchId: editingDispatchEntry._id || editingDispatchEntry.id,
+          dispatchId,
           poId: item._id,
           dispatchQty: Number(dispatchQty),
           dispatchDate,
@@ -1532,6 +3076,7 @@ const DispatchModal = React.memo(function DispatchModal({
           form: getApiErrorMessage(error, "Dispatch update failed"),
         }));
       } finally {
+        submitLockRef.current = false;
         setIsSubmitting(false);
       }
     },
@@ -1750,12 +3295,14 @@ const DispatchModal = React.memo(function DispatchModal({
 
               <div className="mb-4 inline-flex rounded-xl bg-slate-200/70 p-1">
                 <button
+                  type="button"
                   onClick={() => {
                     setActiveTab("dispatch");
+                    if (isEditingDispatch) return;
                     setIsEditingDispatch(false);
                     setEditingDispatchEntry(null);
                     setDispatchQty("");
-                    setDispatchDate(new Date().toISOString().split("T")[0]);
+                    setDispatchDate(getLocalDateInputValue());
                     setBillNumber("");
                     setRemarks("");
                     setTransportMode("");
@@ -1775,6 +3322,7 @@ const DispatchModal = React.memo(function DispatchModal({
                   {isEditingDispatch ? "Edit Dispatch" : "New Dispatch"}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveTab("history")}
                   className={`relative inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     activeTab === "history"
@@ -1844,13 +3392,17 @@ const DispatchModal = React.memo(function DispatchModal({
                             const val = e.target.value;
                             setDispatchQty(val);
                             if (errors.dispatchQty)
-                              setErrors({ ...errors, dispatchQty: "" });
+                              setErrors((current) => ({
+                                ...current,
+                                dispatchQty: "",
+                              }));
                           }}
                           placeholder={`Max: ${getMaxDispatch()}`}
                           className={`w-full px-3 py-2 border ${errors.dispatchQty ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                           min="1"
                           max={getMaxDispatch()}
                           step="1"
+                          inputMode="numeric"
                         />
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
                           / {getMaxDispatch()}
@@ -1884,10 +3436,14 @@ const DispatchModal = React.memo(function DispatchModal({
                       <input
                         type="date"
                         value={dispatchDate}
+                        max={getLocalDateInputValue()}
                         onChange={(e) => {
                           setDispatchDate(e.target.value);
                           if (errors.dispatchDate)
-                            setErrors({ ...errors, dispatchDate: "" });
+                            setErrors((current) => ({
+                              ...current,
+                              dispatchDate: "",
+                            }));
                         }}
                         className={`w-full px-3 py-2 border ${errors.dispatchDate ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                       />
@@ -1907,10 +3463,14 @@ const DispatchModal = React.memo(function DispatchModal({
                       <input
                         type="text"
                         value={billNumber}
+                        maxLength={MAX_BILL_NUMBER_LENGTH}
                         onChange={(e) => {
                           setBillNumber(e.target.value);
                           if (errors.billNumber)
-                            setErrors({ ...errors, billNumber: "" });
+                            setErrors((current) => ({
+                              ...current,
+                              billNumber: "",
+                            }));
                         }}
                         placeholder="Enter bill number"
                         className={`w-full px-3 py-2 border ${errors.billNumber ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
@@ -1930,9 +3490,58 @@ const DispatchModal = React.memo(function DispatchModal({
                       <textarea
                         value={remarks}
                         onChange={(e) => setRemarks(e.target.value)}
+                        maxLength={MAX_REMARKS_LENGTH}
                         placeholder="Additional notes, special instructions, etc."
                         rows="2"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all"
+                      />
+                      {errors.remarks && (
+                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.remarks}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Transport Mode
+                      </label>
+                      <input
+                        type="text"
+                        value={transportMode}
+                        onChange={(e) => setTransportMode(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Road, courier, pickup..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tracking / LR Number
+                      </label>
+                      <input
+                        type="text"
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Optional reference"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Received By
+                      </label>
+                      <input
+                        type="text"
+                        value={receivedBy}
+                        onChange={(e) => setReceivedBy(e.target.value)}
+                        maxLength={MAX_SHORT_TEXT_LENGTH}
+                        placeholder="Receiver name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -1945,9 +3554,7 @@ const DispatchModal = React.memo(function DispatchModal({
                           setIsEditingDispatch(false);
                           setEditingDispatchEntry(null);
                           setDispatchQty("");
-                          setDispatchDate(
-                            new Date().toISOString().split("T")[0],
-                          );
+                          setDispatchDate(getLocalDateInputValue());
                           setBillNumber("");
                           setRemarks("");
                           setTransportMode("");
@@ -1963,6 +3570,7 @@ const DispatchModal = React.memo(function DispatchModal({
                     <button
                       type="button"
                       onClick={onClose}
+                      disabled={isSubmitting}
                       className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all transform hover:scale-105"
                     >
                       Cancel
@@ -2000,18 +3608,14 @@ const DispatchModal = React.memo(function DispatchModal({
 // ============================================
 // EDIT/DELETE PO MODAL COMPONENT
 // ============================================
-// ============================================
-// EDIT/DELETE PO MODAL COMPONENT - FIXED
-// ============================================
 const EditDeleteModal = React.memo(function EditDeleteModal({
   isOpen,
   onClose,
   item,
   onUpdate,
   onDelete,
-  formatDate,
+  initialDeleteConfirmation = false,
 }) {
-  // ✅ ALL HOOKS MUST BE AT THE TOP LEVEL - BEFORE ANY CONDITIONAL RETURNS
   const [formData, setFormData] = useState({
     po: "",
     poDate: "",
@@ -2022,35 +3626,44 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
     drawing: "",
     poQty: "",
     rate: "",
-    total: "",
     status: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const submitLockRef = useRef(false);
 
-  // ✅ useEffect must be at top level
   useEffect(() => {
-    if (item && isOpen) {
-      setFormData({
-        po: item.po || "",
-        poDate: item.poDate ? item.poDate.split("T")[0] : "",
-        deliveryDate: item.deliveryDate ? item.deliveryDate.split("T")[0] : "",
-        company: item.company || "",
-        item: item.item || "",
-        itemCode: item.itemCode || "",
-        drawing: item.drawing || "",
-        poQty: item.poQty || "",
-        rate: item.rate || "",
-        total: item.total || "",
-        status: item.status || "Pending",
-      });
-      setErrors({});
-      setShowDeleteConfirm(false);
-    }
-  }, [item, isOpen]);
+    if (!item || !isOpen) return undefined;
+    setFormData({
+      po: item.po || "",
+      poDate: toDateInputValue(item.poDate),
+      deliveryDate: toDateInputValue(item.deliveryDate),
+      company: item.company || "",
+      item: item.item || "",
+      itemCode: item.itemCode || "",
+      drawing: item.drawing || "",
+      poQty: item.poQty ?? "",
+      rate: item.rate ?? "",
+      status: item.status || "Pending",
+    });
+    setErrors({});
+    setShowDeleteConfirm(initialDeleteConfirmation);
+    setIsSubmitting(false);
+    submitLockRef.current = false;
 
-  // ✅ useCallback hooks must be at top level
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [item, isOpen, onClose, initialDeleteConfirmation]);
+
   const handleChange = useCallback(
     (field, value) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
@@ -2063,31 +3676,81 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
 
   const validate = useCallback(() => {
     const newErrors = {};
-    if (!formData.po.trim()) newErrors.po = "PO number is required";
-    if (!formData.company.trim()) newErrors.company = "Company is required";
-    if (!formData.item.trim()) newErrors.item = "Item description is required";
-    if (!formData.poQty || Number(formData.poQty) <= 0) {
-      newErrors.poQty = "PO quantity must be greater than 0";
+    const poQty = Number(formData.poQty);
+    const rate = Number(formData.rate);
+    const dispatched = toNonNegativeNumber(item?.dispatched);
+    if (!normalizeText(formData.po)) newErrors.po = "PO number is required";
+    if (!normalizeText(formData.company))
+      newErrors.company = "Company is required";
+    if (!normalizeText(formData.item))
+      newErrors.item = "Item description is required";
+    if (!formData.poDate) newErrors.poDate = "PO date is required";
+    if (!formData.deliveryDate)
+      newErrors.deliveryDate = "Delivery date is required";
+    if (!Number.isFinite(poQty) || !Number.isInteger(poQty) || poQty <= 0) {
+      newErrors.poQty = "PO quantity must be a positive whole number";
+    } else if (poQty < dispatched) {
+      newErrors.poQty = `PO quantity cannot be lower than the already dispatched quantity (${dispatched.toLocaleString("en-IN")})`;
     }
-    if (!formData.rate || Number(formData.rate) <= 0) {
+    if (!Number.isFinite(rate) || rate <= 0) {
       newErrors.rate = "Rate must be greater than 0";
+    }
+    if (
+      formData.poDate &&
+      formData.deliveryDate &&
+      formData.deliveryDate < formData.poDate
+    ) {
+      newErrors.deliveryDate = "Delivery date cannot be before the PO date";
+    }
+    if (
+      normalizeText(formData.status).toLowerCase() === "completed" &&
+      Number.isFinite(poQty) &&
+      poQty > dispatched
+    ) {
+      newErrors.status =
+        "A PO can be completed only when its full quantity is dispatched";
+    }
+    if (!item?._id) {
+      newErrors.form = "This purchase order has no database id";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData]);
+  }, [formData, item]);
 
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!validate()) return;
+      if (submitLockRef.current || !validate()) return;
 
+      submitLockRef.current = true;
       setIsSubmitting(true);
       try {
+        const poQty = Number(formData.poQty);
+        const rate = Number(formData.rate);
+        const dispatched = toNonNegativeNumber(item.dispatched);
+        const pending = Math.max(0, poQty - dispatched);
+        const requestedStatus = normalizeText(formData.status).toLowerCase();
+        const status = ["on hold", "cancelled"].includes(requestedStatus)
+          ? requestedStatus === "on hold"
+            ? "On Hold"
+            : "Cancelled"
+          : pending <= 0
+            ? "Completed"
+            : dispatched > 0
+              ? "In Progress"
+              : "Pending";
         const updateData = {
           ...formData,
-          poQty: Number(formData.poQty),
-          rate: Number(formData.rate),
-          total: Number(formData.poQty) * Number(formData.rate),
+          po: normalizeText(formData.po),
+          company: normalizeText(formData.company),
+          item: normalizeText(formData.item),
+          itemCode: normalizeText(formData.itemCode),
+          drawing: normalizeText(formData.drawing),
+          poQty,
+          rate,
+          pending,
+          total: pending * rate,
+          status,
         };
         await onUpdate(item._id, updateData);
         onClose();
@@ -2097,6 +3760,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
           form: getApiErrorMessage(error, "Update failed"),
         }));
       } finally {
+        submitLockRef.current = false;
         setIsSubmitting(false);
       }
     },
@@ -2109,6 +3773,8 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
       return;
     }
 
+    if (submitLockRef.current || !item?._id) return;
+    submitLockRef.current = true;
     setIsSubmitting(true);
     try {
       await onDelete(item._id);
@@ -2119,11 +3785,11 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
         form: getApiErrorMessage(error, "Delete failed"),
       }));
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   }, [showDeleteConfirm, onDelete, item, onClose]);
 
-  // ✅ Conditional return comes AFTER all hooks
   if (!isOpen || !item) return null;
 
   return (
@@ -2144,15 +3810,19 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-white">
-                  Edit Purchase Order
+                  {showDeleteConfirm
+                    ? "Delete Purchase Order"
+                    : "Edit Purchase Order"}
                 </h3>
                 <p className="text-sm text-blue-100">
                   #{item.po} · {item.company}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 className="grid h-8 w-8 place-items-center rounded-lg text-white hover:bg-white/15 transition"
+                aria-label="Close purchase-order editor"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2175,6 +3845,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <input
                   type="text"
                   value={formData.po}
+                  maxLength={MAX_SHORT_TEXT_LENGTH}
                   onChange={(e) => handleChange("po", e.target.value)}
                   className={`w-full px-3 py-2 border ${errors.po ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                 />
@@ -2190,6 +3861,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <input
                   type="text"
                   value={formData.company}
+                  maxLength={MAX_SHORT_TEXT_LENGTH}
                   onChange={(e) => handleChange("company", e.target.value)}
                   className={`w-full px-3 py-2 border ${errors.company ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                 />
@@ -2200,7 +3872,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  PO Date
+                  <span className="text-red-500">*</span> PO Date
                 </label>
                 <input
                   type="date"
@@ -2208,18 +3880,27 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                   onChange={(e) => handleChange("poDate", e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                {errors.poDate && (
+                  <p className="text-xs text-red-600 mt-1">{errors.poDate}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Delivery Date
+                  <span className="text-red-500">*</span> Delivery Date
                 </label>
                 <input
                   type="date"
                   value={formData.deliveryDate}
+                  min={formData.poDate || undefined}
                   onChange={(e) => handleChange("deliveryDate", e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                {errors.deliveryDate && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {errors.deliveryDate}
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
@@ -2229,6 +3910,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <input
                   type="text"
                   value={formData.item}
+                  maxLength={MAX_SHORT_TEXT_LENGTH}
                   onChange={(e) => handleChange("item", e.target.value)}
                   className={`w-full px-3 py-2 border ${errors.item ? "border-red-300" : "border-gray-300"} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                 />
@@ -2244,6 +3926,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <input
                   type="text"
                   value={formData.itemCode}
+                  maxLength={MAX_SHORT_TEXT_LENGTH}
                   onChange={(e) => handleChange("itemCode", e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -2256,6 +3939,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <input
                   type="text"
                   value={formData.drawing}
+                  maxLength={MAX_SHORT_TEXT_LENGTH}
                   onChange={(e) => handleChange("drawing", e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -2267,7 +3951,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min={Math.max(1, toNonNegativeNumber(item.dispatched))}
                   step="1"
                   value={formData.poQty}
                   onChange={(e) => handleChange("poQty", e.target.value)}
@@ -2284,7 +3968,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min="0.01"
                   step="0.01"
                   value={formData.rate}
                   onChange={(e) => handleChange("rate", e.target.value)}
@@ -2310,16 +3994,23 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                   <option value="On Hold">On Hold</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
+                {errors.status && (
+                  <p className="text-xs text-red-600 mt-1">{errors.status}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Total Value (₹)
+                  Projected Pending Value (₹)
                 </label>
                 <input
                   type="text"
                   value={
-                    Number(formData.poQty || 0) * Number(formData.rate || 0)
+                    Math.max(
+                      0,
+                      Number(formData.poQty || 0) -
+                        toNonNegativeNumber(item.dispatched),
+                    ) * Number(formData.rate || 0)
                   }
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
                   disabled
@@ -2329,6 +4020,14 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
 
             <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
               <div>
+                {showDeleteConfirm &&
+                  (item.dispatchHistory?.length || 0) > 0 && (
+                    <p className="mb-2 max-w-xs text-xs text-red-600">
+                      This PO has {item.dispatchHistory.length} dispatch record
+                      {item.dispatchHistory.length === 1 ? "" : "s"}. Deletion
+                      may be rejected if your audit policy protects history.
+                    </p>
+                  )}
                 {!showDeleteConfirm ? (
                   <button
                     type="button"
@@ -2368,27 +4067,30 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
                 <button
                   type="button"
                   onClick={onClose}
+                  disabled={isSubmitting}
                   className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Pencil className="w-4 h-4" />
-                      Save Changes
-                    </>
-                  )}
-                </button>
+                {!showDeleteConfirm && (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </form>
@@ -2399,10 +4101,185 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
 });
 
 // ============================================
+// MERGED PO RECORD PICKER
+// ============================================
+const PurchaseOrderGroupModal = React.memo(function PurchaseOrderGroupModal({
+  isOpen,
+  onClose,
+  group,
+  onEdit,
+  onDelete,
+  formatCurrency,
+  formatDate,
+}) {
+  const sourceItems = useMemo(() => getSourcePurchaseOrders(group), [group]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !group) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[9998] overflow-y-auto p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="po-group-modal-title"
+    >
+      <div className="flex min-h-screen items-center justify-center">
+        <button
+          type="button"
+          className="fixed inset-0 cursor-default bg-slate-950/65 backdrop-blur-sm"
+          onClick={onClose}
+          aria-label="Close purchase-order list"
+        />
+
+        <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 px-6 py-4">
+            <div className="min-w-0">
+              <h3
+                id="po-group-modal-title"
+                className="text-lg font-bold text-white"
+              >
+                Manage Related Purchase Orders
+              </h3>
+              <p className="mt-1 truncate text-sm text-blue-100">
+                {group.company} · {group.item} · {sourceItems.length} PO records
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white transition hover:bg-white/15"
+              aria-label="Close purchase-order list"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="max-h-[65vh] overflow-auto p-4 sm:p-6">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full min-w-[820px] border-collapse text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">PO</th>
+                    <th className="px-4 py-3">Dates</th>
+                    <th className="px-4 py-3 text-right">PO qty</th>
+                    <th className="px-4 py-3 text-right">Dispatched</th>
+                    <th className="px-4 py-3 text-right">Pending</th>
+                    <th className="px-4 py-3 text-right">Rate</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sourceItems.map((sourceItem) => (
+                    <tr
+                      key={getPurchaseOrderKey(sourceItem)}
+                      className="hover:bg-blue-50/60"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-mono font-semibold text-slate-800">
+                          {sourceItem.po || "—"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {sourceItem.itemCode || "No item code"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        <p>PO: {formatDate(sourceItem.poDate)}</p>
+                        <p className="mt-0.5">
+                          Due: {formatDate(sourceItem.deliveryDate)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-slate-700">
+                        {toNonNegativeNumber(sourceItem.poQty).toLocaleString(
+                          "en-IN",
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-600">
+                        {toNonNegativeNumber(
+                          sourceItem.dispatched,
+                        ).toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-rose-600">
+                        {toNonNegativeNumber(sourceItem.pending).toLocaleString(
+                          "en-IN",
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-600">
+                        {formatCurrency(sourceItem.rate)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {sourceItem.status || "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onEdit(sourceItem)}
+                            disabled={!sourceItem._id}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              sourceItem._id
+                                ? "Edit this PO"
+                                : "Missing database id"
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDelete(sourceItem)}
+                            disabled={!sourceItem._id}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              sourceItem._id
+                                ? "Delete this PO"
+                                : "Missing database id"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-300 transition hover:bg-slate-100"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================
 // COMPANY ACCORDION ROW COMPONENT
-// ============================================
-// ============================================
-// COMPANY ACCORDION ROW COMPONENT - FIXED
 // ============================================
 const CompanyAccordion = React.memo(function CompanyAccordion({
   company,
@@ -2411,6 +4288,7 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   onToggle,
   selectedItems,
   onToggleSelection,
+  onSetSelection,
   onDispatchClick,
   onEditClick,
   onDeleteClick,
@@ -2419,22 +4297,34 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   getRiskMeta,
   formatCurrency,
   formatDate,
-  getCategory,
   getItemKey,
 }) {
+  const sourceLineItems = useMemo(
+    () => items.flatMap(getSourcePurchaseOrders),
+    [items],
+  );
+
   const historyCount = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return sourceLineItems.reduce((sum, item) => {
       const key = getItemKey(item);
       return sum + (dispatchHistory[key]?.length || 0);
     }, 0);
-  }, [items, dispatchHistory, getItemKey]);
+  }, [sourceLineItems, dispatchHistory, getItemKey]);
 
   const totalPending = useMemo(() => {
-    return items.reduce((sum, item) => sum + (item.pending || 0), 0);
+    return items.reduce(
+      (sum, item) =>
+        sum + (isCancelledRecord(item) ? 0 : toNonNegativeNumber(item.pending)),
+      0,
+    );
   }, [items]);
 
   const totalPOQty = useMemo(() => {
-    return items.reduce((sum, item) => sum + (item.poQty || 0), 0);
+    return items.reduce(
+      (sum, item) =>
+        sum + (isCancelledRecord(item) ? 0 : toNonNegativeNumber(item.poQty)),
+      0,
+    );
   }, [items]);
 
   const completionPercentage = useMemo(() => {
@@ -2445,19 +4335,24 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
 
   const allSelected = useMemo(() => {
     return (
-      items.length > 0 &&
-      items.every((item) => selectedItems.has(getItemKey(item)))
+      sourceLineItems.length > 0 &&
+      sourceLineItems.every((item) => selectedItems.has(getItemKey(item)))
     );
-  }, [items, selectedItems, getItemKey]);
+  }, [sourceLineItems, selectedItems, getItemKey]);
+
+  const someSelected = useMemo(
+    () =>
+      !allSelected &&
+      sourceLineItems.some((item) => selectedItems.has(getItemKey(item))),
+    [allSelected, sourceLineItems, selectedItems, getItemKey],
+  );
 
   const handleSelectAll = useCallback(
     (e) => {
       e.stopPropagation();
-      items.forEach((item) => {
-        onToggleSelection(item);
-      });
+      onSetSelection(items, !allSelected);
     },
-    [items, onToggleSelection],
+    [items, onSetSelection, allSelected],
   );
 
   return (
@@ -2478,7 +4373,7 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
               </h3>
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <span>
-                  {items.length} PO{items.length > 1 ? "s" : ""}
+                  {`${items.length} merged item${items.length === 1 ? "" : "s"} · ${sourceLineItems.length} PO line${sourceLineItems.length === 1 ? "" : "s"}`}
                 </span>
                 <span className="text-gray-300">|</span>
                 <span className="flex items-center gap-1">
@@ -2505,19 +4400,17 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={handleSelectAll}
-            className="p-1.5 rounded hover:bg-blue-100 transition"
-            title={allSelected ? "Deselect all" : "Select all"}
-          >
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={() => {}}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 cursor-pointer"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </button>
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={(node) => {
+              if (node) node.indeterminate = someSelected;
+            }}
+            onChange={handleSelectAll}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 cursor-pointer"
+            aria-label={`${allSelected ? "Deselect" : "Select"} all visible items for ${company}`}
+          />
           {isExpanded ? (
             <ChevronUp className="w-5 h-5 text-gray-400" />
           ) : (
@@ -2536,14 +4429,17 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                   <input
                     type="checkbox"
                     checked={allSelected}
-                    onChange={() => {}}
+                    ref={(node) => {
+                      if (node) node.indeterminate = someSelected;
+                    }}
+                    onChange={handleSelectAll}
                     onClick={(e) => e.stopPropagation()}
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
                     aria-label={`Select all items for ${company}`}
                   />
                 </th>
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                  PO details
+                  Related PO numbers
                 </th>
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Item / drawing
@@ -2576,11 +4472,36 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((item, index) => {
-                const itemKey = getItemKey(item);
-                const isSelected = selectedItems.has(itemKey);
-                const itemHistoryCount = dispatchHistory[itemKey]?.length || 0;
+                const sourceItems = getSourcePurchaseOrders(item);
+                const itemKey = item._mergeKey || getItemKey(item);
+                const selectedSourceCount = sourceItems.filter((sourceItem) =>
+                  selectedItems.has(getItemKey(sourceItem)),
+                ).length;
+                const isSelected =
+                  sourceItems.length > 0 &&
+                  selectedSourceCount === sourceItems.length;
+                const isPartiallySelected =
+                  selectedSourceCount > 0 && !isSelected;
+                const itemHistoryCount = sourceItems.reduce(
+                  (sum, sourceItem) =>
+                    sum +
+                    (dispatchHistory[getItemKey(sourceItem)]?.length || 0),
+                  0,
+                );
                 const completion = getCompletionPercentage(item);
                 const risk = getRiskMeta(item);
+                const status = normalizeText(item.status).toLowerCase();
+                const dispatchableItems = item._isMerged
+                  ? item._dispatchableItems || []
+                  : sourceItems.filter(
+                      (sourceItem) =>
+                        sourceItem.pending > 0 &&
+                        !["cancelled", "on hold"].includes(
+                          normalizeText(sourceItem.status).toLowerCase(),
+                        ) &&
+                        Boolean(sourceItem._id),
+                    );
+                const canDispatch = dispatchableItems.length > 0;
 
                 return (
                   <tr
@@ -2591,19 +4512,63 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                       <input
                         type="checkbox"
                         checked={isSelected}
+                        ref={(node) => {
+                          if (node) node.indeterminate = isPartiallySelected;
+                        }}
                         onChange={() => onToggleSelection(item)}
                         className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-                        aria-label={`Select ${item.po} ${item.item}`}
+                        aria-label={
+                          item._isMerged
+                            ? `Select all ${item.poCount} related POs for ${item.item}`
+                            : `Select ${item.po} ${item.item}`
+                        }
                       />
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                      <p className="font-mono text-sm font-semibold text-slate-800">
-                        {item.po || "—"}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 justify-center">
-                        <CalendarDays className="h-3 w-3" />
-                        {formatDate(item.poDate)}
-                      </p>
+                      {item._isMerged ? (
+                        <div className="min-w-[220px]">
+                          <div
+                            className="flex max-w-[320px] flex-wrap justify-center gap-1"
+                            title={item.poNumbers.join(", ")}
+                          >
+                            {item.poNumbers.map((poNumber) => (
+                              <span
+                                key={poNumber}
+                                className="rounded-md bg-blue-50 px-2 py-1 font-mono text-[11px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-100"
+                              >
+                                {poNumber}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-1.5 text-[11px] font-semibold text-indigo-600">
+                            {item.poCount} PO{item.poCount === 1 ? "" : "s"}{" "}
+                            merged
+                            {item._cancelledCount > 0
+                              ? ` · ${item._cancelledCount} cancelled`
+                              : ""}
+                          </p>
+                          <p className="mt-1 flex items-center justify-center gap-1 text-[11px] text-slate-400">
+                            <CalendarDays className="h-3 w-3" />
+                            Earliest PO {formatDate(item.poDate)}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            Next due {formatDate(item.deliveryDate)}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-mono text-sm font-semibold text-slate-800">
+                            {item.po || "—"}
+                          </p>
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 justify-center">
+                            <CalendarDays className="h-3 w-3" />
+                            PO {formatDate(item.poDate)}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            Due {formatDate(item.deliveryDate)}
+                          </p>
+                        </>
+                      )}
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       <p
@@ -2617,6 +4582,20 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                         <span className="h-1 w-1 rounded-full bg-slate-300" />
                         <span>{item.drawing || "No drawing"}</span>
                       </div>
+                      {(item._dataIssues?.length || 0) > 0 && (
+                        <span
+                          className="mt-1 inline-flex max-w-[210px] items-center gap-1 text-[10px] font-semibold text-amber-700"
+                          title={item._dataIssues.join("; ")}
+                        >
+                          <AlertCircle className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            Review: {item._dataIssues[0]}
+                            {item._dataIssues.length > 1
+                              ? ` (+${item._dataIssues.length - 1})`
+                              : ""}
+                          </span>
+                        </span>
+                      )}
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       <div className="mb-1.5 flex items-center justify-between text-[11px]">
@@ -2644,7 +4623,18 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                       {Number(item.pending || 0).toLocaleString("en-IN")}
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                      {formatCurrency(item.rate)}
+                      {item._isMerged && item._hasMixedRates ? (
+                        <div title={item.rates.map(formatCurrency).join(", ")}>
+                          <p className="text-xs font-semibold text-amber-700">
+                            Mixed rates
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-slate-400">
+                            Avg. {formatCurrency(item.rate)}
+                          </p>
+                        </div>
+                      ) : (
+                        formatCurrency(item.rate)
+                      )}
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       {formatCurrency(item.total)}
@@ -2662,15 +4652,33 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
+                          type="button"
                           onClick={() => onDispatchClick(item)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
+                          disabled={
+                            item._isMerged
+                              ? !canDispatch
+                              : !canDispatch && itemHistoryCount === 0
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:opacity-40"
                           title={
-                            item.pending > 0
-                              ? "Record dispatch"
-                              : "View dispatch history"
+                            item._isMerged
+                              ? canDispatch
+                                ? `Dispatch across ${dispatchableItems.length} eligible PO${dispatchableItems.length === 1 ? "" : "s"}`
+                                : "No related PO is eligible for dispatch"
+                              : canDispatch
+                                ? "Record dispatch"
+                                : itemHistoryCount > 0
+                                  ? "View dispatch history"
+                                  : status === "on hold"
+                                    ? "Release the PO hold before dispatching"
+                                    : status === "cancelled"
+                                      ? "Cancelled POs cannot be dispatched"
+                                      : !item._id
+                                        ? "Missing database id"
+                                        : "No dispatch history"
                           }
                         >
-                          {item.pending > 0 ? (
+                          {canDispatch ? (
                             <Truck className="h-3.5 w-3.5" />
                           ) : (
                             <History className="h-3.5 w-3.5" />
@@ -2680,21 +4688,46 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                               {itemHistoryCount}
                             </span>
                           )}
+                          {item._isMerged && canDispatch && (
+                            <span>{dispatchableItems.length} POs</span>
+                          )}
                         </button>
-                        <button
-                          onClick={() => onEditClick(item)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition"
-                          title="Edit PO"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteClick(item)}
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition"
-                          title="Delete PO"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {item._isMerged ? (
+                          <button
+                            type="button"
+                            onClick={() => onEditClick(item)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                            title={`Edit or delete one of ${sourceItems.length} related POs`}
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                            Manage
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onEditClick(item)}
+                              disabled={!item._id}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:opacity-40"
+                              title={
+                                item._id ? "Edit PO" : "Missing database id"
+                              }
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteClick(item)}
+                              disabled={!item._id}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition disabled:cursor-not-allowed disabled:opacity-40"
+                              title={
+                                item._id ? "Delete PO" : "Missing database id"
+                              }
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -2713,43 +4746,52 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
 // ============================================
 class PendingPOManager {
   constructor(data = []) {
-    this.data = data;
+    this.data = Array.isArray(data) ? data : [];
     this.summary = this.calculateSummary();
     this.companyStats = this.calculateCompanyStats();
     this.itemCategories = this.extractCategories();
   }
 
   calculateSummary() {
-    const totalPending = this.data.reduce(
-      (sum, item) => sum + (item.pending || 0),
+    const activeData = this.data.filter((item) => !isCancelledRecord(item));
+    const totalPending = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.pending),
       0,
     );
-    const totalDispatched = this.data.reduce(
-      (sum, item) => sum + (item.dispatched || 0),
+    const totalDispatched = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.dispatched),
       0,
     );
-    const totalPOQty = this.data.reduce(
-      (sum, item) => sum + (item.poQty || 0),
+    const totalPOQty = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.poQty),
       0,
     );
-    const totalValue = this.data.reduce(
-      (sum, item) => sum + (item.total || 0),
+    const totalValue = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.total),
       0,
     );
-    const uniquePOs = new Set(this.data.map((item) => item.po).filter(Boolean));
+    const uniquePOs = new Set(
+      activeData.map((item) => item.po).filter(Boolean),
+    );
     const uniqueCompanies = new Set(
-      this.data.map((item) => item.company).filter(Boolean),
+      activeData.map((item) => item.company).filter(Boolean),
     );
     const uniqueDrawings = new Set(
-      this.data.map((item) => item.drawing).filter(Boolean),
+      activeData.map((item) => item.drawing).filter(Boolean),
     );
-    const completedItems = this.data.filter((item) => item.pending <= 0).length;
-    const partialItems = this.data.filter(
+    const completedItems = activeData.filter(
+      (item) => item.pending <= 0,
+    ).length;
+    const partialItems = activeData.filter(
       (item) => item.pending > 0 && item.dispatched > 0,
     ).length;
-    const untouchedItems = this.data.filter(
+    const untouchedItems = activeData.filter(
       (item) => item.pending > 0 && item.dispatched <= 0,
     ).length;
+    const onHoldItems = activeData.filter(
+      (item) => normalizeText(item.status).toLowerCase() === "on hold",
+    ).length;
+    const cancelledItems = this.data.length - activeData.length;
 
     return {
       totalPending,
@@ -2760,9 +4802,12 @@ class PendingPOManager {
       totalCompanies: uniqueCompanies.size,
       totalDrawings: uniqueDrawings.size,
       totalItems: this.data.length,
+      activeItems: activeData.length,
       completedItems,
       partialItems,
       untouchedItems,
+      onHoldItems,
+      cancelledItems,
       pendingPercentage: totalPOQty > 0 ? (totalPending / totalPOQty) * 100 : 0,
       dispatchedPercentage:
         totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
@@ -2782,13 +4827,20 @@ class PendingPOManager {
           itemCount: 0,
           pendingItems: 0,
           completedItems: 0,
+          cancelledItems: 0,
         };
       }
-      stats[item.company].totalPending += item.pending || 0;
-      stats[item.company].totalDispatched += item.dispatched || 0;
-      stats[item.company].totalPOQty += item.poQty || 0;
-      stats[item.company].totalValue += item.total || 0;
-      stats[item.company].poCount.add(item.po);
+      if (isCancelledRecord(item)) {
+        stats[item.company].cancelledItems += 1;
+        return;
+      }
+      stats[item.company].totalPending += toNonNegativeNumber(item.pending);
+      stats[item.company].totalDispatched += toNonNegativeNumber(
+        item.dispatched,
+      );
+      stats[item.company].totalPOQty += toNonNegativeNumber(item.poQty);
+      stats[item.company].totalValue += toNonNegativeNumber(item.total);
+      if (item.po) stats[item.company].poCount.add(item.po);
       stats[item.company].itemCount += 1;
       if (item.pending === 0) {
         stats[item.company].completedItems += 1;
@@ -2814,25 +4866,9 @@ class PendingPOManager {
   extractCategories() {
     const categories = new Set();
     this.data.forEach((item) => {
-      const desc = item.item || "";
-      if (desc.toLowerCase().includes("bus bar")) {
-        categories.add("Bus Bars");
-      } else if (desc.toLowerCase().includes("heat sink")) {
-        categories.add("Heat Sinks");
-      } else if (
-        desc.toLowerCase().includes("accessory") ||
-        desc.toLowerCase().includes("assembly")
-      ) {
-        categories.add("Accessories");
-      } else if (desc.toLowerCase().includes("hardware")) {
-        categories.add("Hardware");
-      } else if (desc.toLowerCase().includes("plate")) {
-        categories.add("Plates");
-      } else {
-        categories.add("Others");
-      }
+      categories.add(getItemCategory(item.item));
     });
-    return [...categories];
+    return [...categories].sort((a, b) => a.localeCompare(b));
   }
 
   filterData(filters) {
@@ -2843,58 +4879,62 @@ class PendingPOManager {
     }
 
     if (filters.searchTerm) {
-      const term = filters.searchTerm.toLowerCase();
+      const term = normalizeText(filters.searchTerm).toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.po?.toLowerCase().includes(term) ||
-          item.drawing?.toLowerCase().includes(term) ||
-          item.item?.toLowerCase().includes(term) ||
-          item.itemCode?.toLowerCase().includes(term),
+          normalizeText(item.po).toLowerCase().includes(term) ||
+          normalizeText(item.company).toLowerCase().includes(term) ||
+          normalizeText(item.drawing).toLowerCase().includes(term) ||
+          normalizeText(item.item).toLowerCase().includes(term) ||
+          normalizeText(item.itemCode).toLowerCase().includes(term) ||
+          normalizeText(item.deliveryDate).toLowerCase().includes(term),
       );
     }
 
     if (filters.status && filters.status !== "all") {
       if (filters.status === "pending") {
-        filtered = filtered.filter((item) => item.pending > 0);
+        filtered = filtered.filter(
+          (item) => item.pending > 0 && !isCancelledRecord(item),
+        );
+      } else if (filters.status === "not_started") {
+        filtered = filtered.filter(
+          (item) =>
+            item.pending > 0 &&
+            item.dispatched <= 0 &&
+            !isCancelledRecord(item),
+        );
       } else if (filters.status === "completed") {
-        filtered = filtered.filter((item) => item.pending === 0);
+        filtered = filtered.filter(
+          (item) => item.pending <= 0 && !isCancelledRecord(item),
+        );
       } else if (filters.status === "partial") {
         filtered = filtered.filter(
-          (item) => item.pending > 0 && item.pending < item.poQty,
+          (item) =>
+            item.pending > 0 && item.dispatched > 0 && !isCancelledRecord(item),
         );
+      } else if (filters.status === "on_hold") {
+        filtered = filtered.filter(
+          (item) => normalizeText(item.status).toLowerCase() === "on hold",
+        );
+      } else if (filters.status === "cancelled") {
+        filtered = filtered.filter(isCancelledRecord);
       }
     }
 
     if (filters.category && filters.category !== "all") {
-      filtered = filtered.filter((item) => {
-        const desc = item.item || "";
-        if (filters.category === "Bus Bars")
-          return desc.toLowerCase().includes("bus bar");
-        if (filters.category === "Heat Sinks")
-          return desc.toLowerCase().includes("heat sink");
-        if (filters.category === "Accessories")
-          return (
-            desc.toLowerCase().includes("accessory") ||
-            desc.toLowerCase().includes("assembly")
-          );
-        if (filters.category === "Hardware")
-          return desc.toLowerCase().includes("hardware");
-        if (filters.category === "Plates")
-          return desc.toLowerCase().includes("plate");
-        return true;
-      });
+      filtered = filtered.filter(
+        (item) => getItemCategory(item.item) === filters.category,
+      );
     }
 
     if (filters.minPending !== undefined && filters.minPending !== "") {
-      filtered = filtered.filter(
-        (item) => item.pending >= Number(filters.minPending),
-      );
+      const minimum = toNonNegativeNumber(filters.minPending);
+      filtered = filtered.filter((item) => item.pending >= minimum);
     }
 
     if (filters.maxPending !== undefined && filters.maxPending !== "") {
-      filtered = filtered.filter(
-        (item) => item.pending <= Number(filters.maxPending),
-      );
+      const maximum = toNonNegativeNumber(filters.maxPending);
+      filtered = filtered.filter((item) => item.pending <= maximum);
     }
 
     if (
@@ -2902,39 +4942,18 @@ class PendingPOManager {
       (filters.dateRange.start || filters.dateRange.end)
     ) {
       const start = filters.dateRange.start
-        ? new Date(`${filters.dateRange.start}T00:00:00`)
-        : new Date(-8640000000000000);
+        ? getDateTimestamp(filters.dateRange.start)
+        : -Infinity;
       const end = filters.dateRange.end
-        ? new Date(`${filters.dateRange.end}T23:59:59.999`)
-        : new Date(8640000000000000);
+        ? getDateTimestamp(filters.dateRange.end)
+        : Infinity;
       filtered = filtered.filter((item) => {
-        const date = new Date(item.poDate);
-        return !Number.isNaN(date.getTime()) && date >= start && date <= end;
+        const date = getDateTimestamp(item.poDate);
+        return date !== null && date >= start && date <= end;
       });
     }
 
     return filtered;
-  }
-
-  updateDispatch(index, newDispatch) {
-    if (index >= 0 && index < this.data.length) {
-      const item = this.data[index];
-      const validDispatch = Math.min(Math.max(0, newDispatch), item.poQty);
-      const newPending = item.poQty - validDispatch;
-
-      this.data[index] = {
-        ...item,
-        dispatched: validDispatch,
-        pending: newPending,
-        total: newPending * item.rate,
-        status: newPending > 0 ? "Pending" : "Completed",
-      };
-
-      this.summary = this.calculateSummary();
-      this.companyStats = this.calculateCompanyStats();
-      return true;
-    }
-    return false;
   }
 }
 
@@ -3024,53 +5043,63 @@ const GeneratePendingList = () => {
   const [minPending, setMinPending] = useState("");
   const [maxPending, setMaxPending] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [dataQualityIssueCount, setDataQualityIssueCount] = useState(0);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [viewMode, setViewMode] = useState("accordion");
+  const [importPreviewFile, setImportPreviewFile] = useState(null);
+  const [importPreviewSheet, setImportPreviewSheet] = useState("");
+  const [importPreviewRows, setImportPreviewRows] = useState([]);
+  const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
+  const [isPreparingImport, setIsPreparingImport] = useState(false);
+  const [isConfirmingImport, setIsConfirmingImport] = useState(false);
+  const [importPreviewError, setImportPreviewError] = useState("");
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showFilters, setShowFilters] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "deliveryDate",
+    direction: "asc",
+  });
   const [notification, setNotification] = useState(null);
   const [selectedItemForDispatch, setSelectedItemForDispatch] = useState(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] =
     useState(false);
   const [dispatchHistory, setDispatchHistory] = useState({});
-  const [isHovered, setIsHovered] = useState(null);
+  const [initialDispatchEntry, setInitialDispatchEntry] = useState(null);
+  const [selectedMergedDispatchGroup, setSelectedMergedDispatchGroup] =
+    useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [isGlobalHistoryOpen, setIsGlobalHistoryOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState(null);
+  const [selectedPOAction, setSelectedPOAction] = useState("edit");
+  const [isPOGroupModalOpen, setIsPOGroupModalOpen] = useState(false);
+  const [selectedPOGroup, setSelectedPOGroup] = useState(null);
   const [isPending, startTransition] = useTransition();
   const [expandedCompanies, setExpandedCompanies] = useState(new Set());
+  const loadSequenceRef = useRef(0);
 
-  const getCategory = useCallback((description = "") => {
-    const value = String(description).toLowerCase();
-    if (value.includes("bus bar")) return "Bus Bars";
-    if (value.includes("heat sink")) return "Heat Sinks";
-    if (value.includes("accessory") || value.includes("assembly"))
-      return "Accessories";
-    if (value.includes("hardware")) return "Hardware";
-    if (value.includes("plate")) return "Plates";
-    return "Others";
-  }, []);
-
-  const getItemKey = useCallback(
-    (item) =>
-      String(
-        item?._id ||
-          [item?.company, item?.po, item?.itemCode, item?.drawing, item?.item]
-            .filter(Boolean)
-            .join("::"),
-      ),
-    [],
-  );
+  const getItemKey = useCallback((item) => getPurchaseOrderKey(item), []);
 
   const showNotification = useCallback((message, type = "info") => {
     setNotification({ message, type });
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSelectedCompany("all");
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+    setSelectedStatus("all");
+    setSelectedCategory("all");
+    setMinPending("");
+    setMaxPending("");
+    setDateRange({ start: "", end: "" });
+    setCurrentPage(1);
   }, []);
 
   const filteredData = useMemo(() => {
@@ -3096,9 +5125,73 @@ const GeneratePendingList = () => {
     dateRange,
   ]);
 
+  useEffect(() => {
+    const visibleKeys = new Set(filteredData.map(getItemKey));
+    setSelectedItems((current) => {
+      const next = new Set(
+        [...current].filter((itemKey) => visibleKeys.has(itemKey)),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [filteredData, getItemKey]);
+
+  const displayData = useMemo(
+    () => mergePurchaseOrderRows(filteredData),
+    [filteredData],
+  );
+
+  const sortedData = useMemo(() => {
+    const rows = [...displayData];
+    const { key, direction } = sortConfig;
+    if (!key) return rows;
+    const multiplier = direction === "desc" ? -1 : 1;
+    const numericKeys = new Set([
+      "poQty",
+      "dispatched",
+      "pending",
+      "rate",
+      "total",
+    ]);
+    const dateKeys = new Set(["poDate", "deliveryDate"]);
+
+    rows.sort((left, right) => {
+      let comparison = 0;
+      if (numericKeys.has(key)) {
+        comparison = toFiniteNumber(left?.[key]) - toFiniteNumber(right?.[key]);
+      } else if (dateKeys.has(key)) {
+        const leftDate = getDateTimestamp(left?.[key]);
+        const rightDate = getDateTimestamp(right?.[key]);
+        if (leftDate === null && rightDate !== null) return 1;
+        if (leftDate !== null && rightDate === null) return -1;
+        comparison = (leftDate || 0) - (rightDate || 0);
+      } else {
+        comparison = normalizeText(left?.[key]).localeCompare(
+          normalizeText(right?.[key]),
+          "en",
+          { numeric: true, sensitivity: "base" },
+        );
+      }
+
+      if (comparison !== 0) return comparison * multiplier;
+      return `${left.company} ${left.po} ${left.item}`.localeCompare(
+        `${right.company} ${right.po} ${right.item}`,
+        "en",
+        { numeric: true, sensitivity: "base" },
+      );
+    });
+    return rows;
+  }, [displayData, sortConfig]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
+  const pageStart = (currentPage - 1) * pageSize;
+  const pagedData = useMemo(
+    () => sortedData.slice(pageStart, pageStart + pageSize),
+    [sortedData, pageStart, pageSize],
+  );
+
   const groupedByCompany = useMemo(() => {
     const groups = {};
-    filteredData.forEach((item) => {
+    pagedData.forEach((item) => {
       const company = item.company || "Unknown Company";
       if (!groups[company]) {
         groups[company] = [];
@@ -3106,11 +5199,18 @@ const GeneratePendingList = () => {
       groups[company].push(item);
     });
     return groups;
-  }, [filteredData]);
+  }, [pagedData]);
 
   const companyList = useMemo(() => {
     return Object.keys(groupedByCompany).sort();
   }, [groupedByCompany]);
+
+  const filteredCompanyCount = useMemo(
+    () =>
+      new Set(filteredData.map((item) => item.company || "Unknown Company"))
+        .size,
+    [filteredData],
+  );
 
   const filteredManager = useMemo(
     () => (filteredData.length > 0 ? new PendingPOManager(filteredData) : null),
@@ -3122,10 +5222,39 @@ const GeneratePendingList = () => {
     [data, selectedItems, getItemKey],
   );
 
+  const selectedExportRows = useMemo(
+    () => mergePurchaseOrderRows(selectedRows),
+    [selectedRows],
+  );
+
+  const dispatchableSelectedRows = useMemo(
+    () =>
+      selectedRows.filter((item) => {
+        const status = normalizeText(item.status).toLowerCase();
+        return (
+          item.pending > 0 &&
+          Boolean(item._id) &&
+          status !== "cancelled" &&
+          status !== "on hold"
+        );
+      }),
+    [selectedRows],
+  );
+
+  const dataByKey = useMemo(() => {
+    const index = new Map();
+    data.forEach((item) => {
+      index.set(getItemKey(item), item);
+      if (item._id) index.set(String(item._id), item);
+    });
+    return index;
+  }, [data, getItemKey]);
+
   const companyRanking = useMemo(() => {
     if (!manager) return [];
     return Object.entries(manager.companyStats)
       .map(([company, stats]) => ({ company, ...stats }))
+      .filter((entry) => entry.totalPOQty > 0)
       .sort((a, b) => b.totalPending - a.totalPending)
       .slice(0, 5);
   }, [manager]);
@@ -3161,103 +5290,216 @@ const GeneratePendingList = () => {
 
   const loadPurchaseOrders = useCallback(
     async ({ quiet = false, signal } = {}) => {
+      const requestSequence = ++loadSequenceRef.current;
       if (!quiet) setIsLoading(true);
+      if (!quiet) setLoadError("");
       try {
         const result = await pendingPoApi.listAll({ signal });
-        const records = result.records || [];
+        if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
+          return false;
+        }
+
+        const records = extractPurchaseOrderRecords(result).map(
+          normalizePurchaseOrder,
+        );
         const nextManager = new PendingPOManager(records);
         const nextHistory = {};
 
         records.forEach((item) => {
-          nextHistory[getItemKey(item)] = Array.isArray(item.dispatchHistory)
-            ? item.dispatchHistory
-            : [];
+          const itemKey = getItemKey(item);
+          nextHistory[itemKey] = item.dispatchHistory.map((entry) =>
+            normalizeDispatchEntry(entry, { ...item, itemKey }),
+          );
         });
+
+        const nextCompanies = Object.keys(nextManager.companyStats).sort(
+          (a, b) => a.localeCompare(b),
+        );
+        const nextCategories = nextManager.itemCategories;
 
         startTransition(() => {
           setData(records);
           setManager(nextManager);
           setDispatchHistory(nextHistory);
-          setCompanies(["all", ...Object.keys(nextManager.companyStats)]);
-          setCategories(["all", ...nextManager.itemCategories]);
+          setCompanies(["all", ...nextCompanies]);
+          setCategories(["all", ...nextCategories]);
+          setSelectedCompany((current) =>
+            current === "all" || nextCompanies.includes(current)
+              ? current
+              : "all",
+          );
+          setSelectedCategory((current) =>
+            current === "all" || nextCategories.includes(current)
+              ? current
+              : "all",
+          );
           setSelectedItems(new Set());
           setIsDataReady(true);
-          if (!quiet) setIsLoading(false);
+          setDataQualityIssueCount(
+            records.filter((item) => item._dataIssues.length > 0).length,
+          );
+          setLoadError("");
+          setLastSyncedAt(new Date());
         });
+        return true;
       } catch (error) {
-        if (!quiet) {
+        const wasCancelled =
+          signal?.aborted ||
+          error?.name === "AbortError" ||
+          error?.code === "ERR_CANCELED" ||
+          error?.code === "CanceledError";
+        if (wasCancelled || requestSequence !== loadSequenceRef.current) {
+          return false;
+        }
+        const message = getApiErrorMessage(
+          error,
+          "Could not load purchase orders",
+        );
+        setLoadError(message);
+        if (!quiet) setNotification({ message, type: "error" });
+        return false;
+      } finally {
+        if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
           setIsLoading(false);
-          setNotification({
-            message: getApiErrorMessage(
-              error,
-              "Could not load purchase orders",
-            ),
-            type: "error",
-          });
         }
       }
     },
     [getItemKey, startTransition],
   );
 
+  const resetImportPreview = useCallback(() => {
+    setIsImportPreviewOpen(false);
+    setImportPreviewFile(null);
+    setImportPreviewSheet("");
+    setImportPreviewRows([]);
+    setImportPreviewError("");
+  }, []);
+
   const handleFileUpload = useCallback(
     async (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        if (!/\.(xlsx|xls)$/i.test(file.name)) {
-          showNotification("Please upload an .xlsx or .xls file", "error");
-          event.target.value = "";
-          return;
-        }
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-        setIsLoading(true);
+      if (!/\.(xlsx|xls)$/i.test(file.name)) {
+        showNotification("Please upload an .xlsx or .xls file", "error");
+        event.target.value = "";
+        return;
+      }
+      if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+        showNotification("Excel file must be 20 MB or smaller", "error");
+        event.target.value = "";
+        return;
+      }
 
-        try {
-          const result = await pendingPoApi.importFile(file);
-          setUploadedFile(file);
-          setSelectedItems(new Set());
-          setSortConfig({ key: null, direction: "asc" });
-          setCurrentPage(1);
-          clearFilters();
-          await loadPurchaseOrders({ quiet: true });
-
-          const warningCount = Number(result.skipped || 0);
-          showNotification(
-            `${result.inserted || 0} inserted, ${result.updated || 0} updated${
-              warningCount ? `, ${warningCount} skipped` : ""
-            }`,
-            warningCount ? "warning" : "success",
-          );
-        } catch (error) {
-          console.error("Error importing file:", error);
-          showNotification(
-            getApiErrorMessage(
-              error,
-              "Could not import the file. Please check its columns.",
-            ),
-            "error",
-          );
-        } finally {
-          setIsLoading(false);
-          event.target.value = "";
-        }
+      setIsPreparingImport(true);
+      setImportPreviewError("");
+      try {
+        const preview = await parseExcelFileForPreview(file);
+        setImportPreviewFile(file);
+        setImportPreviewSheet(preview.sheetName);
+        setImportPreviewRows(preview.rows);
+        setIsImportPreviewOpen(true);
+      } catch (error) {
+        console.error("Error reading Excel preview:", error);
+        showNotification(
+          getApiErrorMessage(
+            error,
+            "Could not preview the Excel file. Check its header row and data.",
+          ),
+          "error",
+        );
+      } finally {
+        setIsPreparingImport(false);
+        event.target.value = "";
       }
     },
-    [loadPurchaseOrders, showNotification],
+    [showNotification],
   );
+
+  const handlePreviewRowUpdate = useCallback((rowId, field, value) => {
+    setImportPreviewRows((current) =>
+      current.map((row) =>
+        row._previewId === rowId
+          ? updateExcelPreviewRow(row, field, value)
+          : row,
+      ),
+    );
+    setImportPreviewError("");
+  }, []);
+
+  const handlePreviewRowDelete = useCallback((rowId) => {
+    setImportPreviewRows((current) =>
+      current.filter((row) => row._previewId !== rowId),
+    );
+    setImportPreviewError("");
+  }, []);
+
+  const confirmReviewedImport = useCallback(async () => {
+    if (!importPreviewFile || importPreviewRows.length === 0) {
+      setImportPreviewError("Keep at least one row before uploading");
+      return;
+    }
+    const invalidRowCount = importPreviewRows.filter(
+      (row) => row._previewIssues?.length > 0,
+    ).length;
+    if (invalidRowCount > 0) {
+      setImportPreviewError(
+        `Fix or delete the ${invalidRowCount} row${invalidRowCount === 1 ? "" : "s"} with red validation errors before uploading.`,
+      );
+      return;
+    }
+
+    setIsConfirmingImport(true);
+    setImportPreviewError("");
+    try {
+      const reviewedFile = buildReviewedExcelFile(
+        importPreviewRows,
+        importPreviewFile,
+        importPreviewSheet,
+      );
+      const result = await pendingPoApi.importFile(reviewedFile);
+      setUploadedFile(reviewedFile);
+      setSelectedItems(new Set());
+      setSortConfig({ key: "deliveryDate", direction: "asc" });
+      setCurrentPage(1);
+      clearFilters();
+      const refreshed = await loadPurchaseOrders({ quiet: true });
+
+      const skippedCount = Number(result?.skipped || 0);
+      const refreshSuffix = refreshed
+        ? ""
+        : ". Import succeeded, but the list could not refresh";
+      showNotification(
+        `${result?.inserted || 0} inserted, ${result?.updated || 0} updated${
+          skippedCount ? `, ${skippedCount} skipped` : ""
+        }${refreshSuffix}`,
+        skippedCount || !refreshed ? "warning" : "success",
+      );
+      resetImportPreview();
+    } catch (error) {
+      console.error("Error importing reviewed Excel data:", error);
+      setImportPreviewError(
+        getApiErrorMessage(
+          error,
+          "Could not upload the reviewed data. Check the highlighted rows and try again.",
+        ),
+      );
+    } finally {
+      setIsConfirmingImport(false);
+    }
+  }, [
+    importPreviewFile,
+    importPreviewRows,
+    importPreviewSheet,
+    clearFilters,
+    loadPurchaseOrders,
+    resetImportPreview,
+    showNotification,
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadPurchaseOrders({ signal: controller.signal }).catch((error) => {
-      if (error?.code === "ERR_CANCELED") return;
-      setNotification({
-        message: getApiErrorMessage(
-          error,
-          "Saved purchase orders could not be loaded",
-        ),
-        type: "error",
-      });
-    });
+    void loadPurchaseOrders({ signal: controller.signal });
 
     return () => controller.abort();
   }, [loadPurchaseOrders]);
@@ -3271,11 +5513,22 @@ const GeneratePendingList = () => {
   }, [searchTerm]);
 
   useEffect(() => {
-    if (manager && companies.length === 0) {
-      setCompanies(["all", ...Object.keys(manager.companyStats)]);
-      setCategories(["all", ...manager.itemCategories]);
-    }
-  }, [manager, companies.length]);
+    setCurrentPage(1);
+  }, [
+    debouncedSearchTerm,
+    selectedCompany,
+    selectedStatus,
+    selectedCategory,
+    minPending,
+    maxPending,
+    dateRange,
+    sortConfig,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(1, page), totalPages));
+  }, [totalPages]);
 
   const handleDispatchUpdate = useCallback(
     async (payload) => {
@@ -3283,23 +5536,23 @@ const GeneratePendingList = () => {
         ? await pendingPoApi.createBulkDispatch(payload)
         : await pendingPoApi.createDispatch(payload);
 
-      await loadPurchaseOrders({ quiet: true });
+      const refreshed = await loadPurchaseOrders({ quiet: true });
 
       if (payload.isBulk) {
         const successCount = Number(
-          result.totalProcessed ?? result.successful?.length ?? 0,
+          result?.totalProcessed ?? result?.successful?.length ?? 0,
         );
         const failCount = Number(
-          result.totalFailed ?? result.failed?.length ?? 0,
+          result?.totalFailed ?? result?.failed?.length ?? 0,
         );
         showNotification(
-          `${successCount} item(s) dispatched${failCount ? `, ${failCount} skipped` : ""}`,
-          failCount ? "warning" : "success",
+          `${successCount} item(s) dispatched${failCount ? `, ${failCount} skipped` : ""}${refreshed ? "" : ". Refresh the list to see the latest balances"}`,
+          failCount || !refreshed ? "warning" : "success",
         );
       } else {
         showNotification(
-          `Dispatch saved. New pending quantity: ${result.updatedPO?.pending ?? "-"}`,
-          "success",
+          `Dispatch saved. New pending quantity: ${result?.updatedPO?.pending ?? "-"}${refreshed ? "" : ". Refresh the list to see the latest balance"}`,
+          refreshed ? "success" : "warning",
         );
       }
 
@@ -3312,8 +5565,13 @@ const GeneratePendingList = () => {
     async (payload) => {
       try {
         const result = await pendingPoApi.updateDispatch(payload);
-        await loadPurchaseOrders({ quiet: true });
-        showNotification("Dispatch updated successfully", "success");
+        const refreshed = await loadPurchaseOrders({ quiet: true });
+        showNotification(
+          refreshed
+            ? "Dispatch updated successfully"
+            : "Dispatch updated; refresh the list to see the latest balance",
+          refreshed ? "success" : "warning",
+        );
         return result;
       } catch (error) {
         showNotification(getApiErrorMessage(error, "Update failed"), "error");
@@ -3327,8 +5585,13 @@ const GeneratePendingList = () => {
     async (payload) => {
       try {
         await pendingPoApi.deleteDispatch(payload);
-        await loadPurchaseOrders({ quiet: true });
-        showNotification("Dispatch deleted successfully", "success");
+        const refreshed = await loadPurchaseOrders({ quiet: true });
+        showNotification(
+          refreshed
+            ? "Dispatch deleted successfully"
+            : "Dispatch deleted; refresh the list to see the latest balance",
+          refreshed ? "success" : "warning",
+        );
       } catch (error) {
         showNotification(getApiErrorMessage(error, "Delete failed"), "error");
         throw error;
@@ -3337,25 +5600,14 @@ const GeneratePendingList = () => {
     [loadPurchaseOrders, showNotification],
   );
 
-  const openDispatchModal = useCallback(
-    (item) => {
-      const itemKey = getItemKey(item);
-      setSelectedItemForDispatch({
-        ...item,
-        dispatchHistory: dispatchHistory[itemKey] || [],
-      });
-      setIsDispatchModalOpen(true);
-    },
-    [dispatchHistory, getItemKey],
-  );
-
   const openMultipleDispatchModal = useCallback(() => {
-    const itemsToDispatch = data.filter(
-      (item) => selectedItems.has(getItemKey(item)) && (item.pending || 0) > 0,
-    );
+    const itemsToDispatch = dispatchableSelectedRows;
 
     if (itemsToDispatch.length === 0) {
-      showNotification("No selected items with pending quantity", "warning");
+      showNotification(
+        "No selected items are eligible for dispatch. Check pending quantity, hold/cancel status, and database ids.",
+        "warning",
+      );
       return;
     }
 
@@ -3365,13 +5617,17 @@ const GeneratePendingList = () => {
     }));
 
     setSelectedItemForDispatch(itemsWithHistory);
+    setSelectedMergedDispatchGroup(null);
+    setInitialDispatchEntry(null);
     setIsMultipleDispatchModalOpen(true);
-  }, [data, selectedItems, getItemKey, dispatchHistory, showNotification]);
+  }, [dispatchableSelectedRows, getItemKey, dispatchHistory, showNotification]);
 
   const closeDispatchModal = useCallback(() => {
     setIsDispatchModalOpen(false);
     setIsMultipleDispatchModalOpen(false);
     setSelectedItemForDispatch(null);
+    setSelectedMergedDispatchGroup(null);
+    setInitialDispatchEntry(null);
   }, []);
 
   const openGlobalHistory = useCallback(() => {
@@ -3384,23 +5640,10 @@ const GeneratePendingList = () => {
       currency: "INR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(toFiniteNumber(value));
   }, []);
 
-  const formatDate = useCallback((dateStr) => {
-    if (!dateStr) return "-";
-    try {
-      const date = new Date(dateStr);
-      if (Number.isNaN(date.getTime())) return String(dateStr);
-      return date.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
-  }, []);
+  const formatDate = useCallback((dateStr) => formatDateValue(dateStr), []);
 
   const getCompletionPercentage = useCallback((item) => {
     const total = Number(item?.poQty) || 0;
@@ -3413,12 +5656,56 @@ const GeneratePendingList = () => {
 
   const getRiskMeta = useCallback(
     (item) => {
+      const status = normalizeText(item?.status).toLowerCase();
+      if (status === "cancelled") {
+        return {
+          label: "Cancelled",
+          dot: "bg-slate-400",
+          badge: "bg-slate-100 text-slate-600 ring-slate-200",
+        };
+      }
+      if (status === "on hold") {
+        return {
+          label: "On hold",
+          dot: "bg-violet-500",
+          badge: "bg-violet-50 text-violet-700 ring-violet-200",
+        };
+      }
       if ((Number(item?.pending) || 0) <= 0) {
         return {
           label: "Completed",
           dot: "bg-emerald-500",
           badge: "bg-emerald-50 text-emerald-700 ring-emerald-200",
         };
+      }
+
+      const deliveryTimestamp = getDateTimestamp(item?.deliveryDate);
+      const todayTimestamp = getDateTimestamp(getLocalDateInputValue());
+      if (deliveryTimestamp !== null && todayTimestamp !== null) {
+        const daysUntilDue = Math.ceil(
+          (deliveryTimestamp - todayTimestamp) / 86400000,
+        );
+        if (daysUntilDue < 0) {
+          return {
+            label: `Overdue ${Math.abs(daysUntilDue)}d`,
+            dot: "bg-rose-600",
+            badge: "bg-rose-50 text-rose-700 ring-rose-200",
+          };
+        }
+        if (daysUntilDue === 0) {
+          return {
+            label: "Due today",
+            dot: "bg-rose-500",
+            badge: "bg-rose-50 text-rose-700 ring-rose-200",
+          };
+        }
+        if (daysUntilDue <= 7) {
+          return {
+            label: `Due in ${daysUntilDue}d`,
+            dot: "bg-amber-500",
+            badge: "bg-amber-50 text-amber-700 ring-amber-200",
+          };
+        }
       }
 
       const remaining = 100 - getCompletionPercentage(item);
@@ -3445,16 +5732,6 @@ const GeneratePendingList = () => {
     [getCompletionPercentage],
   );
 
-  const clearFilters = useCallback(() => {
-    setSelectedCompany("all");
-    setSearchTerm("");
-    setSelectedStatus("all");
-    setSelectedCategory("all");
-    setMinPending("");
-    setMaxPending("");
-    setDateRange({ start: "", end: "" });
-  }, []);
-
   const handleSort = useCallback((key) => {
     setSortConfig((current) => ({
       key,
@@ -3473,53 +5750,147 @@ const GeneratePendingList = () => {
 
   const toggleItemSelection = useCallback(
     (item) => {
-      const itemKey = getItemKey(item);
+      const sourceItems = getSourcePurchaseOrders(item);
       setSelectedItems((current) => {
         const next = new Set(current);
-        if (next.has(itemKey)) next.delete(itemKey);
-        else next.add(itemKey);
+        const allSourceItemsSelected = sourceItems.every((sourceItem) =>
+          next.has(getItemKey(sourceItem)),
+        );
+        sourceItems.forEach((sourceItem) => {
+          const itemKey = getItemKey(sourceItem);
+          if (allSourceItemsSelected) next.delete(itemKey);
+          else next.add(itemKey);
+        });
         return next;
       });
     },
     [getItemKey],
   );
 
-  const handleHoverStart = useCallback((key) => {
-    setIsHovered(key);
-  }, []);
-
-  const handleHoverEnd = useCallback(() => {
-    setIsHovered(null);
-  }, []);
+  const setItemsSelection = useCallback(
+    (items, shouldSelect) => {
+      setSelectedItems((current) => {
+        const next = new Set(current);
+        items.flatMap(getSourcePurchaseOrders).forEach((item) => {
+          const itemKey = getItemKey(item);
+          if (shouldSelect) next.add(itemKey);
+          else next.delete(itemKey);
+        });
+        return next;
+      });
+    },
+    [getItemKey],
+  );
 
   const handleDispatchClick = useCallback(
     (item) => {
+      if (item._isMerged) {
+        const eligibleItems = item._dispatchableItems || [];
+        if (eligibleItems.length === 0) {
+          showNotification(
+            "No related PO is eligible for dispatch. Check pending quantity, hold/cancel status, and database ids.",
+            "warning",
+          );
+          return;
+        }
+
+        const itemsWithHistory = eligibleItems.map((sourceItem) => ({
+          ...sourceItem,
+          dispatchHistory: dispatchHistory[getItemKey(sourceItem)] || [],
+        }));
+        setSelectedItemForDispatch(itemsWithHistory);
+        setSelectedMergedDispatchGroup(item);
+        setInitialDispatchEntry(null);
+        setIsMultipleDispatchModalOpen(true);
+        return;
+      }
+
       const itemKey = getItemKey(item);
+      setSelectedMergedDispatchGroup(null);
+      setInitialDispatchEntry(null);
       setSelectedItemForDispatch({
         ...item,
         dispatchHistory: dispatchHistory[itemKey] || [],
       });
       setIsDispatchModalOpen(true);
     },
-    [dispatchHistory, getItemKey],
+    [dispatchHistory, getItemKey, showNotification],
   );
 
-  const handleEditClick = useCallback((item) => {
+  const openSinglePOEditor = useCallback((item, action = "edit") => {
+    if (!item) return;
     setSelectedItemForEdit(item);
+    setSelectedPOAction(action);
     setIsEditModalOpen(true);
   }, []);
 
-  const handleDeleteClick = useCallback((item) => {
-    setSelectedItemForEdit(item);
-    setIsEditModalOpen(true);
+  const closeSinglePOEditor = useCallback(() => {
+    setIsEditModalOpen(false);
+    setSelectedItemForEdit(null);
+    setSelectedPOAction("edit");
   }, []);
+
+  const openPOGroupManager = useCallback((item) => {
+    setSelectedPOGroup(item);
+    setIsPOGroupModalOpen(true);
+  }, []);
+
+  const closePOGroupManager = useCallback(() => {
+    setIsPOGroupModalOpen(false);
+    setSelectedPOGroup(null);
+  }, []);
+
+  const handleGroupPOEdit = useCallback(
+    (sourceItem) => {
+      closePOGroupManager();
+      openSinglePOEditor(sourceItem, "edit");
+    },
+    [closePOGroupManager, openSinglePOEditor],
+  );
+
+  const handleGroupPODelete = useCallback(
+    (sourceItem) => {
+      closePOGroupManager();
+      openSinglePOEditor(sourceItem, "delete");
+    },
+    [closePOGroupManager, openSinglePOEditor],
+  );
+
+  const handleEditClick = useCallback(
+    (item) => {
+      const sourceItems = getSourcePurchaseOrders(item);
+      if (sourceItems.length > 1) {
+        openPOGroupManager(item);
+        return;
+      }
+      openSinglePOEditor(sourceItems[0] || item, "edit");
+    },
+    [openPOGroupManager, openSinglePOEditor],
+  );
+
+  const handleDeleteClick = useCallback(
+    (item) => {
+      const sourceItems = getSourcePurchaseOrders(item);
+      if (sourceItems.length > 1) {
+        openPOGroupManager(item);
+        return;
+      }
+      openSinglePOEditor(sourceItems[0] || item, "delete");
+    },
+    [openPOGroupManager, openSinglePOEditor],
+  );
 
   const handleUpdatePO = useCallback(
     async (id, updateData) => {
       try {
         const result = await pendingPoApi.updatePO(id, updateData);
-        await loadPurchaseOrders({ quiet: true });
-        showNotification("Purchase order updated successfully", "success");
+        const refreshed = await loadPurchaseOrders({ quiet: true });
+        showNotification(
+          refreshed
+            ? "Purchase order updated successfully"
+            : "Purchase order updated; refresh the list to see the latest values",
+          refreshed ? "success" : "warning",
+        );
         return result;
       } catch (error) {
         showNotification(getApiErrorMessage(error, "Update failed"), "error");
@@ -3533,8 +5904,13 @@ const GeneratePendingList = () => {
     async (id) => {
       try {
         await pendingPoApi.deletePO(id);
-        await loadPurchaseOrders({ quiet: true });
-        showNotification("Purchase order deleted successfully", "success");
+        const refreshed = await loadPurchaseOrders({ quiet: true });
+        showNotification(
+          refreshed
+            ? "Purchase order deleted successfully"
+            : "Purchase order deleted; refresh the list to update the view",
+          refreshed ? "success" : "warning",
+        );
       } catch (error) {
         showNotification(getApiErrorMessage(error, "Delete failed"), "error");
         throw error;
@@ -3570,45 +5946,149 @@ const GeneratePendingList = () => {
         showNotification("No records available to export", "warning");
         return;
       }
+      try {
+        const toDetailedExportRow = (item) => ({
+          Company: item.company,
+          "PO Number": item.po,
+          "PO Date": toDateInputValue(item.poDate),
+          "Delivery Date": toDateInputValue(item.deliveryDate),
+          Drawing: item.drawing,
+          "Item Code": item.itemCode,
+          "Item Description": item.item,
+          "PO Quantity": item.poQty,
+          Dispatched: item.dispatched,
+          Pending: item.pending,
+          "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
+          Status: item.status,
+          "Unit Rate": item.rate,
+          "Pending Value": item.total,
+          "Data Issues": item._dataIssues?.join("; ") || "",
+        });
+        const hasMergedRows = rows.some((item) => item._isMerged);
+        const exportData = hasMergedRows
+          ? rows.map((item) => ({
+              Company: item.company,
+              "Related PO Numbers": item.poNumbers?.join(", ") || item.po,
+              "PO Count": item.poCount || getSourcePurchaseOrders(item).length,
+              "PO Dates":
+                item.poDates?.join(", ") || toDateInputValue(item.poDate),
+              "Delivery Dates":
+                item.deliveryDates?.join(", ") ||
+                toDateInputValue(item.deliveryDate),
+              Drawing: item.drawing,
+              "Item Code(s)": item.itemCodes?.join(", ") || item.itemCode,
+              "Item Description": item.item,
+              "PO Quantity (Sum)": item.poQty,
+              "Dispatched (Sum)": item.dispatched,
+              "Pending (Sum)": item.pending,
+              "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
+              Status: item.status,
+              "Rate Type": item._hasMixedRates ? "Mixed" : "Single",
+              "Source Unit Rates": item.rates?.join(", ") || item.rate,
+              "Weighted Average Rate": Number(
+                toFiniteNumber(item.rate).toFixed(2),
+              ),
+              "Pending Value (Sum)": item.total,
+              "Cancelled PO Lines": item._cancelledCount || 0,
+              "Data Issues": item._dataIssues?.join("; ") || "",
+            }))
+          : rows.map(toDetailedExportRow);
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        worksheet["!cols"] = hasMergedRows
+          ? [
+              { wch: 24 },
+              { wch: 42 },
+              { wch: 10 },
+              { wch: 28 },
+              { wch: 32 },
+              { wch: 18 },
+              { wch: 22 },
+              { wch: 36 },
+              { wch: 16 },
+              { wch: 16 },
+              { wch: 15 },
+              { wch: 14 },
+              { wch: 16 },
+              { wch: 12 },
+              { wch: 24 },
+              { wch: 22 },
+              { wch: 20 },
+              { wch: 18 },
+              { wch: 42 },
+            ]
+          : [
+              { wch: 24 },
+              { wch: 16 },
+              { wch: 13 },
+              { wch: 13 },
+              { wch: 18 },
+              { wch: 16 },
+              { wch: 36 },
+              { wch: 12 },
+              { wch: 12 },
+              { wch: 12 },
+              { wch: 14 },
+              { wch: 16 },
+              { wch: 12 },
+              { wch: 16 },
+              { wch: 42 },
+            ];
+        worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(
+          workbook,
+          worksheet,
+          hasMergedRows ? "Merged Pending PO" : "Pending PO",
+        );
 
-      const exportData = rows.map((item) => ({
-        Company: item.company,
-        "PO Number": item.po,
-        "PO Date": item.poDate,
-        "Delivery Date": item.deliveryDate || "",
-        Drawing: item.drawing,
-        "Item Code": item.itemCode,
-        "Item Description": item.item,
-        "PO Quantity": item.poQty,
-        Dispatched: item.dispatched,
-        Pending: item.pending,
-        "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
-        Status: item.status,
-        "Unit Rate": item.rate,
-        "Pending Value": item.total,
-      }));
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      worksheet["!cols"] = [
-        { wch: 24 },
-        { wch: 16 },
-        { wch: 13 },
-        { wch: 13 },
-        { wch: 18 },
-        { wch: 16 },
-        { wch: 36 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 12 },
-        { wch: 16 },
-      ];
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Pending PO");
-      const stamp = new Date().toISOString().split("T")[0];
-      XLSX.writeFile(workbook, `pending-po-${label}-${stamp}.xlsx`);
-      showNotification(`${rows.length} records exported`, "success");
+        if (hasMergedRows) {
+          const breakdownData = rows
+            .flatMap(getSourcePurchaseOrders)
+            .map(toDetailedExportRow);
+          const breakdownSheet = XLSX.utils.json_to_sheet(breakdownData);
+          breakdownSheet["!cols"] = [
+            { wch: 24 },
+            { wch: 16 },
+            { wch: 13 },
+            { wch: 13 },
+            { wch: 18 },
+            { wch: 16 },
+            { wch: 36 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 14 },
+            { wch: 16 },
+            { wch: 12 },
+            { wch: 16 },
+            { wch: 42 },
+          ];
+          breakdownSheet["!autofilter"] = { ref: breakdownSheet["!ref"] };
+          XLSX.utils.book_append_sheet(
+            workbook,
+            breakdownSheet,
+            "PO Breakdown",
+          );
+        }
+
+        const stamp = getLocalDateInputValue();
+        XLSX.writeFile(
+          workbook,
+          `pending-po-${hasMergedRows ? "merged-" : ""}${label}-${stamp}.xlsx`,
+        );
+        const sourceCount = rows.flatMap(getSourcePurchaseOrders).length;
+        showNotification(
+          hasMergedRows
+            ? `${rows.length} merged item(s) exported with ${sourceCount} PO line(s) in the breakdown sheet`
+            : `${rows.length} records exported`,
+          "success",
+        );
+      } catch (error) {
+        showNotification(
+          getApiErrorMessage(error, "The Excel export could not be created"),
+          "error",
+        );
+      }
     },
     [getCompletionPercentage, showNotification],
   );
@@ -3656,7 +6136,8 @@ const GeneratePendingList = () => {
     return (
       <div
         className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-2xl border p-3 pr-4 shadow-2xl shadow-slate-900/10 ${variant.classes} animate-slideIn`}
-        role="status"
+        role={notification.type === "error" ? "alert" : "status"}
+        aria-live={notification.type === "error" ? "assertive" : "polite"}
       >
         <span
           className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}
@@ -3664,6 +6145,14 @@ const GeneratePendingList = () => {
           <NotificationIcon className="h-4 w-4" />
         </span>
         <span className="text-sm font-medium">{notification.message}</span>
+        <button
+          type="button"
+          onClick={() => setNotification(null)}
+          className="ml-auto rounded-md p-1 opacity-60 hover:bg-slate-100 hover:opacity-100"
+          aria-label="Dismiss notification"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     );
   }, [notification]);
@@ -3695,16 +6184,39 @@ const GeneratePendingList = () => {
 
       {renderNotification()}
 
+      {/* Excel preview is staged locally; no API import happens until confirm. */}
+      <ExcelImportPreviewModal
+        isOpen={isImportPreviewOpen}
+        file={importPreviewFile}
+        sheetName={importPreviewSheet}
+        rows={importPreviewRows}
+        isSubmitting={isConfirmingImport}
+        error={importPreviewError}
+        onUpdateRow={handlePreviewRowUpdate}
+        onDeleteRow={handlePreviewRowDelete}
+        onCancel={resetImportPreview}
+        onConfirm={confirmReviewedImport}
+      />
+
       {/* Edit/Delete PO Modal */}
       <EditDeleteModal
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedItemForEdit(null);
-        }}
+        onClose={closeSinglePOEditor}
         item={selectedItemForEdit}
         onUpdate={handleUpdatePO}
         onDelete={handleDeletePO}
+        initialDeleteConfirmation={selectedPOAction === "delete"}
+      />
+
+      {/* Merged rows retain their source records so the user can safely choose
+          exactly which database PO to edit or delete. */}
+      <PurchaseOrderGroupModal
+        isOpen={isPOGroupModalOpen}
+        onClose={closePOGroupManager}
+        group={selectedPOGroup}
+        onEdit={handleGroupPOEdit}
+        onDelete={handleGroupPODelete}
+        formatCurrency={formatCurrency}
         formatDate={formatDate}
       />
 
@@ -3717,15 +6229,19 @@ const GeneratePendingList = () => {
         onDispatchEdit={handleDispatchEdit}
         onDispatchDelete={handleDispatchDelete}
         dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
+        initialDispatchEntry={initialDispatchEntry}
       />
 
       {/* Multiple Dispatch Modal */}
       <MultipleDispatchModal
         isOpen={isMultipleDispatchModalOpen}
         onClose={closeDispatchModal}
-        selectedItems={selectedItemForDispatch || []}
+        selectedItems={
+          Array.isArray(selectedItemForDispatch) ? selectedItemForDispatch : []
+        }
         onDispatchUpdate={handleDispatchUpdate}
         dispatchHistory={dispatchHistory}
+        mergedGroup={selectedMergedDispatchGroup}
       />
 
       {/* Global History Modal */}
@@ -3736,11 +6252,21 @@ const GeneratePendingList = () => {
         formatDate={formatDate}
         onDispatchEdit={(entry, billNumber) => {
           setIsGlobalHistoryOpen(false);
+          const parentItem =
+            dataByKey.get(String(entry.poId || "")) ||
+            dataByKey.get(entry.itemKey);
+          if (!parentItem) {
+            showNotification(
+              `Could not find the purchase order for bill ${billNumber}`,
+              "error",
+            );
+            return;
+          }
           setSelectedItemForDispatch({
-            ...entry,
+            ...parentItem,
             dispatchHistory: dispatchHistory[entry.itemKey] || [],
-            _id: entry.poId || entry.poId,
           });
+          setInitialDispatchEntry(entry);
           setIsDispatchModalOpen(true);
         }}
         onDispatchDelete={handleDispatchDelete}
@@ -3778,28 +6304,30 @@ const GeneratePendingList = () => {
                 type="file"
                 accept=".xlsx,.xls"
                 onChange={handleFileUpload}
+                disabled={isLoading || isPreparingImport || isConfirmingImport}
                 className="hidden"
                 id="file-upload"
               />
               <label
                 htmlFor="file-upload"
-                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50"
+                className={`inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50 ${isLoading || isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
               >
-                <Upload className="h-4 w-4" />
-                {data.length > 0 ? "Import / update Excel" : "Upload Excel"}
+                {isPreparingImport ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {isPreparingImport
+                  ? "Preparing preview..."
+                  : data.length > 0
+                    ? "Preview Excel update"
+                    : "Preview Excel upload"}
               </label>
 
               {isDataReady && (
                 <button
                   type="button"
-                  onClick={() =>
-                    loadPurchaseOrders().catch((error) =>
-                      showNotification(
-                        getApiErrorMessage(error, "Refresh failed"),
-                        "error",
-                      ),
-                    )
-                  }
+                  onClick={() => void loadPurchaseOrders()}
                   disabled={isLoading || isPending}
                   className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-50"
                 >
@@ -3823,11 +6351,11 @@ const GeneratePendingList = () => {
 
                   <button
                     type="button"
-                    onClick={() => exportRows(filteredData, "filtered")}
+                    onClick={() => exportRows(sortedData, "filtered")}
                     className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
                   >
                     <Download className="h-4 w-4" />
-                    Export
+                    Export merged
                   </button>
                 </>
               )}
@@ -3847,12 +6375,44 @@ const GeneratePendingList = () => {
               ) : null}
               <span>{manager?.summary.totalPOs || 0} purchase orders</span>
               <span>{manager?.summary.totalCompanies || 0} companies</span>
+              {dataQualityIssueCount > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-amber-300/20 px-2.5 py-1 text-amber-50">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {dataQualityIssueCount} record
+                  {dataQualityIssueCount === 1 ? "" : "s"} need review
+                </span>
+              )}
               <span className="ml-auto flex items-center gap-1.5 text-blue-100">
-                <ShieldCheck className="h-3.5 w-3.5" /> Synced with database
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {lastSyncedAt
+                  ? `Synced ${lastSyncedAt.toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "Synced with database"}
               </span>
             </div>
           )}
         </header>
+
+        {loadError && data.length > 0 && (
+          <div
+            className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+            role="alert"
+          >
+            <span className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              The displayed data may be stale: {loadError}
+            </span>
+            <button
+              type="button"
+              onClick={() => void loadPurchaseOrders()}
+              className="shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-200"
+            >
+              Retry refresh
+            </button>
+          </div>
+        )}
 
         {/* Executive summary */}
         {data.length > 0 && manager && (
@@ -3900,7 +6460,7 @@ const GeneratePendingList = () => {
               <StatCard
                 label="Active portfolio"
                 value={`${manager.summary.totalCompanies} companies`}
-                helper={`${manager.summary.totalDrawings} drawings · ${manager.summary.totalItems} line items`}
+                helper={`${manager.summary.totalDrawings} drawings · ${manager.summary.activeItems} active line items${manager.summary.cancelledItems ? ` · ${manager.summary.cancelledItems} cancelled` : ""}`}
                 icon={Building2}
                 tone="blue"
               />
@@ -4128,9 +6688,12 @@ const GeneratePendingList = () => {
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                     >
                       <option value="all">All statuses</option>
-                      <option value="pending">Pending</option>
-                      <option value="partial">Partial</option>
+                      <option value="pending">Open (all)</option>
+                      <option value="not_started">Not started</option>
+                      <option value="partial">Partially dispatched</option>
                       <option value="completed">Completed</option>
+                      <option value="on_hold">On hold</option>
+                      <option value="cancelled">Cancelled</option>
                     </select>
                   </div>
 
@@ -4141,6 +6704,7 @@ const GeneratePendingList = () => {
                     <input
                       type="number"
                       min="0"
+                      max={maxPending || undefined}
                       value={minPending}
                       onChange={(e) => setMinPending(e.target.value)}
                       placeholder="0"
@@ -4154,7 +6718,7 @@ const GeneratePendingList = () => {
                     </label>
                     <input
                       type="number"
-                      min="0"
+                      min={minPending || "0"}
                       value={maxPending}
                       onChange={(e) => setMaxPending(e.target.value)}
                       placeholder="Any"
@@ -4169,6 +6733,7 @@ const GeneratePendingList = () => {
                     <input
                       type="date"
                       value={dateRange.start}
+                      max={dateRange.end || undefined}
                       onChange={(e) =>
                         setDateRange((current) => ({
                           ...current,
@@ -4186,6 +6751,7 @@ const GeneratePendingList = () => {
                     <input
                       type="date"
                       value={dateRange.end}
+                      min={dateRange.start || undefined}
                       onChange={(e) =>
                         setDateRange((current) => ({
                           ...current,
@@ -4214,21 +6780,43 @@ const GeneratePendingList = () => {
               Reading saved purchase orders and dispatch history...
             </p>
           </div>
+        ) : loadError && !isDataReady ? (
+          <section
+            className="rounded-3xl border border-rose-200 bg-white px-5 py-14 text-center shadow-xl shadow-rose-900/5"
+            role="alert"
+          >
+            <CircleAlert className="mx-auto h-12 w-12 text-rose-500" />
+            <h2 className="mt-4 text-xl font-bold text-slate-900">
+              Purchase orders could not be loaded
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
+              {loadError}
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadPurchaseOrders()}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              <RefreshCw className="h-4 w-4" /> Retry
+            </button>
+          </section>
         ) : data.length > 0 ? (
           <section className="print-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.45)] animate-fadeInUp">
-            {/* View Mode Selector */}
+            {/* Always-merged list header */}
             <div className="no-print flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-bold text-slate-900">
-                    Purchase orders by Company
+                    Merged pending items by Company
                   </h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    {companyList.length} companies · {filteredData.length} POs
+                    {filteredCompanyCount} companies · {sortedData.length}{" "}
+                    merged items · {filteredData.length} source PO lines
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Click on a company to expand and view PO details
+                  Items are grouped automatically by company + item + drawing;
+                  quantities are summed and every related PO remains traceable.
                 </p>
               </div>
 
@@ -4237,10 +6825,12 @@ const GeneratePendingList = () => {
                   <>
                     <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100">
                       <Check className="h-3.5 w-3.5" />
-                      {selectedRows.length} selected
+                      {`${selectedExportRows.length} merged item${selectedExportRows.length === 1 ? "" : "s"} (${selectedRows.length} PO lines)`}
                       <button
                         type="button"
-                        onClick={() => exportRows(selectedRows, "selected")}
+                        onClick={() =>
+                          exportRows(selectedExportRows, "selected")
+                        }
                         className="ml-1 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] shadow-sm transition hover:text-blue-900"
                       >
                         <FileDown className="h-3 w-3" /> Export
@@ -4258,10 +6848,16 @@ const GeneratePendingList = () => {
                     <button
                       type="button"
                       onClick={openMultipleDispatchModal}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-purple-700"
+                      disabled={dispatchableSelectedRows.length === 0}
+                      title={
+                        dispatchableSelectedRows.length === 0
+                          ? "Selected rows are completed, on hold, cancelled, or missing an id"
+                          : `Dispatch ${dispatchableSelectedRows.length} eligible item(s)`
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                     >
                       <Layers className="h-3.5 w-3.5" />
-                      Dispatch Selected
+                      Dispatch Eligible ({dispatchableSelectedRows.length})
                     </button>
                   </>
                 )}
@@ -4273,7 +6869,7 @@ const GeneratePendingList = () => {
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-white hover:text-blue-700"
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
-                    Expand All
+                    Expand page
                   </button>
                   <button
                     type="button"
@@ -4281,21 +6877,45 @@ const GeneratePendingList = () => {
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:bg-white hover:text-blue-700"
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
-                    Collapse All
+                    Collapse all
                   </button>
                 </div>
 
-                <div className="flex rounded-xl bg-slate-100 p-1">
+                <div className="flex items-center rounded-xl bg-slate-100 p-1">
+                  <label htmlFor="pending-list-sort" className="sr-only">
+                    Sort purchase orders
+                  </label>
+                  <select
+                    id="pending-list-sort"
+                    value={sortConfig.key}
+                    onChange={(event) =>
+                      setSortConfig((current) => ({
+                        ...current,
+                        key: event.target.value,
+                      }))
+                    }
+                    className="rounded-lg border-0 bg-transparent px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none"
+                  >
+                    <option value="deliveryDate">Delivery date</option>
+                    <option value="poDate">PO date</option>
+                    <option value="company">Company</option>
+                    <option value="po">PO number</option>
+                    <option value="pending">Pending quantity</option>
+                    <option value="total">Pending value</option>
+                    <option value="status">Status</option>
+                  </select>
                   <button
                     type="button"
-                    onClick={() => setViewMode("accordion")}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                      viewMode === "accordion"
-                        ? "bg-white text-blue-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-800"
-                    }`}
+                    onClick={() => handleSort(sortConfig.key)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50"
+                    aria-label={`Sort ${sortConfig.direction === "asc" ? "Newest first" : "Oldest first"}`}
                   >
-                    <Building2 className="h-3.5 w-3.5" /> Companies
+                    {React.createElement(getSortIcon(sortConfig.key), {
+                      className: "h-3.5 w-3.5",
+                    })}
+                    {sortConfig.direction === "asc"
+                      ? "Oldest first"
+                      : "Newest first"}
                   </button>
                 </div>
               </div>
@@ -4322,6 +6942,7 @@ const GeneratePendingList = () => {
                       onToggle={() => toggleCompany(company)}
                       selectedItems={selectedItems}
                       onToggleSelection={toggleItemSelection}
+                      onSetSelection={setItemsSelection}
                       onDispatchClick={handleDispatchClick}
                       onEditClick={handleEditClick}
                       onDeleteClick={handleDeleteClick}
@@ -4330,7 +6951,6 @@ const GeneratePendingList = () => {
                       getRiskMeta={getRiskMeta}
                       formatCurrency={formatCurrency}
                       formatDate={formatDate}
-                      getCategory={getCategory}
                       getItemKey={getItemKey}
                     />
                   ))}
@@ -4342,14 +6962,17 @@ const GeneratePendingList = () => {
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                 <span>
+                  Showing{" "}
                   <strong className="text-slate-800">
-                    {companyList.length}
+                    {sortedData.length === 0 ? 0 : pageStart + 1}–
+                    {Math.min(pageStart + pageSize, sortedData.length)}
                   </strong>{" "}
-                  companies ·{" "}
+                  of{" "}
                   <strong className="text-slate-800">
-                    {filteredData.length}
+                    {sortedData.length}
                   </strong>{" "}
-                  POs
+                  merged items across {filteredCompanyCount} companies (
+                  {filteredData.length} source PO lines)
                 </span>
                 {filteredManager && (
                   <>
@@ -4370,9 +6993,77 @@ const GeneratePendingList = () => {
                   </>
                 )}
                 <span>
-                  {expandedCompanies.size} company
-                  {expandedCompanies.size > 1 ? "ies" : ""} expanded
+                  {
+                    companyList.filter((company) =>
+                      expandedCompanies.has(company),
+                    ).length
+                  }{" "}
+                  visible companies expanded
                 </span>
+              </div>
+
+              <div className="no-print flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-slate-500">
+                  Merged items per page
+                  <select
+                    value={pageSize}
+                    onChange={(event) =>
+                      setPageSize(Number(event.target.value))
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
+                  >
+                    {[10, 15, 25, 50].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="min-w-[90px] text-center text-xs font-semibold text-slate-600">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage <= 1}
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="First page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((page) => Math.max(1, page - 1))
+                    }
+                    disabled={currentPage <= 1}
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((page) => Math.min(totalPages, page + 1))
+                    }
+                    disabled={currentPage >= totalPages}
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage >= totalPages}
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Last page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -4391,16 +7082,23 @@ const GeneratePendingList = () => {
                 Turn your pending PO sheet into an operating dashboard
               </h2>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-                Upload an Excel file and the workspace will organize quantities,
-                company workload, progress, and dispatch history.
+                Select an Excel file, review every row, edit or delete unwanted
+                data, and confirm only when it is ready.
               </p>
+              
               <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
                 <label
                   htmlFor="file-upload"
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700"
+                  className={`inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 ${isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
                 >
-                  <Upload className="h-4 w-4" />
-                  Choose Excel file
+                  {isPreparingImport ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {isPreparingImport
+                    ? "Preparing preview..."
+                    : "Choose Excel file"}
                 </label>
                 <button
                   type="button"
