@@ -65,6 +65,52 @@ const MAX_BILL_NUMBER_LENGTH = 100;
 const MAX_SHORT_TEXT_LENGTH = 200;
 const MAX_REMARKS_LENGTH = 1000;
 
+const getItemIdentity = (item) => {
+  const itemCode = normalizeMergeKeyPart(item?.itemCode);
+  if (itemCode) return `code:${itemCode}`;
+  return [
+    `drawing:${normalizeMergeKeyPart(item?.drawing)}`,
+    `item:${normalizeMergeKeyPart(item?.item)}`,
+  ].join("::");
+};
+
+const getRecordTimestamp = (item) => {
+  const timestamp = Date.parse(item?.updatedAt || item?.createdAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const deduplicatePOItems = (items = []) => {
+  const uniqueItems = new Map();
+
+  items.forEach((item, index) => {
+    const companyKey = normalizeMergeKeyPart(item?.company);
+    const poKey =
+      normalizeMergeKeyPart(item?.po) ||
+      `record:${normalizeText(item?._id) || index}`;
+
+    // One calculation entry for each PO + item.
+    const uniqueKey = [
+      companyKey,
+      poKey,
+      getItemIdentity(item),
+    ].join("::");
+
+    const existing = uniqueItems.get(uniqueKey);
+
+    // If duplicate documents exist, use the latest document only.
+    if (
+      !existing ||
+      getRecordTimestamp(item) > getRecordTimestamp(existing)
+    ) {
+      uniqueItems.set(uniqueKey, item);
+    }
+  });
+
+  return [...uniqueItems.values()];
+};
+
+
+
 const toFiniteNumber = (value, fallback = 0) => {
   if (typeof value === "string" && value.trim() === "") return fallback;
   const normalized =
@@ -273,10 +319,93 @@ const getPurchaseOrderKey = (item) => {
 const normalizeMergeKeyPart = (value) =>
   normalizeText(value).toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
 
+const loadPurchaseOrders = useCallback(
+  async ({ quiet = false, signal } = {}) => {
+    const requestSequence = ++loadSequenceRef.current;
+    if (!quiet) setIsLoading(true);
+    if (!quiet) setLoadError("");
+    try {
+      const result = await pendingPoApi.listAll({ signal });
+      if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
+        return false;
+      }
+
+      const records = extractPurchaseOrderRecords(result).map(
+        normalizePurchaseOrder,
+      );
+      
+      // ✅ Apply deduplication
+      const uniqueRecords = deduplicatePOItems(records);
+      const nextManager = new PendingPOManager(uniqueRecords);
+      const nextHistory = {};
+
+      uniqueRecords.forEach((item) => {
+        const itemKey = getItemKey(item);
+        nextHistory[itemKey] = item.dispatchHistory.map((entry) =>
+          normalizeDispatchEntry(entry, { ...item, itemKey }),
+        );
+      });
+
+      const nextCompanies = Object.keys(nextManager.companyStats).sort(
+        (a, b) => a.localeCompare(b),
+      );
+      const nextCategories = nextManager.itemCategories;
+
+      startTransition(() => {
+        setData(uniqueRecords);
+        setManager(nextManager);
+        setDispatchHistory(nextHistory);
+        setCompanies(["all", ...nextCompanies]);
+        setCategories(["all", ...nextCategories]);
+        setSelectedCompany((current) =>
+          current === "all" || nextCompanies.includes(current)
+            ? current
+            : "all",
+        );
+        setSelectedCategory((current) =>
+          current === "all" || nextCategories.includes(current)
+            ? current
+            : "all",
+        );
+        setSelectedItems(new Set());
+        setIsDataReady(true);
+        setDataQualityIssueCount(
+          uniqueRecords.filter((item) => item._dataIssues.length > 0).length,
+        );
+        setLoadError("");
+        setLastSyncedAt(new Date());
+      });
+      return true;
+    } catch (error) {
+      const wasCancelled =
+        signal?.aborted ||
+        error?.name === "AbortError" ||
+        error?.code === "ERR_CANCELED" ||
+        error?.code === "CanceledError";
+      if (wasCancelled || requestSequence !== loadSequenceRef.current) {
+        return false;
+      }
+      const message = getApiErrorMessage(
+        error,
+        "Could not load purchase orders",
+      );
+      setLoadError(message);
+      if (!quiet) setNotification({ message, type: "error" });
+      return false;
+    } finally {
+      if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
+        setIsLoading(false);
+      }
+    }
+  },
+  [getItemKey, startTransition],
+);
+
 const getMergedItemKey = (item) =>
-  [item?.company, item?.item, item?.drawing]
-    .map(normalizeMergeKeyPart)
-    .join("::");
+  [
+    normalizeMergeKeyPart(item?.company),
+    getItemIdentity(item),
+  ].join("::");
 
 const getSourcePurchaseOrders = (row) =>
   row?._isMerged && Array.isArray(row._sourceItems)
@@ -326,125 +455,81 @@ const getMergedStatus = (items, pending, dispatched) => {
  */
 const mergePurchaseOrderRows = (items = []) => {
   const groups = new Map();
+  const uniquePOItems = deduplicatePOItems(items);
 
-  items.forEach((item) => {
+  uniquePOItems.forEach((item) => {
     const mergeKey = getMergedItemKey(item);
-    if (!groups.has(mergeKey)) groups.set(mergeKey, []);
+
+    if (!groups.has(mergeKey)) {
+      groups.set(mergeKey, []);
+    }
+
     groups.get(mergeKey).push(item);
   });
 
   return Array.from(groups.entries()).map(([mergeKey, sourceItems]) => {
-    // Keep a single database record as a normal row. Previously every display
-    // row was marked as merged, which permanently hid the Edit/Delete buttons.
-    if (sourceItems.length === 1) return sourceItems[0];
+    const firstItem = sourceItems[0];
 
-    const activeItems = sourceItems.filter((item) => !isCancelledRecord(item));
-    const quantityItems = activeItems.length > 0 ? activeItems : sourceItems;
-    const poNumbers = Array.from(
-      new Set(
-        sourceItems.map((item) => normalizeText(item.po)).filter(Boolean),
-      ),
-    ).sort((left, right) =>
-      left.localeCompare(right, "en", { numeric: true, sensitivity: "base" }),
-    );
-    const itemCodes = Array.from(
-      new Set(
-        sourceItems.map((item) => normalizeText(item.itemCode)).filter(Boolean),
-      ),
-    );
-    const rates = Array.from(
-      new Set(quantityItems.map((item) => toNonNegativeNumber(item.rate))),
-    );
-    const poQty = quantityItems.reduce(
-      (sum, item) => sum + toNonNegativeNumber(item.poQty),
-      0,
-    );
-    const dispatched = quantityItems.reduce(
-      (sum, item) => sum + toNonNegativeNumber(item.dispatched),
-      0,
-    );
-    const pending = quantityItems.reduce(
-      (sum, item) => sum + toNonNegativeNumber(item.pending),
-      0,
-    );
-    const total = quantityItems.reduce(
-      (sum, item) => sum + toNonNegativeNumber(item.total),
-      0,
-    );
-    const weightedRate =
-      pending > 0
-        ? total / pending
-        : poQty > 0
-          ? quantityItems.reduce(
-              (sum, item) =>
-                sum +
-                toNonNegativeNumber(item.poQty) *
-                  toNonNegativeNumber(item.rate),
-              0,
-            ) / poQty
-          : 0;
-    const dispatchableItems = sourceItems.filter((item) => {
-      const status = normalizeText(item.status).toLowerCase();
-      return (
-        toNonNegativeNumber(item.pending) > 0 &&
-        Boolean(item._id) &&
-        status !== "cancelled" &&
-        status !== "on hold"
+    const poBreakdown = sourceItems
+      .map((item) => ({
+        poId: item._id,
+        po: normalizeText(item.po),
+        pending: toNonNegativeNumber(item.pending),
+        poQty: toNonNegativeNumber(item.poQty),
+        dispatched: toNonNegativeNumber(item.dispatched),
+      }))
+      .sort((a, b) =>
+        a.po.localeCompare(b.po, "en", {
+          numeric: true,
+          sensitivity: "base",
+        }),
       );
-    });
-    const dataIssues = Array.from(
-      new Set(sourceItems.flatMap((item) => item._dataIssues || [])),
+
+    const pending = poBreakdown.reduce(
+      (sum, entry) => sum + entry.pending,
+      0,
     );
-    const dataWarnings = Array.from(
-      new Set(sourceItems.flatMap((item) => item._dataWarnings || [])),
+
+    const poQty = poBreakdown.reduce(
+      (sum, entry) => sum + entry.poQty,
+      0,
     );
-    const firstItem = sourceItems[0] || {};
+
+    const dispatched = poBreakdown.reduce(
+      (sum, entry) => sum + entry.dispatched,
+      0,
+    );
 
     return {
       ...firstItem,
-      _id: "",
-      _isMerged: true,
+      _isMerged: sourceItems.length > 1,
       _mergeKey: `merged::${mergeKey}`,
       itemKey: `merged::${mergeKey}`,
       _sourceItems: sourceItems,
-      _dispatchableItems: dispatchableItems,
-      _cancelledCount: sourceItems.filter(isCancelledRecord).length,
-      company: firstItem.company || "Unknown Company",
+
+      itemCode: firstItem.itemCode,
       item: firstItem.item,
       drawing: firstItem.drawing,
-      itemCode: itemCodes.join(", "),
-      itemCodes,
-      po: poNumbers.join(", "),
-      poNumbers,
-      poCount: poNumbers.length,
-      poDate: getEarliestDateValue(quantityItems, "poDate"),
-      deliveryDate: getEarliestDateValue(quantityItems, "deliveryDate", {
-        pendingOnly: true,
-      }),
-      poDates: Array.from(
-        new Set(
-          sourceItems
-            .map((item) => toDateInputValue(item.poDate))
-            .filter(Boolean),
-        ),
-      ),
-      deliveryDates: Array.from(
-        new Set(
-          sourceItems
-            .map((item) => toDateInputValue(item.deliveryDate))
-            .filter(Boolean),
-        ),
-      ),
+
+      po: poBreakdown.map((entry) => entry.po).join(", "),
+      poNumbers: poBreakdown.map((entry) => entry.po),
+      poCount: poBreakdown.length,
+      poBreakdown,
+
       poQty,
       dispatched,
       pending,
-      rate: weightedRate,
-      rates,
-      total,
-      status: getMergedStatus(sourceItems, pending, dispatched),
-      _hasMixedRates: rates.length > 1,
-      _dataIssues: dataIssues,
-      _dataWarnings: dataWarnings,
+      total: sourceItems.reduce(
+        (sum, item) => sum + toNonNegativeNumber(item.total),
+        0,
+      ),
+
+      status:
+        pending <= 0
+          ? "Completed"
+          : dispatched > 0
+            ? "In Progress"
+            : "Pending",
     };
   });
 };
@@ -5654,6 +5739,57 @@ const GeneratePendingList = () => {
     );
   }, []);
 
+  const getItemIdentity = (item) => {
+  const itemCode = normalizeMergeKeyPart(item?.itemCode);
+
+  if (itemCode) return `code:${itemCode}`;
+
+  return [
+    `drawing:${normalizeMergeKeyPart(item?.drawing)}`,
+    `item:${normalizeMergeKeyPart(item?.item)}`,
+  ].join("::");
+};
+
+const getMergedItemKey = (item) =>
+  [
+    normalizeMergeKeyPart(item?.company),
+    getItemIdentity(item),
+  ].join("::");
+
+  const getRecordTimestamp = (item) => {
+  const timestamp = Date.parse(item?.updatedAt || item?.createdAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const deduplicatePOItems = (items = []) => {
+  const uniqueItems = new Map();
+
+  items.forEach((item, index) => {
+    const companyKey = normalizeMergeKeyPart(item?.company);
+    const poKey =
+      normalizeMergeKeyPart(item?.po) ||
+      `record:${normalizeText(item?._id) || index}`;
+
+    // One calculation entry for each PO + item.
+    const uniqueKey = [
+      companyKey,
+      poKey,
+      getItemIdentity(item),
+    ].join("::");
+
+    const existing = uniqueItems.get(uniqueKey);
+
+    // If duplicate documents exist, use the latest document only.
+    if (
+      !existing ||
+      getRecordTimestamp(item) > getRecordTimestamp(existing)
+    ) {
+      uniqueItems.set(uniqueKey, item);
+    }
+  });
+
+  return [...uniqueItems.values()];
+};
   const getRiskMeta = useCallback(
     (item) => {
       const status = normalizeText(item?.status).toLowerCase();
@@ -7085,7 +7221,7 @@ const GeneratePendingList = () => {
                 Select an Excel file, review every row, edit or delete unwanted
                 data, and confirm only when it is ready.
               </p>
-              
+
               <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
                 <label
                   htmlFor="file-upload"
