@@ -6639,8 +6639,8 @@ const loadPurchaseOrders = useCallback(
                 {isPreparingImport
                   ? "Preparing preview..."
                   : data.length > 0
-                    ? "Preview Excel update"
-                    : "Preview Excel upload"}
+                    ? "Excel upload"
+                    : "Excel upload"}
               </label>
 
               {isDataReady && (
