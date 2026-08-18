@@ -13,6 +13,12 @@ import {
   getApiErrorMessage,
   pendingPoApi,
 } from "./pendingPoApi.js";
+import rejectionApi from "./rejectionApi.js";
+import {
+  attachRejectionSummary,
+  buildRejectionSummaryMap,
+  calculatePOBalance,
+} from "./Rejection/rejection.math.js";
 import {
   Activity,
   ArrowDown,
@@ -202,8 +208,13 @@ const normalizePurchaseOrder = (record = {}, index = 0) => {
   const rawDispatched = hasDispatched
     ? toNonNegativeNumber(record.dispatched)
     : Math.max(0, poQty - toNonNegativeNumber(record.pending, poQty));
-  const dispatched = Math.min(rawDispatched, poQty);
-  const pending = Math.max(0, poQty - dispatched);
+  // Gross dispatch is historical and may exceed PO quantity because replacement
+  // dispatches are valid after a rejection. Never cap it at poQty.
+  const dispatched = rawDispatched;
+  const rejected = toNonNegativeNumber(record.rejected ?? record.rejectedQty);
+  const balance = calculatePOBalance({ poQty, dispatched, rejected });
+  const accepted = balance.accepted;
+  const pending = balance.pending;
   const suppliedPending = toFiniteNumber(record.pending, pending);
   const rate = toNonNegativeNumber(record.rate);
 
@@ -214,11 +225,13 @@ const normalizePurchaseOrder = (record = {}, index = 0) => {
   if (!item) issues.push("Missing item description");
   if (poQty <= 0) issues.push("PO quantity must be greater than zero");
   if (rate <= 0) warnings.push("Unit rate is missing or zero");
-  if (rawDispatched > poQty)
-    issues.push("Dispatched quantity exceeds PO quantity");
+  if (rawDispatched > poQty && rejected <= 0)
+    warnings.push(
+      "Gross dispatched quantity exceeds PO quantity; verify whether replacement dispatches exist",
+    );
   if (Math.abs(suppliedPending - pending) > 0.000001) {
     warnings.push(
-      "Pending quantity was recalculated as PO quantity minus dispatched",
+      "Pending quantity was recalculated as PO quantity minus net accepted quantity",
     );
   }
   const poDateTimestamp = getDateTimestamp(record.poDate);
@@ -262,6 +275,10 @@ const normalizePurchaseOrder = (record = {}, index = 0) => {
     drawing: normalizeText(record.drawing),
     poQty,
     dispatched,
+    rejected,
+    rejectedQty: rejected,
+    accepted,
+    netAccepted: accepted,
     pending,
     rate,
     total: pending * rate,
@@ -390,6 +407,12 @@ const mergePurchaseOrderRows = (items = []) => {
         dispatched: isCancelledRecord(item)
           ? 0
           : toNonNegativeNumber(item.dispatched),
+        rejected: isCancelledRecord(item)
+          ? 0
+          : toNonNegativeNumber(item.rejected),
+        accepted: isCancelledRecord(item)
+          ? 0
+          : toNonNegativeNumber(item.accepted),
         status: item.status,
         cancelled: isCancelledRecord(item),
       }))
@@ -404,6 +427,14 @@ const mergePurchaseOrderRows = (items = []) => {
     const poQty = poBreakdown.reduce((sum, entry) => sum + entry.poQty, 0);
     const dispatched = poBreakdown.reduce(
       (sum, entry) => sum + entry.dispatched,
+      0,
+    );
+    const rejected = poBreakdown.reduce(
+      (sum, entry) => sum + entry.rejected,
+      0,
+    );
+    const accepted = poBreakdown.reduce(
+      (sum, entry) => sum + entry.accepted,
       0,
     );
     const total = calculationItems.reduce(
@@ -501,6 +532,10 @@ const mergePurchaseOrderRows = (items = []) => {
 
       poQty,
       dispatched,
+      rejected,
+      rejectedQty: rejected,
+      accepted,
+      netAccepted: accepted,
       pending,
       rates,
       rate: weightedRate,
@@ -610,6 +645,32 @@ const EXCEL_COLUMN_DEFINITIONS = {
       "suppliedqty",
     ],
   },
+  rejectedQty: {
+    header: "Rejected Qty",
+    aliases: [
+      "rejected",
+      "rejectedqty",
+      "rejectedquantity",
+      "rejection",
+      "rejectionqty",
+      "rejectqty",
+      "rejqty",
+      "customerrejection",
+    ],
+  },
+  rejectionReason: {
+    header: "Rejection Reason",
+    aliases: [
+      "rejectionreason",
+      "rejectreason",
+      "reasonforrejection",
+      "rejectionremarks",
+    ],
+  },
+  rejectionDate: {
+    header: "Rejection Date",
+    aliases: ["rejectiondate", "rejectdate"],
+  },
   pending: {
     header: "Pending",
     aliases: ["pending", "pendingqty", "pendingquantity", "balanceqty"],
@@ -704,6 +765,7 @@ const getPreviewRowValidation = (row = {}) => {
   const warnings = [];
   const poQty = toFiniteNumber(row.poQty);
   const dispatched = toFiniteNumber(row.dispatched);
+  const rejectedQty = toFiniteNumber(row.rejectedQty);
   const rate = toFiniteNumber(row.rate);
 
   if (!normalizeText(row.po)) issues.push("PO number is required");
@@ -714,11 +776,15 @@ const getPreviewRowValidation = (row = {}) => {
   }
   if (!Number.isFinite(dispatched) || dispatched < 0) {
     issues.push("Dispatched quantity cannot be negative");
-  } else if (dispatched > poQty) {
-    issues.push("Dispatched quantity exceeds PO quantity");
+  }
+  if (!Number.isFinite(rejectedQty) || rejectedQty < 0) {
+    issues.push("Rejected quantity cannot be negative");
+  } else if (rejectedQty > dispatched) {
+    issues.push("Rejected quantity cannot exceed gross dispatched quantity");
   }
   if (row._invalidPODate) issues.push("PO date is invalid");
   if (row._invalidDeliveryDate) issues.push("Delivery date is invalid");
+  if (row._invalidRejectionDate) issues.push("Rejection date is invalid");
 
   const poDateTimestamp = getDateTimestamp(row.poDate);
   const deliveryDateTimestamp = getDateTimestamp(row.deliveryDate);
@@ -744,7 +810,13 @@ const getPreviewRowValidation = (row = {}) => {
 const recalculateExcelPreviewRow = (row = {}) => {
   const poQty = Math.max(0, toFiniteNumber(row.poQty));
   const dispatched = Math.max(0, toFiniteNumber(row.dispatched));
-  const pending = Math.max(0, poQty - Math.min(dispatched, poQty));
+  const rejectedQty = Math.max(0, toFiniteNumber(row.rejectedQty));
+  const balance = calculatePOBalance({
+    poQty,
+    dispatched,
+    rejected: rejectedQty,
+  });
+  const pending = balance.pending;
   const rawStatus = normalizeText(row.status).toLowerCase();
   const status = ["on hold", "cancelled"].includes(rawStatus)
     ? rawStatus === "on hold"
@@ -755,7 +827,13 @@ const recalculateExcelPreviewRow = (row = {}) => {
       : dispatched > 0
         ? "In Progress"
         : "Pending";
-  const calculated = { ...row, pending, status };
+  const calculated = {
+    ...row,
+    rejectedQty,
+    accepted: balance.accepted,
+    pending,
+    status,
+  };
   const validation = getPreviewRowValidation(calculated);
   return {
     ...calculated,
@@ -783,6 +861,7 @@ const createExcelPreviewRow = (
 
   const poDate = parseExcelDateValue(fieldValues.poDate);
   const deliveryDate = parseExcelDateValue(fieldValues.deliveryDate);
+  const rejectionDate = parseExcelDateValue(fieldValues.rejectionDate);
   const row = {
     _previewId: `excel-row-${sourceRowNumber}-${index}`,
     _sourceRowNumber: sourceRowNumber,
@@ -790,6 +869,7 @@ const createExcelPreviewRow = (
     _fieldHeaders: fieldHeaders,
     _invalidPODate: Boolean(fieldValues.poDate) && !poDate,
     _invalidDeliveryDate: Boolean(fieldValues.deliveryDate) && !deliveryDate,
+    _invalidRejectionDate: Boolean(fieldValues.rejectionDate) && !rejectionDate,
     po: normalizeText(fieldValues.po),
     poDate,
     company: normalizeText(fieldValues.company),
@@ -804,6 +884,12 @@ const createExcelPreviewRow = (
       fieldValues.dispatched === "" || fieldValues.dispatched === undefined
         ? 0
         : toFiniteNumber(fieldValues.dispatched),
+    rejectedQty:
+      fieldValues.rejectedQty === "" || fieldValues.rejectedQty === undefined
+        ? 0
+        : toFiniteNumber(fieldValues.rejectedQty),
+    rejectionReason: normalizeText(fieldValues.rejectionReason),
+    rejectionDate,
     pending: toFiniteNumber(fieldValues.pending),
     rate:
       fieldValues.rate === "" || fieldValues.rate === undefined
@@ -874,6 +960,7 @@ const updateExcelPreviewRow = (row, field, value) => {
   const next = { ...row, [field]: value };
   if (field === "poDate") next._invalidPODate = false;
   if (field === "deliveryDate") next._invalidDeliveryDate = false;
+  if (field === "rejectionDate") next._invalidRejectionDate = false;
   return recalculateExcelPreviewRow(next);
 };
 
@@ -888,6 +975,9 @@ const toReviewedExcelRow = (row) => {
     drawing: normalizeText(row.drawing),
     poQty: toNonNegativeNumber(row.poQty),
     dispatched: toNonNegativeNumber(row.dispatched),
+    rejectedQty: toNonNegativeNumber(row.rejectedQty),
+    rejectionReason: normalizeText(row.rejectionReason),
+    rejectionDate: row.rejectionDate || "",
     pending: toNonNegativeNumber(row.pending),
     rate: toNonNegativeNumber(row.rate),
     deliveryDate: row.deliveryDate || "",
@@ -1068,7 +1158,7 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
               </div>
             ) : (
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-[1780px] border-collapse text-left text-xs">
+                <table className="min-w-[2180px] border-collapse text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-slate-800 text-white">
                     <tr>
                       <th className="px-3 py-3 text-center">Excel row</th>
@@ -1081,6 +1171,12 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
                       <th className="px-3 py-3">Delivery date</th>
                       <th className="px-3 py-3">PO quantity *</th>
                       <th className="px-3 py-3">Dispatched</th>
+                      <th className="px-3 py-3 text-red-200">Rejected Qty</th>
+                      <th className="px-3 py-3 text-emerald-200">
+                        Net Accepted
+                      </th>
+                      <th className="px-3 py-3">Rejection Reason</th>
+                      <th className="px-3 py-3">Rejection Date</th>
                       <th className="px-3 py-3">Pending</th>
                       <th className="px-3 py-3">Rate</th>
                       <th className="min-w-[240px] px-3 py-3">Validation</th>
@@ -1184,6 +1280,41 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
                               onChange={update(row, "dispatched")}
                               disabled={isSubmitting}
                               className={`${inputClass} min-w-[100px]`}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              max={toNonNegativeNumber(row.dispatched)}
+                              value={row.rejectedQty}
+                              onChange={update(row, "rejectedQty")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[100px] text-red-700`}
+                            />
+                          </td>
+                          <td className="px-3 py-3 text-center font-semibold text-emerald-700">
+                            {toNonNegativeNumber(row.accepted).toLocaleString(
+                              "en-IN",
+                            )}
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              value={row.rejectionReason || ""}
+                              onChange={update(row, "rejectionReason")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[180px]`}
+                              placeholder="Optional reason"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="date"
+                              value={row.rejectionDate || ""}
+                              onChange={update(row, "rejectionDate")}
+                              disabled={isSubmitting}
+                              className={`${inputClass} min-w-[140px]`}
                             />
                           </td>
                           <td className="px-3 py-3 text-center font-semibold text-rose-600">
@@ -4340,6 +4471,996 @@ const PurchaseOrderGroupModal = React.memo(function PurchaseOrderGroupModal({
 });
 
 // ============================================
+// REJECTION MANAGER MODAL
+// Add manual rejection + review/accept pending rejection
+// ============================================
+const REJECTION_REASON_OPTIONS = [
+  ["dimensional", "Dimensional out of tolerance"],
+  ["visual", "Visual defect / damage"],
+  ["wrong_item", "Wrong item / specification"],
+  ["material", "Material issue"],
+  ["surface", "Surface / finish issue"],
+  ["quantity", "Quantity mismatch"],
+  ["functional", "Functional failure"],
+  ["other", "Other"],
+];
+
+const RejectionManagerModal = React.memo(function RejectionManagerModal({
+  isOpen,
+  item,
+  dispatchHistory,
+  getItemKey,
+  onClose,
+  onChanged,
+}) {
+  const [activeTab, setActiveTab] = useState("add");
+  const [selectedDispatchKey, setSelectedDispatchKey] = useState("");
+  const [records, setRecords] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reviewingId, setReviewingId] = useState("");
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    rejectedQuantity: "",
+    reason: "",
+    subReason: "",
+    rejectionDate: getLocalDateInputValue(),
+    severity: "medium",
+    requiresReplacement: true,
+    inspectorName: "",
+    notes: "",
+  });
+
+  const sourceItems = useMemo(
+    () => (item ? getSourcePurchaseOrders(item) : []),
+    [item],
+  );
+
+  const rawDispatchOptions = useMemo(() => {
+    return sourceItems.flatMap((sourceItem) => {
+      const itemKey = getItemKey(sourceItem);
+      const history =
+        dispatchHistory[itemKey] || sourceItem.dispatchHistory || [];
+      return history
+        .map((entry, index) => {
+          const dispatchId = normalizeText(entry?._id || entry?.id);
+          const poId = normalizeText(entry?.poId || sourceItem?._id);
+          const quantity = toNonNegativeNumber(
+            entry?.dispatchQty ?? entry?.quantity,
+          );
+          if (!dispatchId || !poId || quantity <= 0) return null;
+
+          return {
+            key: `${poId}::${dispatchId}`,
+            poId,
+            dispatchId,
+            poNumber: normalizeText(entry?.po || sourceItem?.po),
+            companyName: normalizeText(entry?.company || sourceItem?.company),
+            itemCode: normalizeText(entry?.itemCode || sourceItem?.itemCode),
+            description: normalizeText(entry?.item || sourceItem?.item),
+            drawing: normalizeText(entry?.drawing || sourceItem?.drawing),
+            quantity,
+            dispatchDate: entry?.dispatchDate || "",
+            billNumber: normalizeText(entry?.billNumber),
+            sourceItem,
+            index,
+          };
+        })
+        .filter(Boolean);
+    });
+  }, [sourceItems, dispatchHistory, getItemKey]);
+
+  const committedByDispatch = useMemo(() => {
+    const map = new Map();
+    records.forEach((record) => {
+      if (
+        normalizeText(record?.source).toLowerCase() !== "manual" ||
+        normalizeText(record?.status).toLowerCase() === "denied"
+      ) {
+        return;
+      }
+      const dispatchId = normalizeText(record?.dispatchId);
+      if (!dispatchId) return;
+      map.set(
+        dispatchId,
+        (map.get(dispatchId) || 0) +
+          toNonNegativeNumber(record?.rejectedQuantity),
+      );
+    });
+    return map;
+  }, [records]);
+
+  const dispatchOptions = useMemo(
+    () =>
+      rawDispatchOptions.map((option) => {
+        const alreadyCommitted =
+          committedByDispatch.get(option.dispatchId) || 0;
+        return {
+          ...option,
+          alreadyCommitted,
+          availableForRejection: Math.max(
+            0,
+            option.quantity - alreadyCommitted,
+          ),
+        };
+      }),
+    [rawDispatchOptions, committedByDispatch],
+  );
+
+  const selectedDispatch = useMemo(
+    () =>
+      dispatchOptions.find((option) => option.key === selectedDispatchKey) ||
+      null,
+    [dispatchOptions, selectedDispatchKey],
+  );
+
+  const loadHistory = useCallback(async () => {
+    if (!isOpen || sourceItems.length === 0) {
+      setRecords([]);
+      return;
+    }
+
+    const poIds = Array.from(
+      new Set(
+        sourceItems
+          .map((sourceItem) => normalizeText(sourceItem?._id))
+          .filter(Boolean),
+      ),
+    );
+
+    if (poIds.length === 0) {
+      setRecords([]);
+      return;
+    }
+
+    setIsLoadingHistory(true);
+    setError("");
+    try {
+      const results = await Promise.all(
+        poIds.map((poId) => rejectionApi.list({ poId, limit: 1000 })),
+      );
+      const allRecords = results.flatMap((result) =>
+        Array.isArray(result)
+          ? result
+          : Array.isArray(result?.records)
+            ? result.records
+            : [],
+      );
+      allRecords.sort((left, right) => {
+        const leftDate = Date.parse(
+          left?.rejectionDate || left?.createdAt || "",
+        );
+        const rightDate = Date.parse(
+          right?.rejectionDate || right?.createdAt || "",
+        );
+        return (
+          (Number.isFinite(rightDate) ? rightDate : 0) -
+          (Number.isFinite(leftDate) ? leftDate : 0)
+        );
+      });
+      setRecords(allRecords);
+    } catch (historyError) {
+      console.error("Could not load rejection history:", historyError);
+      setError(
+        historyError?.response?.data?.message ||
+          historyError?.message ||
+          "Could not load rejection history",
+      );
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [isOpen, sourceItems]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveTab("add");
+    setError("");
+    setForm({
+      rejectedQuantity: "",
+      reason: "",
+      subReason: "",
+      rejectionDate: getLocalDateInputValue(),
+      severity: "medium",
+      requiresReplacement: true,
+      inspectorName: "",
+      notes: "",
+    });
+    void loadHistory();
+  }, [isOpen, item]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const currentIsUsable = dispatchOptions.some(
+      (option) =>
+        option.key === selectedDispatchKey && option.availableForRejection > 0,
+    );
+    if (currentIsUsable) return;
+    const firstAvailable = dispatchOptions.find(
+      (option) => option.availableForRejection > 0,
+    );
+    setSelectedDispatchKey(
+      firstAvailable?.key || dispatchOptions[0]?.key || "",
+    );
+  }, [isOpen, dispatchOptions, selectedDispatchKey]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !isSubmitting && !reviewingId) {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, isSubmitting, reviewingId, onClose]);
+
+  const resetAddForm = useCallback(() => {
+    setForm((current) => ({
+      ...current,
+      rejectedQuantity: "",
+      reason: "",
+      subReason: "",
+      rejectionDate: getLocalDateInputValue(),
+      severity: "medium",
+      requiresReplacement: true,
+      notes: "",
+    }));
+  }, []);
+
+  const submitRejection = useCallback(
+    async (event) => {
+      event.preventDefault();
+      setError("");
+
+      if (!selectedDispatch) {
+        setError("Select a dispatch before adding a rejection.");
+        return;
+      }
+
+      const rejectedQuantity = toNonNegativeNumber(form.rejectedQuantity);
+      if (rejectedQuantity <= 0) {
+        setError("Rejected quantity must be greater than zero.");
+        return;
+      }
+      if (rejectedQuantity > selectedDispatch.availableForRejection) {
+        setError(
+          `Only ${selectedDispatch.availableForRejection.toLocaleString("en-IN")} can still be rejected from this dispatch.`,
+        );
+        return;
+      }
+      if (!normalizeText(form.reason)) {
+        setError("Select a rejection reason.");
+        return;
+      }
+      if (!form.rejectionDate) {
+        setError("Select the rejection date.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        await rejectionApi.create({
+          poId: selectedDispatch.poId,
+          dispatchId: selectedDispatch.dispatchId,
+          rejectedQuantity,
+          reason: form.reason,
+          subReason: normalizeText(form.subReason),
+          severity: form.severity,
+          requiresReplacement: Boolean(form.requiresReplacement),
+          rejectionDate: form.rejectionDate,
+          inspectorName: normalizeText(form.inspectorName),
+          notes: normalizeText(form.notes),
+        });
+
+        resetAddForm();
+        await loadHistory();
+        await onChanged?.(
+          "Rejection submitted for review. Pending quantity will change after it is accepted.",
+          "success",
+        );
+        setActiveTab("history");
+      } catch (submitError) {
+        console.error("Could not create rejection:", submitError);
+        setError(
+          submitError?.response?.data?.message ||
+            submitError?.message ||
+            "Could not create rejection",
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [selectedDispatch, form, resetAddForm, loadHistory, onChanged],
+  );
+
+  const reviewRejection = useCallback(
+    async (record, action) => {
+      if (!record?._id || reviewingId) return;
+      const isApprove = action === "approve";
+      const promptText = isApprove
+        ? `Accept ${toNonNegativeNumber(record.rejectedQuantity).toLocaleString("en-IN")} rejected piece(s) and apply them to pending quantity?`
+        : "Deny this rejection? It will not affect pending quantity.";
+      if (!window.confirm(promptText)) return;
+
+      setReviewingId(record._id);
+      setError("");
+      try {
+        await rejectionApi.review(record._id, {
+          action,
+          adminRemarks: isApprove
+            ? "Accepted from Pending PO rejection manager"
+            : "Denied from Pending PO rejection manager",
+        });
+        await loadHistory();
+        await onChanged?.(
+          isApprove
+            ? "Rejection accepted. Net accepted and pending quantities were recalculated."
+            : "Rejection denied. Pending quantity was not changed.",
+          "success",
+        );
+      } catch (reviewError) {
+        console.error("Could not review rejection:", reviewError);
+        setError(
+          reviewError?.response?.data?.message ||
+            reviewError?.message ||
+            "Could not review rejection",
+        );
+      } finally {
+        setReviewingId("");
+      }
+    },
+    [reviewingId, loadHistory, onChanged],
+  );
+
+  if (!isOpen || !item) return null;
+
+  const totalRejected = records
+    .filter((record) => record?.affectsPending)
+    .reduce(
+      (sum, record) => sum + toNonNegativeNumber(record?.rejectedQuantity),
+      0,
+    );
+  const pendingReviewCount = records.filter(
+    (record) =>
+      normalizeText(record?.status).toLowerCase() === "pending_review",
+  ).length;
+
+  return (
+    <div
+      className="fixed inset-0 z-[10020] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rejection-manager-title"
+    >
+      <div className="flex min-h-full items-center justify-center py-2">
+        <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-white/20">
+          <div className="relative shrink-0 overflow-hidden bg-gradient-to-r from-rose-700 via-red-600 to-orange-600 px-5 py-4 text-white sm:px-6">
+            <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/15 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                  <AlertCircle className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id="rejection-manager-title"
+                    className="text-lg font-bold sm:text-xl"
+                  >
+                    Rejection Manager
+                  </h2>
+                  <p className="mt-1 truncate text-xs text-red-100 sm:text-sm">
+                    {item.company} · {item.itemCode || item.item || "Item"} ·{" "}
+                    {item._isMerged
+                      ? `${sourceItems.length} related POs`
+                      : `PO ${item.po || "-"}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting || Boolean(reviewingId)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:bg-white/15 disabled:opacity-50"
+                aria-label="Close rejection manager"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="shrink-0 border-b border-slate-200 bg-white px-4 pt-3 sm:px-6">
+            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Gross dispatch
+                </p>
+                <p className="mt-1 font-bold text-slate-800">
+                  {toNonNegativeNumber(item.dispatched).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="rounded-xl bg-rose-50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
+                  Applied rejection
+                </p>
+                <p className="mt-1 font-bold text-rose-700">
+                  {toNonNegativeNumber(item.rejected).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
+                  Net accepted
+                </p>
+                <p className="mt-1 font-bold text-emerald-700">
+                  {toNonNegativeNumber(item.accepted).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="rounded-xl bg-amber-50 px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+                  Pending review
+                </p>
+                <p className="mt-1 font-bold text-amber-700">
+                  {pendingReviewCount}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("add")}
+                className={`rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${
+                  activeTab === "add"
+                    ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                }`}
+              >
+                Add Rejection
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("history")}
+                className={`rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${
+                  activeTab === "history"
+                    ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                }`}
+              >
+                History ({records.length})
+                {pendingReviewCount > 0 && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
+                    {pendingReviewCount} review
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mx-4 mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-6">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/70 p-4 sm:p-6">
+            {activeTab === "add" ? (
+              <form onSubmit={submitRejection} className="space-y-5">
+                {dispatchOptions.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-rose-200 bg-white p-8 text-center">
+                    <Truck className="mx-auto h-9 w-9 text-rose-300" />
+                    <p className="mt-3 font-semibold text-slate-700">
+                      No dispatch is available for rejection
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Record a dispatch first. A rejection must be linked to the
+                      exact dispatch that supplied the parts.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Select dispatch *
+                      </label>
+                      <select
+                        value={selectedDispatchKey}
+                        onChange={(event) =>
+                          setSelectedDispatchKey(event.target.value)
+                        }
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 disabled:bg-slate-100"
+                      >
+                        {dispatchOptions.map((option) => (
+                          <option
+                            key={option.key}
+                            value={option.key}
+                            disabled={option.availableForRejection <= 0}
+                          >
+                            PO {option.poNumber || "-"} ·{" "}
+                            {formatDateValue(option.dispatchDate)} · Bill{" "}
+                            {option.billNumber || "-"} · Dispatch{" "}
+                            {option.quantity.toLocaleString("en-IN")} ·
+                            Available{" "}
+                            {option.availableForRejection.toLocaleString(
+                              "en-IN",
+                            )}
+                          </option>
+                        ))}
+                      </select>
+
+                      {selectedDispatch && (
+                        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-4">
+                          <div className="rounded-lg bg-slate-50 px-3 py-2">
+                            <span className="text-slate-400">PO</span>
+                            <p className="mt-0.5 font-semibold text-slate-700">
+                              {selectedDispatch.poNumber || "-"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-blue-50 px-3 py-2">
+                            <span className="text-blue-400">Dispatch</span>
+                            <p className="mt-0.5 font-semibold text-blue-700">
+                              {selectedDispatch.quantity.toLocaleString(
+                                "en-IN",
+                              )}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-amber-50 px-3 py-2">
+                            <span className="text-amber-500">
+                              Already submitted
+                            </span>
+                            <p className="mt-0.5 font-semibold text-amber-700">
+                              {selectedDispatch.alreadyCommitted.toLocaleString(
+                                "en-IN",
+                              )}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-rose-50 px-3 py-2">
+                            <span className="text-rose-400">Can reject</span>
+                            <p className="mt-0.5 font-semibold text-rose-700">
+                              {selectedDispatch.availableForRejection.toLocaleString(
+                                "en-IN",
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Rejected Quantity *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          max={
+                            selectedDispatch?.availableForRejection || undefined
+                          }
+                          value={form.rejectedQuantity}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              rejectedQuantity: event.target.value,
+                            }))
+                          }
+                          disabled={
+                            isSubmitting ||
+                            !selectedDispatch ||
+                            selectedDispatch.availableForRejection <= 0
+                          }
+                          placeholder="e.g. 50"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 disabled:bg-slate-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Rejection Date *
+                        </label>
+                        <input
+                          type="date"
+                          value={form.rejectionDate}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              rejectionDate: event.target.value,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="mb-2 block text-xs font-semibold text-slate-600">
+                          Rejection Reason *
+                        </label>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {REJECTION_REASON_OPTIONS.map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() =>
+                                setForm((current) => ({
+                                  ...current,
+                                  reason: value,
+                                }))
+                              }
+                              disabled={isSubmitting}
+                              className={`rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${
+                                form.reason === value
+                                  ? "border-rose-500 bg-rose-50 text-rose-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50/40"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Severity
+                        </label>
+                        <select
+                          value={form.severity}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              severity: event.target.value,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Inspector
+                        </label>
+                        <input
+                          value={form.inspectorName}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              inspectorName: event.target.value,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          placeholder="Inspector name"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Detailed Reason
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={form.subReason}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              subReason: event.target.value,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          placeholder="Optional defect details..."
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Notes
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={form.notes}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              notes: event.target.value,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          placeholder="Optional comments..."
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <label className="sm:col-span-2 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                        <input
+                          type="checkbox"
+                          checked={form.requiresReplacement}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              requiresReplacement: event.target.checked,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          className="mt-0.5 h-4 w-4 accent-rose-600"
+                        />
+                        <span>
+                          <strong>Replacement required.</strong> After this
+                          rejection is accepted, the rejected quantity is added
+                          back to Pending so replacement parts can be
+                          dispatched.
+                        </span>
+                      </label>
+                    </div>
+                  </>
+                )}
+              </form>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-800">
+                      Rejection History
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Applied rejection total:{" "}
+                      <strong className="text-rose-700">
+                        {totalRejected.toLocaleString("en-IN")}
+                      </strong>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadHistory()}
+                    disabled={isLoadingHistory}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${
+                        isLoadingHistory ? "animate-spin" : ""
+                      }`}
+                    />
+                    Refresh
+                  </button>
+                </div>
+
+                {isLoadingHistory ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+                    <RefreshCw className="mx-auto h-6 w-6 animate-spin text-rose-500" />
+                    <p className="mt-2 text-sm text-slate-500">
+                      Loading rejection history...
+                    </p>
+                  </div>
+                ) : records.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                    <AlertCircle className="mx-auto h-8 w-8 text-slate-300" />
+                    <p className="mt-3 font-semibold text-slate-700">
+                      No rejection records
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("add")}
+                      className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                    >
+                      Add first rejection
+                    </button>
+                  </div>
+                ) : (
+                  records.map((record) => {
+                    const status = normalizeText(record?.status).toLowerCase();
+                    const source = normalizeText(record?.source).toLowerCase();
+                    const statusMeta =
+                      status === "approved" || status === "recorded"
+                        ? {
+                            label:
+                              status === "recorded" ? "Recorded" : "Accepted",
+                            className:
+                              "bg-emerald-100 text-emerald-700 ring-emerald-200",
+                          }
+                        : status === "denied"
+                          ? {
+                              label: "Denied",
+                              className:
+                                "bg-slate-100 text-slate-600 ring-slate-200",
+                            }
+                          : {
+                              label: "Pending Review",
+                              className:
+                                "bg-amber-100 text-amber-700 ring-amber-200",
+                            };
+
+                    return (
+                      <article
+                        key={record._id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${statusMeta.className}`}
+                              >
+                                {statusMeta.label}
+                              </span>
+                              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
+                                {source === "excel_import"
+                                  ? "Excel Import"
+                                  : "Manual"}
+                              </span>
+                              <span className="font-mono text-xs font-semibold text-slate-700">
+                                PO {record.poNumber || "-"}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                  Rejected
+                                </p>
+                                <p className="mt-0.5 font-bold text-rose-700">
+                                  {toNonNegativeNumber(
+                                    record.rejectedQuantity,
+                                  ).toLocaleString("en-IN")}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                  Date
+                                </p>
+                                <p className="mt-0.5 text-sm font-semibold text-slate-700">
+                                  {formatDateValue(record.rejectionDate)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                  Reason
+                                </p>
+                                <p className="mt-0.5 text-sm font-semibold text-slate-700">
+                                  {record.reason ||
+                                    record.rejectionReason ||
+                                    "-"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                  Dispatch
+                                </p>
+                                <p className="mt-0.5 max-w-[190px] truncate font-mono text-xs font-semibold text-slate-700">
+                                  {record.dispatchId ||
+                                    "Historical Excel total"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                  Pending effect
+                                </p>
+                                <p
+                                  className={`mt-0.5 text-sm font-semibold ${
+                                    record.affectsPending
+                                      ? "text-rose-700"
+                                      : "text-slate-500"
+                                  }`}
+                                >
+                                  {record.affectsPending
+                                    ? "Applied"
+                                    : "Not applied"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {(record.subReason || record.notes) && (
+                              <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                {record.subReason && (
+                                  <p>
+                                    <strong>Detail:</strong> {record.subReason}
+                                  </p>
+                                )}
+                                {record.notes && (
+                                  <p className={record.subReason ? "mt-1" : ""}>
+                                    <strong>Notes:</strong> {record.notes}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {status === "pending_review" &&
+                            source !== "excel_import" && (
+                              <div className="flex shrink-0 flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void reviewRejection(record, "approve")
+                                  }
+                                  disabled={Boolean(reviewingId)}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                                >
+                                  {reviewingId === record._id ? (
+                                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Accept & Apply
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void reviewRejection(record, "deny")
+                                  }
+                                  disabled={Boolean(reviewingId)}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            )}
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">
+                Accepted/recorded rejection affects Pending. Pending-review
+                rejection is visible in history but does not change the balance
+                until accepted.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting || Boolean(reviewingId)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Close
+                </button>
+                {activeTab === "add" && dispatchOptions.length > 0 && (
+                  <button
+                    type="submit"
+                    onClick={submitRejection}
+                    disabled={
+                      isSubmitting ||
+                      !selectedDispatch ||
+                      selectedDispatch.availableForRejection <= 0
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 transition hover:from-rose-700 hover:to-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {isSubmitting ? "Submitting..." : "Submit Rejection"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================
 // COMPANY ACCORDION ROW COMPONENT
 // ============================================
 const CompanyAccordion = React.memo(function CompanyAccordion({
@@ -4351,6 +5472,7 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   onToggleSelection,
   onSetSelection,
   onDispatchClick,
+  onRejectionClick,
   onEditClick,
   onDeleteClick,
   dispatchHistory,
@@ -4528,6 +5650,12 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Dispatched
                 </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-red-700 text-center whitespace-nowrap">
+                  Rejected
+                </th>
+                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-emerald-700 text-center whitespace-nowrap">
+                  Net Accepted
+                </th>
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Pending
                 </th>
@@ -4692,6 +5820,12 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       {Number(item.dispatched || 0).toLocaleString("en-IN")}
                     </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center font-semibold text-red-600">
+                      {Number(item.rejected || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 align-middle text-center font-semibold text-emerald-700">
+                      {Number(item.accepted || 0).toLocaleString("en-IN")}
+                    </td>
                     <td
                       className={`border border-gray-300 px-3 py-2 align-middle text-center ${item.pending > 0 ? "text-rose-600" : "text-emerald-600"}`}
                     >
@@ -4765,6 +5899,27 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                           )}
                           {item._isMerged && canDispatch && (
                             <span>{dispatchableItems.length} POs</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRejectionClick(item)}
+                          disabled={itemHistoryCount === 0}
+                          className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            itemHistoryCount > 0
+                              ? "Add, review, or accept rejection"
+                              : "Record a dispatch before adding rejection"
+                          }
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <span className="hidden xl:inline">Reject</span>
+                          {Number(item.rejected || 0) > 0 && (
+                            <span className="ml-0.5 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] text-rose-800">
+                              {Number(item.rejected || 0).toLocaleString(
+                                "en-IN",
+                              )}
+                            </span>
                           )}
                         </button>
                         {item._isMerged ? (
@@ -4843,7 +5998,8 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                     }
                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
                   >
-                    Show next {Math.min(pageSize, items.length - visibleItemCount)}
+                    Show next{" "}
+                    {Math.min(pageSize, items.length - visibleItemCount)}
                   </button>
                 )}
 
@@ -4886,6 +6042,14 @@ class PendingPOManager {
       (sum, item) => sum + toNonNegativeNumber(item.dispatched),
       0,
     );
+    const totalRejected = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.rejected),
+      0,
+    );
+    const totalAccepted = activeData.reduce(
+      (sum, item) => sum + toNonNegativeNumber(item.accepted),
+      0,
+    );
     const totalPOQty = activeData.reduce(
       (sum, item) => sum + toNonNegativeNumber(item.poQty),
       0,
@@ -4920,6 +6084,8 @@ class PendingPOManager {
     return {
       totalPending,
       totalDispatched,
+      totalRejected,
+      totalAccepted,
       totalPOQty,
       totalValue,
       totalPOs: uniquePOs.size,
@@ -4935,6 +6101,10 @@ class PendingPOManager {
       pendingPercentage: totalPOQty > 0 ? (totalPending / totalPOQty) * 100 : 0,
       dispatchedPercentage:
         totalPOQty > 0 ? (totalDispatched / totalPOQty) * 100 : 0,
+      acceptedPercentage:
+        totalPOQty > 0
+          ? (Math.min(totalAccepted, totalPOQty) / totalPOQty) * 100
+          : 0,
     };
   }
 
@@ -5198,6 +6368,9 @@ const GeneratePendingList = () => {
   const [initialDispatchEntry, setInitialDispatchEntry] = useState(null);
   const [selectedMergedDispatchGroup, setSelectedMergedDispatchGroup] =
     useState(null);
+  const [isRejectionManagerOpen, setIsRejectionManagerOpen] = useState(false);
+  const [selectedItemForRejection, setSelectedItemForRejection] =
+    useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [showAnalytics, setShowAnalytics] = useState(true);
@@ -5323,6 +6496,8 @@ const GeneratePendingList = () => {
     const numericKeys = new Set([
       "poQty",
       "dispatched",
+      "rejected",
+      "accepted",
       "pending",
       "rate",
       "total",
@@ -5463,177 +6638,198 @@ const GeneratePendingList = () => {
     return () => window.clearTimeout(timer);
   }, [notification]);
 
- 
-const loadPurchaseOrders = useCallback(
-  async (
-    { quiet = false, signal = undefined } = {
-      quiet: false,
-      signal: undefined,
-    },
-  ) => {
-    const requestSequence = ++loadSequenceRef.current;
+  const loadPurchaseOrders = useCallback(
+    async (
+      { quiet = false, signal = undefined } = {
+        quiet: false,
+        signal: undefined,
+      },
+    ) => {
+      const requestSequence = ++loadSequenceRef.current;
 
-    if (!quiet) setIsLoading(true);
-    if (!quiet) setLoadError("");
+      if (!quiet) setIsLoading(true);
+      if (!quiet) setLoadError("");
 
-    try {
-      // Always reload ALL companies after every import.
-      // Never filter this request by the most recently uploaded company.
-      const allRecords = [];
-      const limit = 500;
+      try {
+        // Always reload ALL companies after every import.
+        // Never filter this request by the most recently uploaded company.
+        const allRecords = [];
+        const limit = 500;
 
-      const firstResult = await pendingPoApi.listAll({
-        all: true,
-        includeHistory: true,
-        page: 1,
-        limit,
-        signal,
-      });
+        const firstResult = await pendingPoApi.listAll({
+          all: true,
+          includeHistory: true,
+          page: 1,
+          limit,
+          signal,
+        });
 
-      if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
-        return false;
-      }
+        if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
+          return false;
+        }
 
-      const firstPageRecords = extractPurchaseOrderRecords(firstResult);
-      allRecords.push(...firstPageRecords);
+        const firstPageRecords = extractPurchaseOrderRecords(firstResult);
+        allRecords.push(...firstPageRecords);
 
-      const firstPagination =
-        firstResult?.pagination ||
-        firstResult?.data?.pagination ||
-        firstResult?.meta?.pagination ||
-        null;
+        const firstPagination =
+          firstResult?.pagination ||
+          firstResult?.data?.pagination ||
+          firstResult?.meta?.pagination ||
+          null;
 
-      const totalFromServer = Number(
-        firstPagination?.total ??
-          firstPagination?.totalItems ??
-          firstPageRecords.length,
-      );
+        const totalFromServer = Number(
+          firstPagination?.total ??
+            firstPagination?.totalItems ??
+            firstPageRecords.length,
+        );
 
-      const serverConfirmedAll =
-        firstPagination?.all === true ||
-        firstPagination?.all === "true" ||
-        (Number.isFinite(totalFromServer) &&
-          totalFromServer >= 0 &&
-          firstPageRecords.length >= totalFromServer);
+        const serverConfirmedAll =
+          firstPagination?.all === true ||
+          firstPagination?.all === "true" ||
+          (Number.isFinite(totalFromServer) &&
+            totalFromServer >= 0 &&
+            firstPageRecords.length >= totalFromServer);
 
-      // Fallback for an older backend/API wrapper that does not honor all=true.
-      if (!serverConfirmedAll) {
-        const totalPages = Math.max(
-          1,
-          Number(
-            firstPagination?.pages ||
-              firstPagination?.totalPages ||
-              Math.ceil(Math.max(0, totalFromServer) / limit) ||
-              1,
+        // Fallback for an older backend/API wrapper that does not honor all=true.
+        if (!serverConfirmedAll) {
+          const totalPages = Math.max(
+            1,
+            Number(
+              firstPagination?.pages ||
+                firstPagination?.totalPages ||
+                Math.ceil(Math.max(0, totalFromServer) / limit) ||
+                1,
+            ),
+          );
+
+          for (let page = 2; page <= totalPages; page += 1) {
+            const result = await pendingPoApi.listAll({
+              all: false,
+              includeHistory: true,
+              page,
+              limit,
+              signal,
+            });
+
+            if (
+              signal?.aborted ||
+              requestSequence !== loadSequenceRef.current
+            ) {
+              return false;
+            }
+
+            allRecords.push(...extractPurchaseOrderRecords(result));
+          }
+        }
+
+        const rejectionSummaryRows = await rejectionApi.getSummary({ signal });
+        if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
+          return false;
+        }
+        const rejectionSummaryMap =
+          buildRejectionSummaryMap(rejectionSummaryRows);
+        const records = allRecords.map((record, index) =>
+          normalizePurchaseOrder(
+            attachRejectionSummary(record, rejectionSummaryMap),
+            index,
           ),
         );
 
-        for (let page = 2; page <= totalPages; page += 1) {
-          const result = await pendingPoApi.listAll({
-            all: false,
-            includeHistory: true,
-            page,
-            limit,
-            signal,
-          });
+        // Remove ONLY a true duplicate:
+        // same Company + same PO + same item identity.
+        // Different PO or different Company must remain.
+        const uniqueRecords = deduplicatePOItems(records);
 
-          if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
-            return false;
-          }
+        const nextManager = new PendingPOManager(uniqueRecords);
+        const nextHistory = {};
 
-          allRecords.push(...extractPurchaseOrderRecords(result));
+        uniqueRecords.forEach((item) => {
+          const itemKey = getItemKey(item);
+          nextHistory[itemKey] = Array.isArray(item.dispatchHistory)
+            ? item.dispatchHistory.map((entry) =>
+                normalizeDispatchEntry(entry, {
+                  ...item,
+                  itemKey,
+                }),
+              )
+            : [];
+        });
+
+        const nextCompanies = Object.keys(nextManager.companyStats).sort(
+          (a, b) => a.localeCompare(b),
+        );
+        const nextCategories = nextManager.itemCategories;
+
+        startTransition(() => {
+          setData(uniqueRecords);
+          setManager(nextManager);
+          setDispatchHistory(nextHistory);
+          setCompanies(["all", ...nextCompanies]);
+          setCategories(["all", ...nextCategories]);
+
+          setSelectedCompany((current) =>
+            current === "all" || nextCompanies.includes(current)
+              ? current
+              : "all",
+          );
+          setSelectedCategory((current) =>
+            current === "all" || nextCategories.includes(current)
+              ? current
+              : "all",
+          );
+
+          setSelectedItems(new Set());
+          setIsDataReady(true);
+          setDataQualityIssueCount(
+            uniqueRecords.filter(
+              (item) =>
+                Array.isArray(item._dataIssues) && item._dataIssues.length > 0,
+            ).length,
+          );
+          setLoadError("");
+          setLastSyncedAt(new Date());
+        });
+
+        console.log("Pending PO multi-company load:", {
+          databaseRecordsReceived: allRecords.length,
+          uniquePOLines: uniqueRecords.length,
+          companiesLoaded: nextCompanies,
+          companyCount: nextCompanies.length,
+          serverConfirmedAll,
+        });
+
+        return true;
+      } catch (error) {
+        const wasCancelled =
+          signal?.aborted ||
+          error?.name === "AbortError" ||
+          error?.code === "ERR_CANCELED" ||
+          error?.code === "CanceledError";
+
+        if (wasCancelled || requestSequence !== loadSequenceRef.current) {
+          return false;
+        }
+
+        console.error("Error loading purchase orders:", error);
+        const message = getApiErrorMessage(
+          error,
+          "Could not load purchase orders",
+        );
+        setLoadError(message);
+
+        if (!quiet) {
+          setNotification({ message, type: "error" });
+        }
+
+        return false;
+      } finally {
+        if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
+          setIsLoading(false);
         }
       }
-
-      const records = allRecords.map(normalizePurchaseOrder);
-
-      // Remove ONLY a true duplicate:
-      // same Company + same PO + same item identity.
-      // Different PO or different Company must remain.
-      const uniqueRecords = deduplicatePOItems(records);
-
-      const nextManager = new PendingPOManager(uniqueRecords);
-      const nextHistory = {};
-
-      uniqueRecords.forEach((item) => {
-        const itemKey = getItemKey(item);
-        nextHistory[itemKey] = Array.isArray(item.dispatchHistory)
-          ? item.dispatchHistory.map((entry) =>
-              normalizeDispatchEntry(entry, {
-                ...item,
-                itemKey,
-              }),
-            )
-          : [];
-      });
-
-      const nextCompanies = Object.keys(nextManager.companyStats).sort((a, b) =>
-        a.localeCompare(b),
-      );
-      const nextCategories = nextManager.itemCategories;
-
-      startTransition(() => {
-        setData(uniqueRecords);
-        setManager(nextManager);
-        setDispatchHistory(nextHistory);
-        setCompanies(["all", ...nextCompanies]);
-        setCategories(["all", ...nextCategories]);
-
-        setSelectedCompany((current) =>
-          current === "all" || nextCompanies.includes(current) ? current : "all",
-        );
-        setSelectedCategory((current) =>
-          current === "all" || nextCategories.includes(current) ? current : "all",
-        );
-
-        setSelectedItems(new Set());
-        setIsDataReady(true);
-        setDataQualityIssueCount(
-          uniqueRecords.filter(
-            (item) => Array.isArray(item._dataIssues) && item._dataIssues.length > 0,
-          ).length,
-        );
-        setLoadError("");
-        setLastSyncedAt(new Date());
-      });
-
-      console.log("Pending PO multi-company load:", {
-        databaseRecordsReceived: allRecords.length,
-        uniquePOLines: uniqueRecords.length,
-        companiesLoaded: nextCompanies,
-        companyCount: nextCompanies.length,
-        serverConfirmedAll,
-      });
-
-      return true;
-    } catch (error) {
-      const wasCancelled =
-        signal?.aborted ||
-        error?.name === "AbortError" ||
-        error?.code === "ERR_CANCELED" ||
-        error?.code === "CanceledError";
-
-      if (wasCancelled || requestSequence !== loadSequenceRef.current) {
-        return false;
-      }
-
-      console.error("Error loading purchase orders:", error);
-      const message = getApiErrorMessage(error, "Could not load purchase orders");
-      setLoadError(message);
-
-      if (!quiet) {
-        setNotification({ message, type: "error" });
-      }
-
-      return false;
-    } finally {
-      if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
-        setIsLoading(false);
-      }
-    }
-  },
-  [getItemKey, startTransition],
-);
+    },
+    [getItemKey, startTransition],
+  );
   const resetImportPreview = useCallback(() => {
     setIsImportPreviewOpen(false);
     setImportPreviewFile(null);
@@ -5726,6 +6922,14 @@ const loadPurchaseOrders = useCallback(
       );
       const result = await pendingPoApi.importFile(reviewedFile);
 
+      // Import only rejection-bearing rows into the new rejection collection.
+      // The backend upserts by PO line, so re-importing the same Excel file
+      // updates the historical rejection instead of double-counting it.
+      const rejectionImport = await rejectionApi.importExcelRows(
+        importPreviewRows,
+        { fileName: reviewedFile.name },
+      );
+
       const insertedCount = Number(result?.inserted || 0);
       const updatedCount = Number(result?.updated || 0);
       const skippedCount = Number(result?.skipped || 0);
@@ -5755,9 +6959,7 @@ const loadPurchaseOrders = useCallback(
       setLastImportSummary({
         ...importRecord,
         companiesAfterImport,
-        databaseTotalAfterImport: Number(
-          result?.databaseTotalAfterImport || 0,
-        ),
+        databaseTotalAfterImport: Number(result?.databaseTotalAfterImport || 0),
       });
 
       setSelectedItems(new Set());
@@ -5794,6 +6996,7 @@ const loadPurchaseOrders = useCallback(
         companiesInUpload,
         companiesAfterImport,
         databaseTotalAfterImport: result?.databaseTotalAfterImport,
+        rejectionImport,
       });
 
       resetImportPreview();
@@ -5967,7 +7170,7 @@ const loadPurchaseOrders = useCallback(
     if (total <= 0) return 0;
     return Math.min(
       100,
-      Math.max(0, ((Number(item?.dispatched) || 0) / total) * 100),
+      Math.max(0, ((Number(item?.accepted) || 0) / total) * 100),
     );
   }, []);
 
@@ -6134,6 +7337,49 @@ const loadPurchaseOrders = useCallback(
     [dispatchHistory, getItemKey, showNotification],
   );
 
+  const handleRejectionClick = useCallback(
+    (item) => {
+      const sourceItems = getSourcePurchaseOrders(item);
+      const hasDispatch = sourceItems.some((sourceItem) => {
+        const history = dispatchHistory[getItemKey(sourceItem)] || [];
+        return history.some(
+          (entry) =>
+            normalizeText(entry?._id || entry?.id) &&
+            toNonNegativeNumber(entry?.dispatchQty ?? entry?.quantity) > 0,
+        );
+      });
+
+      if (!hasDispatch) {
+        showNotification(
+          "Record a dispatch before adding a rejection. Rejection must be linked to the exact dispatch.",
+          "warning",
+        );
+        return;
+      }
+
+      setSelectedItemForRejection(item);
+      setIsRejectionManagerOpen(true);
+    },
+    [dispatchHistory, getItemKey, showNotification],
+  );
+
+  const closeRejectionManager = useCallback(() => {
+    setIsRejectionManagerOpen(false);
+    setSelectedItemForRejection(null);
+  }, []);
+
+  const handleRejectionChanged = useCallback(
+    async (message, type = "success") => {
+      const refreshed = await loadPurchaseOrders({ quiet: true });
+      showNotification(
+        `${message}${refreshed ? "" : " Refresh the page to see the latest balance."}`,
+        refreshed ? type : "warning",
+      );
+      return refreshed;
+    },
+    [loadPurchaseOrders, showNotification],
+  );
+
   const openSinglePOEditor = useCallback((item, action = "edit") => {
     if (!item) return;
     setSelectedItemForEdit(item);
@@ -6274,6 +7520,8 @@ const loadPurchaseOrders = useCallback(
           "Item Description": item.item,
           "PO Quantity": item.poQty,
           Dispatched: item.dispatched,
+          Rejected: item.rejected || 0,
+          "Net Accepted": item.accepted || 0,
           Pending: item.pending,
           "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
           Status: item.status,
@@ -6297,6 +7545,8 @@ const loadPurchaseOrders = useCallback(
               "Item Description": item.item,
               "PO Quantity (Sum)": item.poQty,
               "Dispatched (Sum)": item.dispatched,
+              "Rejected (Sum)": item.rejected || 0,
+              "Net Accepted (Sum)": item.accepted || 0,
               "Pending (Sum)": item.pending,
               "Completion %": Number(getCompletionPercentage(item).toFixed(1)),
               Status: item.status,
@@ -6517,6 +7767,15 @@ const loadPurchaseOrders = useCallback(
         onConfirm={confirmReviewedImport}
       />
 
+      <RejectionManagerModal
+        isOpen={isRejectionManagerOpen}
+        item={selectedItemForRejection}
+        dispatchHistory={dispatchHistory}
+        getItemKey={getItemKey}
+        onClose={closeRejectionManager}
+        onChanged={handleRejectionChanged}
+      />
+
       {/* Edit/Delete PO Modal */}
       <EditDeleteModal
         isOpen={isEditModalOpen}
@@ -6639,8 +7898,8 @@ const loadPurchaseOrders = useCallback(
                 {isPreparingImport
                   ? "Preparing preview..."
                   : data.length > 0
-                    ? "Excel upload"
-                    : "Excel upload"}
+                    ? "Preview Excel update"
+                    : "Preview Excel upload"}
               </label>
 
               {isDataReady && (
@@ -6804,7 +8063,7 @@ const loadPurchaseOrders = useCallback(
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <StatCard
                 label="Pending quantity"
                 value={manager.summary.totalPending.toLocaleString("en-IN")}
@@ -6814,12 +8073,37 @@ const loadPurchaseOrders = useCallback(
                 progress={manager.summary.pendingPercentage}
               />
               <StatCard
-                label="Dispatched quantity"
+                label="Gross dispatched"
                 value={manager.summary.totalDispatched.toLocaleString("en-IN")}
-                helper={`${manager.summary.dispatchedPercentage.toFixed(1)}% fulfilment across all POs`}
+                helper="Historical dispatch quantity before rejection adjustment"
+                icon={Truck}
+                tone="blue"
+                progress={Math.min(100, manager.summary.dispatchedPercentage)}
+              />
+              <StatCard
+                label="Rejected quantity"
+                value={manager.summary.totalRejected.toLocaleString("en-IN")}
+                helper="Approved + Excel-recorded rejection affecting pending"
+                icon={AlertCircle}
+                tone="rose"
+                progress={
+                  manager.summary.totalPOQty > 0
+                    ? Math.min(
+                        100,
+                        (manager.summary.totalRejected /
+                          manager.summary.totalPOQty) *
+                          100,
+                      )
+                    : 0
+                }
+              />
+              <StatCard
+                label="Net accepted"
+                value={manager.summary.totalAccepted.toLocaleString("en-IN")}
+                helper={`${manager.summary.acceptedPercentage.toFixed(1)}% accepted fulfilment across all POs`}
                 icon={CircleCheckBig}
                 tone="emerald"
-                progress={manager.summary.dispatchedPercentage}
+                progress={manager.summary.acceptedPercentage}
               />
               <StatCard
                 label="Active portfolio"
@@ -7308,6 +8592,7 @@ const loadPurchaseOrders = useCallback(
                       onToggleSelection={toggleItemSelection}
                       onSetSelection={setItemsSelection}
                       onDispatchClick={handleDispatchClick}
+                      onRejectionClick={handleRejectionClick}
                       onEditClick={handleEditClick}
                       onDeleteClick={handleDeleteClick}
                       dispatchHistory={dispatchHistory}
@@ -7327,7 +8612,8 @@ const loadPurchaseOrders = useCallback(
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                 <span>
-                  Showing <strong className="text-slate-800">
+                  Showing{" "}
+                  <strong className="text-slate-800">
                     all {sortedData.length}
                   </strong>{" "}
                   merged items across{" "}
@@ -7452,5 +8738,4 @@ const loadPurchaseOrders = useCallback(
     </>
   );
 };
-
 export default GeneratePendingList;
