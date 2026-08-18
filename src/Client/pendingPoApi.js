@@ -15,27 +15,39 @@ const request = async (config) => {
   if (response.data?.success === false) {
     throw new Error(response.data.message || "The request failed");
   }
+
   return response;
 };
- 
-const listPage = async (page, limit, signal) => {
+
+const listPage = async ({
+  page = 1,
+  limit = 500,
+  all = false,
+  includeHistory = true,
+  signal,
+} = {}) => {
   const response = await request({
     method: "get",
     url: "/po",
     params: {
       page,
       limit,
-      includeHistory: true,
+      all: all ? "true" : "false",
+      includeHistory: includeHistory ? "true" : "false",
       sortBy: "createdAt",
       sortOrder: "desc",
     },
     signal,
   });
+
   return response.data;
 };
 
 export const createDispatchRequestId = () => {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
   return `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
@@ -43,45 +55,133 @@ export const getApiErrorMessage = (error, fallback = "Request failed") =>
   error?.response?.data?.message || error?.message || fallback;
 
 export const pendingPoApi = {
-  async listAll({ signal } = {}) {
-    const pageSize = 500;
-    const first = await listPage(1, pageSize, signal);
-    const pages = Math.max(1, Number(first.pagination?.pages) || 1);
-    const records = [...(first.data || [])];
+  async listAll({
+    signal,
+    all = true,
+    page = 1,
+    limit = 500,
+    includeHistory = true,
+  } = {}) {
+    const first = await listPage({
+      page,
+      limit,
+      all,
+      includeHistory,
+      signal,
+    });
 
-    // Load the remaining pages in small batches to keep large portfolios fast
-    // without opening an unbounded number of HTTP requests.
-    for (let start = 2; start <= pages; start += 4) {
+    const firstRecords = Array.isArray(first?.data) ? first.data : [];
+    const pagination = first?.pagination || null;
+
+    const backendConfirmedAll =
+      pagination?.all === true || pagination?.all === "true";
+
+    if (all && backendConfirmedAll) {
+      return {
+        records: firstRecords,
+        summary: first?.summary || null,
+        pagination: {
+          ...pagination,
+          returned: firstRecords.length,
+          all: true,
+        },
+      };
+    }
+
+    if (!all) {
+      return {
+        records: firstRecords,
+        summary: first?.summary || null,
+        pagination:
+          pagination || {
+            page,
+            limit,
+            total: firstRecords.length,
+            pages: 1,
+            returned: firstRecords.length,
+            all: false,
+          },
+      };
+    }
+
+    // Older-backend fallback: never assume the first page is the whole DB.
+    if (!pagination) {
+      throw new Error(
+        "Pending PO API did not return pagination metadata. " +
+          "Cannot safely confirm that all companies were loaded.",
+      );
+    }
+
+    const total = Math.max(
+      0,
+      Number(pagination.total ?? pagination.totalItems ?? firstRecords.length) ||
+        0,
+    );
+
+    const pageSize = Math.max(1, Number(pagination.limit || limit) || limit);
+
+    const totalPages = Math.max(
+      1,
+      Number(
+        pagination.pages ||
+          pagination.totalPages ||
+          Math.ceil(total / pageSize),
+      ) || 1,
+    );
+
+    const records = [...firstRecords];
+
+    for (let start = 2; start <= totalPages; start += 4) {
       const pageNumbers = Array.from(
-        { length: Math.min(4, pages - start + 1) },
+        { length: Math.min(4, totalPages - start + 1) },
         (_, index) => start + index,
       );
+
       const responses = await Promise.all(
-        pageNumbers.map((page) => listPage(page, pageSize, signal)),
+        pageNumbers.map((pageNumber) =>
+          listPage({
+            page: pageNumber,
+            limit: pageSize,
+            all: false,
+            includeHistory,
+            signal,
+          }),
+        ),
       );
-      responses.forEach((result) => records.push(...(result.data || [])));
+
+      responses.forEach((result) => {
+        if (Array.isArray(result?.data)) {
+          records.push(...result.data);
+        }
+      });
     }
 
     return {
       records,
-      summary: first.summary || null,
-      pagination: first.pagination || {
+      summary: first?.summary || null,
+      pagination: {
+        ...pagination,
         page: 1,
         limit: pageSize,
-        total: records.length,
-        pages,
+        total: total || records.length,
+        pages: totalPages,
+        returned: records.length,
+        all: records.length >= total,
       },
     };
   },
 
-  async importFile(file) {
+  async importFile(file, { signal } = {}) {
     const form = new FormData();
     form.append("file", file);
+
     const response = await request({
       method: "post",
       url: "/po/import",
       data: form,
+      signal,
     });
+
     return response.data.data;
   },
 
@@ -91,6 +191,7 @@ export const pendingPoApi = {
       url: "/dispatch",
       data: payload,
     });
+
     return response.data.data;
   },
 
@@ -100,6 +201,7 @@ export const pendingPoApi = {
       url: "/dispatch/bulk",
       data: payload,
     });
+
     return response.data.data;
   },
 
@@ -108,6 +210,7 @@ export const pendingPoApi = {
       method: "get",
       url: `/dispatch/history/${encodeURIComponent(poId)}`,
     });
+
     return response.data.data || [];
   },
 
@@ -116,6 +219,7 @@ export const pendingPoApi = {
       method: "get",
       url: `/dispatch/bill/${encodeURIComponent(billNumber)}`,
     });
+
     return response.data.data;
   },
 
@@ -125,17 +229,23 @@ export const pendingPoApi = {
       url: "/po/template",
       responseType: "blob",
     });
+
     const disposition = response.headers?.["content-disposition"] || "";
     const match = disposition.match(/filename="?([^";]+)"?/i);
     const filename = match?.[1] || "pending-po-template.xlsx";
+
     const url = URL.createObjectURL(response.data);
     const anchor = document.createElement("a");
+
     anchor.href = url;
     anchor.download = filename;
+
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
+
     URL.revokeObjectURL(url);
+
     return filename;
   },
 };

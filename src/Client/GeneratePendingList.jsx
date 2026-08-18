@@ -4359,10 +4359,24 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   formatCurrency,
   formatDate,
   getItemKey,
+  pageSize = 15,
 }) {
   const sourceLineItems = useMemo(
     () => items.flatMap(getSourcePurchaseOrders),
     [items],
+  );
+
+  // Keep every company header visible. Row limiting happens inside
+  // an expanded company instead of on the global company list.
+  const [visibleItemCount, setVisibleItemCount] = useState(pageSize);
+
+  useEffect(() => {
+    setVisibleItemCount(pageSize);
+  }, [company, items.length, pageSize]);
+
+  const visibleItems = useMemo(
+    () => items.slice(0, visibleItemCount),
+    [items, visibleItemCount],
   );
 
   const historyCount = useMemo(() => {
@@ -4532,7 +4546,7 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((item, index) => {
+              {visibleItems.map((item, index) => {
                 const sourceItems = getSourcePurchaseOrders(item);
                 const itemKey = item._mergeKey || getItemKey(item);
                 const selectedSourceCount = sourceItems.filter((sourceItem) =>
@@ -4796,6 +4810,55 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
               })}
             </tbody>
           </table>
+
+          {items.length > pageSize && (
+            <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs text-slate-500">
+                Showing{" "}
+                <strong className="text-slate-700">
+                  {Math.min(visibleItems.length, items.length)}
+                </strong>{" "}
+                of <strong className="text-slate-700">{items.length}</strong>{" "}
+                merged items for {company}
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {visibleItemCount > pageSize && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleItemCount(pageSize)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                  >
+                    Show first {pageSize}
+                  </button>
+                )}
+
+                {visibleItemCount < items.length && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleItemCount((count) =>
+                        Math.min(items.length, count + pageSize),
+                      )
+                    }
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Show next {Math.min(pageSize, items.length - visibleItemCount)}
+                  </button>
+                )}
+
+                {visibleItemCount < items.length && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleItemCount(items.length)}
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                  >
+                    Show all
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -5109,7 +5172,10 @@ const GeneratePendingList = () => {
   const [loadError, setLoadError] = useState("");
   const [dataQualityIssueCount, setDataQualityIssueCount] = useState(0);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
+  // Import history for this browser session.
+  // A new company upload is appended here instead of replacing the previous file.
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [lastImportSummary, setLastImportSummary] = useState(null);
   const [importPreviewFile, setImportPreviewFile] = useState(null);
   const [importPreviewSheet, setImportPreviewSheet] = useState("");
   const [importPreviewRows, setImportPreviewRows] = useState([]);
@@ -5144,6 +5210,54 @@ const GeneratePendingList = () => {
   const [isPending, startTransition] = useTransition();
   const [expandedCompanies, setExpandedCompanies] = useState(new Set());
   const loadSequenceRef = useRef(0);
+
+  // Pending PO must never create a second document/browser scrollbar.
+  // DashboardLayout's <main className="overflow-y-auto"> remains the ONLY
+  // vertical scroll container for the normal page.
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById("root");
+
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      htmlHeight: html.style.height,
+      htmlOverscrollBehavior: html.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+      bodyOverscrollBehavior: body.style.overscrollBehavior,
+      rootOverflow: root?.style.overflow ?? "",
+      rootHeight: root?.style.height ?? "",
+    };
+
+    html.style.overflow = "hidden";
+    html.style.height = "100%";
+    html.style.overscrollBehavior = "none";
+
+    body.style.overflow = "hidden";
+    body.style.height = "100%";
+    body.style.overscrollBehavior = "none";
+
+    if (root) {
+      root.style.overflow = "hidden";
+      root.style.height = "100%";
+    }
+
+    return () => {
+      html.style.overflow = previous.htmlOverflow;
+      html.style.height = previous.htmlHeight;
+      html.style.overscrollBehavior = previous.htmlOverscrollBehavior;
+
+      body.style.overflow = previous.bodyOverflow;
+      body.style.height = previous.bodyHeight;
+      body.style.overscrollBehavior = previous.bodyOverscrollBehavior;
+
+      if (root) {
+        root.style.overflow = previous.rootOverflow;
+        root.style.height = previous.rootHeight;
+      }
+    };
+  }, []);
 
   const getItemKey = useCallback((item) => getPurchaseOrderKey(item), []);
 
@@ -5243,24 +5357,24 @@ const GeneratePendingList = () => {
     return rows;
   }, [displayData, sortConfig]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedData.length / pageSize));
-  const pageStart = (currentPage - 1) * pageSize;
-  const pagedData = useMemo(
-    () => sortedData.slice(pageStart, pageStart + pageSize),
-    [sortedData, pageStart, pageSize],
-  );
-
+  // Group the COMPLETE filtered/sorted list by company first.
+  // The old code sliced 15 global rows before grouping; if those rows all
+  // belonged to River Engineering, the Sahasra accordion disappeared.
   const groupedByCompany = useMemo(() => {
     const groups = {};
-    pagedData.forEach((item) => {
+
+    sortedData.forEach((item) => {
       const company = item.company || "Unknown Company";
+
       if (!groups[company]) {
         groups[company] = [];
       }
+
       groups[company].push(item);
     });
+
     return groups;
-  }, [pagedData]);
+  }, [sortedData]);
 
   const companyList = useMemo(() => {
     return Object.keys(groupedByCompany).sort();
@@ -5349,91 +5463,177 @@ const GeneratePendingList = () => {
     return () => window.clearTimeout(timer);
   }, [notification]);
 
-  const loadPurchaseOrders = useCallback(
-    async (
-      { quiet = false, signal = undefined } = {
-        quiet: false,
-        signal: undefined,
-      },
-    ) => {
-      const requestSequence = ++loadSequenceRef.current;
-      if (!quiet) setIsLoading(true);
-      if (!quiet) setLoadError("");
-      try {
-        const result = await pendingPoApi.listAll({ signal });
-        if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
-          return false;
-        }
+ 
+const loadPurchaseOrders = useCallback(
+  async (
+    { quiet = false, signal = undefined } = {
+      quiet: false,
+      signal: undefined,
+    },
+  ) => {
+    const requestSequence = ++loadSequenceRef.current;
 
-        const records = extractPurchaseOrderRecords(result).map(
-          normalizePurchaseOrder,
-        );
-        const uniqueRecords = deduplicatePOItems(records);
-        const nextManager = new PendingPOManager(uniqueRecords);
-        const nextHistory = {};
+    if (!quiet) setIsLoading(true);
+    if (!quiet) setLoadError("");
 
-        uniqueRecords.forEach((item) => {
-          const itemKey = getItemKey(item);
-          nextHistory[itemKey] = item.dispatchHistory.map((entry) =>
-            normalizeDispatchEntry(entry, { ...item, itemKey }),
-          );
-        });
+    try {
+      // Always reload ALL companies after every import.
+      // Never filter this request by the most recently uploaded company.
+      const allRecords = [];
+      const limit = 500;
 
-        const nextCompanies = Object.keys(nextManager.companyStats).sort(
-          (a, b) => a.localeCompare(b),
-        );
-        const nextCategories = nextManager.itemCategories;
+      const firstResult = await pendingPoApi.listAll({
+        all: true,
+        includeHistory: true,
+        page: 1,
+        limit,
+        signal,
+      });
 
-        startTransition(() => {
-          setData(uniqueRecords);
-          setManager(nextManager);
-          setDispatchHistory(nextHistory);
-          setCompanies(["all", ...nextCompanies]);
-          setCategories(["all", ...nextCategories]);
-          setSelectedCompany((current) =>
-            current === "all" || nextCompanies.includes(current)
-              ? current
-              : "all",
-          );
-          setSelectedCategory((current) =>
-            current === "all" || nextCategories.includes(current)
-              ? current
-              : "all",
-          );
-          setSelectedItems(new Set());
-          setIsDataReady(true);
-          setDataQualityIssueCount(
-            uniqueRecords.filter((item) => item._dataIssues.length > 0).length,
-          );
-          setLoadError("");
-          setLastSyncedAt(new Date());
-        });
-        return true;
-      } catch (error) {
-        const wasCancelled =
-          signal?.aborted ||
-          error?.name === "AbortError" ||
-          error?.code === "ERR_CANCELED" ||
-          error?.code === "CanceledError";
-        if (wasCancelled || requestSequence !== loadSequenceRef.current) {
-          return false;
-        }
-        const message = getApiErrorMessage(
-          error,
-          "Could not load purchase orders",
-        );
-        setLoadError(message);
-        if (!quiet) setNotification({ message, type: "error" });
+      if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
         return false;
-      } finally {
-        if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
-          setIsLoading(false);
+      }
+
+      const firstPageRecords = extractPurchaseOrderRecords(firstResult);
+      allRecords.push(...firstPageRecords);
+
+      const firstPagination =
+        firstResult?.pagination ||
+        firstResult?.data?.pagination ||
+        firstResult?.meta?.pagination ||
+        null;
+
+      const totalFromServer = Number(
+        firstPagination?.total ??
+          firstPagination?.totalItems ??
+          firstPageRecords.length,
+      );
+
+      const serverConfirmedAll =
+        firstPagination?.all === true ||
+        firstPagination?.all === "true" ||
+        (Number.isFinite(totalFromServer) &&
+          totalFromServer >= 0 &&
+          firstPageRecords.length >= totalFromServer);
+
+      // Fallback for an older backend/API wrapper that does not honor all=true.
+      if (!serverConfirmedAll) {
+        const totalPages = Math.max(
+          1,
+          Number(
+            firstPagination?.pages ||
+              firstPagination?.totalPages ||
+              Math.ceil(Math.max(0, totalFromServer) / limit) ||
+              1,
+          ),
+        );
+
+        for (let page = 2; page <= totalPages; page += 1) {
+          const result = await pendingPoApi.listAll({
+            all: false,
+            includeHistory: true,
+            page,
+            limit,
+            signal,
+          });
+
+          if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
+            return false;
+          }
+
+          allRecords.push(...extractPurchaseOrderRecords(result));
         }
       }
-    },
-    [getItemKey, startTransition],
-  );
 
+      const records = allRecords.map(normalizePurchaseOrder);
+
+      // Remove ONLY a true duplicate:
+      // same Company + same PO + same item identity.
+      // Different PO or different Company must remain.
+      const uniqueRecords = deduplicatePOItems(records);
+
+      const nextManager = new PendingPOManager(uniqueRecords);
+      const nextHistory = {};
+
+      uniqueRecords.forEach((item) => {
+        const itemKey = getItemKey(item);
+        nextHistory[itemKey] = Array.isArray(item.dispatchHistory)
+          ? item.dispatchHistory.map((entry) =>
+              normalizeDispatchEntry(entry, {
+                ...item,
+                itemKey,
+              }),
+            )
+          : [];
+      });
+
+      const nextCompanies = Object.keys(nextManager.companyStats).sort((a, b) =>
+        a.localeCompare(b),
+      );
+      const nextCategories = nextManager.itemCategories;
+
+      startTransition(() => {
+        setData(uniqueRecords);
+        setManager(nextManager);
+        setDispatchHistory(nextHistory);
+        setCompanies(["all", ...nextCompanies]);
+        setCategories(["all", ...nextCategories]);
+
+        setSelectedCompany((current) =>
+          current === "all" || nextCompanies.includes(current) ? current : "all",
+        );
+        setSelectedCategory((current) =>
+          current === "all" || nextCategories.includes(current) ? current : "all",
+        );
+
+        setSelectedItems(new Set());
+        setIsDataReady(true);
+        setDataQualityIssueCount(
+          uniqueRecords.filter(
+            (item) => Array.isArray(item._dataIssues) && item._dataIssues.length > 0,
+          ).length,
+        );
+        setLoadError("");
+        setLastSyncedAt(new Date());
+      });
+
+      console.log("Pending PO multi-company load:", {
+        databaseRecordsReceived: allRecords.length,
+        uniquePOLines: uniqueRecords.length,
+        companiesLoaded: nextCompanies,
+        companyCount: nextCompanies.length,
+        serverConfirmedAll,
+      });
+
+      return true;
+    } catch (error) {
+      const wasCancelled =
+        signal?.aborted ||
+        error?.name === "AbortError" ||
+        error?.code === "ERR_CANCELED" ||
+        error?.code === "CanceledError";
+
+      if (wasCancelled || requestSequence !== loadSequenceRef.current) {
+        return false;
+      }
+
+      console.error("Error loading purchase orders:", error);
+      const message = getApiErrorMessage(error, "Could not load purchase orders");
+      setLoadError(message);
+
+      if (!quiet) {
+        setNotification({ message, type: "error" });
+      }
+
+      return false;
+    } finally {
+      if (!signal?.aborted && requestSequence === loadSequenceRef.current) {
+        setIsLoading(false);
+      }
+    }
+  },
+  [getItemKey, startTransition],
+);
   const resetImportPreview = useCallback(() => {
     setIsImportPreviewOpen(false);
     setImportPreviewFile(null);
@@ -5525,23 +5725,77 @@ const GeneratePendingList = () => {
         importPreviewSheet,
       );
       const result = await pendingPoApi.importFile(reviewedFile);
-      setUploadedFile(reviewedFile);
+
+      const insertedCount = Number(result?.inserted || 0);
+      const updatedCount = Number(result?.updated || 0);
+      const skippedCount = Number(result?.skipped || 0);
+
+      const companiesInUpload = Array.isArray(result?.companiesInUpload)
+        ? result.companiesInUpload.filter(Boolean)
+        : [];
+
+      const companiesAfterImport = Array.isArray(result?.companiesAfterImport)
+        ? result.companiesAfterImport.filter(Boolean)
+        : [];
+
+      const importRecord = {
+        id: `${Date.now()}-${reviewedFile.name}`,
+        name: reviewedFile.name,
+        size: reviewedFile.size,
+        uploadedAt: new Date().toISOString(),
+        companies: companiesInUpload,
+        inserted: insertedCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+      };
+
+      // Append the new workbook to session history.
+      setUploadedFiles((current) => [importRecord, ...current].slice(0, 20));
+
+      setLastImportSummary({
+        ...importRecord,
+        companiesAfterImport,
+        databaseTotalAfterImport: Number(
+          result?.databaseTotalAfterImport || 0,
+        ),
+      });
+
       setSelectedItems(new Set());
       setSortConfig({ key: "deliveryDate", direction: "asc" });
       setCurrentPage(1);
       clearFilters();
+
+      // Always reload the COMPLETE portfolio after import.
       const refreshed = await loadPurchaseOrders({ quiet: true });
 
-      const skippedCount = Number(result?.skipped || 0);
       const refreshSuffix = refreshed
         ? ""
-        : ". Import succeeded, but the list could not refresh";
+        : ". Import succeeded, but the complete list could not refresh";
+
+      const companySuffix =
+        companiesAfterImport.length > 0
+          ? ` · ${companiesAfterImport.length} compan${
+              companiesAfterImport.length === 1 ? "y" : "ies"
+            } now saved`
+          : "";
+
       showNotification(
-        `${result?.inserted || 0} inserted, ${result?.updated || 0} updated${
+        `${insertedCount} inserted, ${updatedCount} updated${
           skippedCount ? `, ${skippedCount} skipped` : ""
-        }${refreshSuffix}`,
+        }${companySuffix}${refreshSuffix}`,
         skippedCount || !refreshed ? "warning" : "success",
       );
+
+      console.log("Pending PO import result:", {
+        file: reviewedFile.name,
+        inserted: insertedCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+        companiesInUpload,
+        companiesAfterImport,
+        databaseTotalAfterImport: result?.databaseTotalAfterImport,
+      });
+
       resetImportPreview();
     } catch (error) {
       console.error("Error importing reviewed Excel data:", error);
@@ -5592,10 +5846,6 @@ const GeneratePendingList = () => {
     sortConfig,
     pageSize,
   ]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(Math.max(1, page), totalPages));
-  }, [totalPages]);
 
   const handleDispatchUpdate = useCallback(
     async (payload) => {
@@ -5721,50 +5971,6 @@ const GeneratePendingList = () => {
     );
   }, []);
 
-  const getItemIdentity = (item) => {
-    const itemCode = normalizeMergeKeyPart(item?.itemCode);
-
-    if (itemCode) return `code:${itemCode}`;
-
-    return [
-      `drawing:${normalizeMergeKeyPart(item?.drawing)}`,
-      `item:${normalizeMergeKeyPart(item?.item)}`,
-    ].join("::");
-  };
-
-  const getMergedItemKey = (item) =>
-    [normalizeMergeKeyPart(item?.company), getItemIdentity(item)].join("::");
-
-  const getRecordTimestamp = (item) => {
-    const timestamp = Date.parse(item?.updatedAt || item?.createdAt || "");
-    return Number.isFinite(timestamp) ? timestamp : 0;
-  };
-
-  const deduplicatePOItems = (items = []) => {
-    const uniqueItems = new Map();
-
-    items.forEach((item, index) => {
-      const companyKey = normalizeMergeKeyPart(item?.company);
-      const poKey =
-        normalizeMergeKeyPart(item?.po) ||
-        `record:${normalizeText(item?._id) || index}`;
-
-      // One calculation entry for each PO + item.
-      const uniqueKey = [companyKey, poKey, getItemIdentity(item)].join("::");
-
-      const existing = uniqueItems.get(uniqueKey);
-
-      // If duplicate documents exist, use the latest document only.
-      if (
-        !existing ||
-        getRecordTimestamp(item) > getRecordTimestamp(existing)
-      ) {
-        uniqueItems.set(uniqueKey, item);
-      }
-    });
-
-    return [...uniqueItems.values()];
-  };
   const getRiskMeta = useCallback(
     (item) => {
       const status = normalizeText(item?.status).toLowerCase();
@@ -6269,7 +6475,9 @@ const GeneratePendingList = () => {
   }, [notification]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/70 to-indigo-50 p-3 text-slate-900 sm:p-5 lg:p-6">
+    <>
+      {/* This page intentionally has no vertical scroll container.
+          DashboardLayout <main> owns vertical scrolling. */}
       <style>
         {`
           @keyframes slideIn {
@@ -6383,7 +6591,7 @@ const GeneratePendingList = () => {
         onDispatchDelete={handleDispatchDelete}
       />
 
-      <div className="mx-auto max-w-[1600px]">
+      <div className="mx-auto w-full min-w-0 max-w-[1600px] bg-gradient-to-br from-slate-50 via-blue-50/70 to-indigo-50 p-3 text-slate-900 sm:p-5 lg:p-6">
         {/* Header */}
         <header className="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl" />
@@ -6477,15 +6685,27 @@ const GeneratePendingList = () => {
             <div className="relative mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/15 bg-slate-950/10 px-4 py-3 text-xs text-blue-50 backdrop-blur-sm">
               <span className="flex min-w-0 items-center gap-2 font-medium">
                 <FileSpreadsheet className="h-4 w-4 shrink-0" />
-                <span className="max-w-[280px] truncate">
-                  {uploadedFile?.name || "Saved purchase-order records"}
-                </span>
+                <span>Saved purchase-order records</span>
               </span>
-              {uploadedFile?.size ? (
-                <span>{(uploadedFile.size / 1024).toFixed(1)} KB imported</span>
-              ) : null}
+
               <span>{manager?.summary.totalPOs || 0} purchase orders</span>
               <span>{manager?.summary.totalCompanies || 0} companies</span>
+
+              {uploadedFiles.length > 0 ? (
+                <span>
+                  {uploadedFiles.length} Excel file
+                  {uploadedFiles.length === 1 ? "" : "s"} imported this session
+                </span>
+              ) : null}
+
+              {lastImportSummary?.name ? (
+                <span
+                  className="max-w-[360px] truncate"
+                  title={lastImportSummary.name}
+                >
+                  Last import: {lastImportSummary.name}
+                </span>
+              ) : null}
               {dataQualityIssueCount > 0 && (
                 <span className="flex items-center gap-1.5 rounded-full bg-amber-300/20 px-2.5 py-1 text-amber-50">
                   <AlertCircle className="h-3.5 w-3.5" />
@@ -6493,6 +6713,39 @@ const GeneratePendingList = () => {
                   {dataQualityIssueCount === 1 ? "" : "s"} need review
                 </span>
               )}
+              {uploadedFiles.length > 0 && (
+                <div className="order-last flex basis-full flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-100">
+                    Recent imports:
+                  </span>
+
+                  {uploadedFiles.slice(0, 6).map((file) => (
+                    <span
+                      key={file.id}
+                      title={[
+                        file.name,
+                        file.companies?.length
+                          ? `Company: ${file.companies.join(", ")}`
+                          : "",
+                        `${file.inserted} inserted`,
+                        `${file.updated} updated`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      className="max-w-[260px] truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] text-blue-50"
+                    >
+                      {file.name}
+                    </span>
+                  ))}
+
+                  {uploadedFiles.length > 6 ? (
+                    <span className="text-[11px] text-blue-100">
+                      +{uploadedFiles.length - 6} more
+                    </span>
+                  ) : null}
+                </div>
+              )}
+
               <span className="ml-auto flex items-center gap-1.5 text-blue-100">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {lastSyncedAt
@@ -7063,6 +7316,7 @@ const GeneratePendingList = () => {
                       formatCurrency={formatCurrency}
                       formatDate={formatDate}
                       getItemKey={getItemKey}
+                      pageSize={pageSize}
                     />
                   ))}
                 </div>
@@ -7073,17 +7327,14 @@ const GeneratePendingList = () => {
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
                 <span>
-                  Showing{" "}
-                  <strong className="text-slate-800">
-                    {sortedData.length === 0 ? 0 : pageStart + 1}–
-                    {Math.min(pageStart + pageSize, sortedData.length)}
+                  Showing <strong className="text-slate-800">
+                    all {sortedData.length}
                   </strong>{" "}
-                  of{" "}
+                  merged items across{" "}
                   <strong className="text-slate-800">
-                    {sortedData.length}
+                    {filteredCompanyCount}
                   </strong>{" "}
-                  merged items across {filteredCompanyCount} companies (
-                  {filteredData.length} source PO lines)
+                  companies ({filteredData.length} source PO lines)
                 </span>
                 {filteredManager && (
                   <>
@@ -7115,7 +7366,7 @@ const GeneratePendingList = () => {
 
               <div className="no-print flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-xs text-slate-500">
-                  Merged items per page
+                  Rows per expanded company
                   <select
                     value={pageSize}
                     onChange={(event) =>
@@ -7130,52 +7381,11 @@ const GeneratePendingList = () => {
                     ))}
                   </select>
                 </label>
-                <span className="min-w-[90px] text-center text-xs font-semibold text-slate-600">
-                  Page {currentPage} of {totalPages}
+
+                <span className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                  {filteredCompanyCount} compan
+                  {filteredCompanyCount === 1 ? "y" : "ies"} visible
                 </span>
-                <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage <= 1}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="First page"
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentPage((page) => Math.max(1, page - 1))
-                    }
-                    disabled={currentPage <= 1}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCurrentPage((page) => Math.min(totalPages, page + 1))
-                    }
-                    disabled={currentPage >= totalPages}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Next page"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage >= totalPages}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Last page"
-                  >
-                    <ChevronsRight className="h-4 w-4" />
-                  </button>
-                  
-                </div>
               </div>
             </div>
           </section>
@@ -7239,7 +7449,7 @@ const GeneratePendingList = () => {
           </section>
         )}
       </div>
-    </div>
+    </>
   );
 };
 
