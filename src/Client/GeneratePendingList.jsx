@@ -14,11 +14,7 @@ import {
   pendingPoApi,
 } from "./pendingPoApi.js";
 import rejectionApi from "./rejectionApi.js";
-import {
-  attachRejectionSummary,
-  buildRejectionSummaryMap,
-  calculatePOBalance,
-} from "./Rejection/rejection.math.js";
+import { calculatePOBalance } from "./Rejection/rejection.math.js";
 import {
   Activity,
   ArrowDown,
@@ -211,7 +207,15 @@ const normalizePurchaseOrder = (record = {}, index = 0) => {
   // Gross dispatch is historical and may exceed PO quantity because replacement
   // dispatches are valid after a rejection. Never cap it at poQty.
   const dispatched = rawDispatched;
-  const rejected = toNonNegativeNumber(record.rejected ?? record.rejectedQty);
+  const rejected = toNonNegativeNumber(
+    record.rejected ??
+      record.rejectedQty ??
+      record.rejectedQuantity ??
+      record?.originalData?.["Rejected Qty"] ??
+      record?.originalData?.["Rejected Quantity"] ??
+      record?.originalData?.rejectedQty ??
+      0,
+  );
   const balance = calculatePOBalance({ poQty, dispatched, rejected });
   const accepted = balance.accepted;
   const pending = balance.pending;
@@ -1059,7 +1063,6 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
     onUpdateRow(row._previewId, field, event.target.value);
 
   return (
-
     <div
       className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4"
       role="dialog"
@@ -4517,39 +4520,113 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
     [item],
   );
 
-  const rawDispatchOptions = useMemo(() => {
-    return sourceItems.flatMap((sourceItem) => {
-      const itemKey = getItemKey(sourceItem);
-      const history =
-        dispatchHistory[itemKey] || sourceItem.dispatchHistory || [];
-      return history
-        .map((entry, index) => {
-          const dispatchId = normalizeText(entry?._id || entry?.id);
-          const poId = normalizeText(entry?.poId || sourceItem?._id);
-          const quantity = toNonNegativeNumber(
-            entry?.dispatchQty ?? entry?.quantity,
-          );
-          if (!dispatchId || !poId || quantity <= 0) return null;
+const rawDispatchOptions = useMemo(() => {
+  return sourceItems.flatMap((sourceItem) => {
+    const itemKey = getItemKey(sourceItem);
 
-          return {
-            key: `${poId}::${dispatchId}`,
-            poId,
-            dispatchId,
-            poNumber: normalizeText(entry?.po || sourceItem?.po),
-            companyName: normalizeText(entry?.company || sourceItem?.company),
-            itemCode: normalizeText(entry?.itemCode || sourceItem?.itemCode),
-            description: normalizeText(entry?.item || sourceItem?.item),
-            drawing: normalizeText(entry?.drawing || sourceItem?.drawing),
-            quantity,
-            dispatchDate: entry?.dispatchDate || "",
-            billNumber: normalizeText(entry?.billNumber),
-            sourceItem,
-            index,
-          };
-        })
-        .filter(Boolean);
-    });
-  }, [sourceItems, dispatchHistory, getItemKey]);
+    const history =
+      dispatchHistory[itemKey] ||
+      sourceItem.dispatchHistory ||
+      [];
+
+    return history
+      .map((entry, index) => {
+        /*
+         * IMPORTANT:
+         * entry._id may be a frontend/history composite id.
+         * entry.dispatchId is the real PendingDispatch MongoDB id.
+         */
+        const dispatchId = normalizeText(
+          entry?.dispatchId ||
+          entry?._id ||
+          entry?.id,
+        );
+
+        /*
+         * The selected sourceItem is the actual PO currently
+         * displayed in the table, so prefer its MongoDB _id.
+         */
+        const poId = normalizeText(
+          sourceItem?._id ||
+          entry?.poId,
+        );
+
+        const quantity =
+          toNonNegativeNumber(
+            entry?.dispatchQty ??
+            entry?.quantity,
+          );
+
+        if (
+          !dispatchId ||
+          !poId ||
+          quantity <= 0
+        ) {
+          return null;
+        }
+
+        return {
+          key: `${poId}::${dispatchId}`,
+
+          poId,
+
+          dispatchId,
+
+          poNumber:
+            normalizeText(
+              sourceItem?.po ||
+              entry?.po,
+            ),
+
+          companyName:
+            normalizeText(
+              sourceItem?.company ||
+              entry?.company,
+            ),
+
+          itemCode:
+            normalizeText(
+              sourceItem?.itemCode ||
+              entry?.itemCode,
+            ),
+
+          description:
+            normalizeText(
+              sourceItem?.item ||
+              entry?.item,
+            ),
+
+          drawing:
+            normalizeText(
+              sourceItem?.drawing ||
+              entry?.drawing,
+            ),
+
+          quantity,
+
+          dispatchDate:
+            entry?.dispatchDate ||
+            entry?.date ||
+            "",
+
+          billNumber:
+            normalizeText(
+              entry?.billNumber,
+            ),
+
+          sourceItem,
+
+          index,
+        };
+      })
+      .filter(Boolean);
+  });
+}, [
+  sourceItems,
+  dispatchHistory,
+  getItemKey,
+]);
+
 
   const committedByDispatch = useMemo(() => {
     const map = new Map();
@@ -5902,27 +5979,29 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                             <span>{dispatchableItems.length} POs</span>
                           )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onRejectionClick(item)}
-                          disabled={itemHistoryCount === 0}
-                          className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                          title={
-                            itemHistoryCount > 0
-                              ? "Add, review, or accept rejection"
-                              : "Record a dispatch before adding rejection"
-                          }
-                        >
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          <span className="hidden xl:inline">Reject</span>
-                          {Number(item.rejected || 0) > 0 && (
-                            <span className="ml-0.5 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] text-rose-800">
-                              {Number(item.rejected || 0).toLocaleString(
-                                "en-IN",
-                              )}
-                            </span>
-                          )}
-                        </button>
+                      <button
+  type="button"
+  onClick={() => onRejectionClick(item)}
+  disabled={Number(item.dispatched || 0) <= 0}
+  className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+  title={
+    Number(item.dispatched || 0) > 0
+      ? "Add, review, or accept rejection"
+      : "No dispatched quantity available for rejection"
+  }
+>
+  <AlertCircle className="h-3.5 w-3.5" />
+
+  <span className="hidden xl:inline">
+    Reject
+  </span>
+
+  {Number(item.rejected || 0) > 0 && (
+    <span className="ml-0.5 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] text-rose-800">
+      {Number(item.rejected || 0).toLocaleString("en-IN")}
+    </span>
+  )}
+</button>
                         {item._isMerged ? (
                           <button
                             type="button"
@@ -6723,18 +6802,77 @@ const GeneratePendingList = () => {
           }
         }
 
-        const rejectionSummaryRows = await rejectionApi.getSummary({ signal });
+        const rejectionSummaryResult = await rejectionApi.getSummary({
+          signal,
+        });
         if (signal?.aborted || requestSequence !== loadSequenceRef.current) {
           return false;
         }
-        const rejectionSummaryMap =
-          buildRejectionSummaryMap(rejectionSummaryRows);
-        const records = allRecords.map((record, index) =>
-          normalizePurchaseOrder(
-            attachRejectionSummary(record, rejectionSummaryMap),
+
+        // IMPORTANT: map the rejection summary directly by the MongoDB PO id.
+        // This avoids a helper/key-shape mismatch that can overwrite a real DB
+        // rejected quantity with 0 in the table.
+        const rejectionSummaryRows = Array.isArray(rejectionSummaryResult)
+          ? rejectionSummaryResult
+          : Array.isArray(rejectionSummaryResult?.records)
+            ? rejectionSummaryResult.records
+            : Array.isArray(rejectionSummaryResult?.data)
+              ? rejectionSummaryResult.data
+              : [];
+
+        const rejectionByPoId = new Map();
+        rejectionSummaryRows.forEach((row) => {
+          const poId = normalizeText(row?.poId ?? row?._id ?? row?.id);
+          if (!poId) return;
+
+          const rejected = toNonNegativeNumber(
+            row?.rejectedQuantity ?? row?.rejectedQty ?? row?.rejected,
+          );
+          rejectionByPoId.set(poId, rejected);
+        });
+
+        const records = allRecords.map((record, index) => {
+          const poId = normalizeText(record?._id ?? record?.id);
+          const storedRejectedRaw =
+            record?.rejected ??
+            record?.rejectedQty ??
+            record?.rejectedQuantity ??
+            record?.originalData?.["Rejected Qty"] ??
+            record?.originalData?.["Rejected Quantity"] ??
+            record?.originalData?.rejectedQty;
+          const hasStoredRejected =
+            storedRejectedRaw !== undefined &&
+            storedRejectedRaw !== null &&
+            storedRejectedRaw !== "";
+
+          const rejected = rejectionByPoId.has(poId)
+            ? rejectionByPoId.get(poId)
+            : hasStoredRejected
+              ? toNonNegativeNumber(storedRejectedRaw)
+              : 0;
+
+          return normalizePurchaseOrder(
+            {
+              ...record,
+              rejected,
+              rejectedQty: rejected,
+            },
             index,
-          ),
-        );
+          );
+        });
+
+        console.log("Pending PO rejection summary merge:", {
+          summaryRows: rejectionSummaryRows.length,
+          mappedPoIds: rejectionByPoId.size,
+          rejectedRows: records
+            .filter((row) => row.rejected > 0)
+            .map((row) => ({
+              poId: row._id,
+              po: row.po,
+              itemCode: row.itemCode,
+              rejected: row.rejected,
+            })),
+        });
 
         // Remove ONLY a true duplicate:
         // same Company + same PO + same item identity.
@@ -6790,8 +6928,6 @@ const GeneratePendingList = () => {
           setLoadError("");
           setLastSyncedAt(new Date());
         });
-
-    
 
         return true;
       } catch (error) {
