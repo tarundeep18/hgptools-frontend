@@ -1059,7 +1059,7 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
     onUpdateRow(row._previewId, field, event.target.value);
 
   return (
-    
+
     <div
       className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4"
       role="dialog"
@@ -6791,13 +6791,7 @@ const GeneratePendingList = () => {
           setLastSyncedAt(new Date());
         });
 
-        console.log("Pending PO multi-company load:", {
-          databaseRecordsReceived: allRecords.length,
-          uniquePOLines: uniqueRecords.length,
-          companiesLoaded: nextCompanies,
-          companyCount: nextCompanies.length,
-          serverConfirmedAll,
-        });
+    
 
         return true;
       } catch (error) {

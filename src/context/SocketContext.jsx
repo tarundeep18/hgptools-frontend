@@ -11,20 +11,54 @@ import { io } from "socket.io-client";
 
 const SocketContext = createContext(null);
 
+const normalizeId = (value) => String(value ?? "").trim();
+
 const getSocketUrl = () => {
-  // Use environment variable or fallback to localhost:5000
-  const configuredUrl = import.meta.env.VITE_REACT_APP_SOCKET_BASEURL || "http://localhost:5000";
-  
+  const configuredUrl =
+    import.meta.env.VITE_REACT_APP_SOCKET_BASEURL || "http://localhost:5000";
+
   const cleanUrl = configuredUrl
-    .replace(/\/api\/v1\/?$/, "")
-    .replace(/\/api\/?$/, "")
+    .trim()
+    .replace(/\/socket\.io\/?$/i, "")
+    .replace(/\/api\/v1\/?$/i, "")
+    .replace(/\/api\/?$/i, "")
     .replace(/\/$/, "");
-  
-  console.log('🔌 Connecting to Socket.IO at:', cleanUrl);
-  return cleanUrl;
+
+  return cleanUrl || "http://localhost:5000";
 };
 
-const normalizeId = (value) => String(value ?? "").trim();
+const getSocketPath = () => {
+  const configuredPath = import.meta.env.VITE_SOCKET_IO_PATH || "/socket.io";
+
+  // Be tolerant if a full URL was accidentally supplied in VITE_SOCKET_IO_PATH.
+  try {
+    if (/^https?:\/\//i.test(configuredPath)) {
+      return (
+        new URL(configuredPath).pathname.replace(/\/$/, "") || "/socket.io"
+      );
+    }
+  } catch {
+    // Fall through to normal path cleanup.
+  }
+
+  const cleanPath = String(configuredPath).trim().replace(/\/$/, "");
+
+  if (!cleanPath) return "/socket.io";
+  return cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+};
+
+const getBooleanEnv = (value, fallback) => {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  return String(value).toLowerCase() === "true";
+};
+
+const getNumberEnv = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
@@ -42,10 +76,11 @@ export const SocketProvider = ({ children }) => {
 
   const emitSubscription = useCallback((eventName, payload) => {
     const activeSocket = socketRef.current;
-    if (!activeSocket?.connected) {
-      console.warn(`Socket not connected, cannot emit ${eventName}`);
-      return;
-    }
+
+    // if (!activeSocket?.connected) {
+    //   console.warn(`Socket not connected, cannot emit ${eventName}`);
+    //   return;
+    // }
 
     activeSocket.emit(eventName, payload, (response) => {
       if (response?.success === false) {
@@ -57,39 +92,64 @@ export const SocketProvider = ({ children }) => {
   }, []);
 
   // const restoreSubscriptions = useCallback(() => {
-  //   console.log('🔄 Restoring subscriptions...');
-  //   console.log(`📋 Company subscriptions: ${companySubscriptionsRef.current.size}`);
-  //   console.log(`📋 Stream subscriptions: ${streamSubscriptionsRef.current.size}`);
+  //   console.log("🔄 Restoring Socket.IO subscriptions...");
+  //   console.log(
+  //     `📋 Company subscriptions: ${companySubscriptionsRef.current.size}`,
+  //   );
+  //   console.log(
+  //     `📋 Stream subscriptions: ${streamSubscriptionsRef.current.size}`,
+  //   );
 
   //   companySubscriptionsRef.current.forEach((count, companyId) => {
   //     if (count > 0) {
-  //       console.log(`🔄 Restoring company: ${companyId}`);
-  //       emitSubscription("spc:subscribe-company", { companyId });
+  //       emitSubscription("spc:subscribe-company", {
+  //         companyId,
+  //       });
   //     }
   //   });
 
   //   streamSubscriptionsRef.current.forEach((count, spcStreamKey) => {
   //     if (count > 0) {
-  //       console.log(`🔄 Restoring stream: ${spcStreamKey}`);
-  //       emitSubscription("spc:subscribe-stream", { spcStreamKey });
+  //       emitSubscription("spc:subscribe-stream", {
+  //         spcStreamKey,
+  //       });
   //     }
   //   });
   // }, [emitSubscription]);
 
   // useEffect(() => {
   //   const socketUrl = getSocketUrl();
-  //   console.log(`🔌 Initializing Socket.IO connection to: ${socketUrl}`);
+  //   const socketPath = getSocketPath();
+
+  //   const withCredentials = getBooleanEnv(
+  //     import.meta.env.VITE_SOCKET_WITH_CREDENTIALS,
+  //     true,
+  //   );
+
+  //   const timeout = getNumberEnv(import.meta.env.VITE_SOCKET_TIMEOUT_MS, 20000);
+
+  //   const reconnectionAttempts = getNumberEnv(
+  //     import.meta.env.VITE_SOCKET_RECONNECTION_ATTEMPTS,
+  //     10,
+  //   );
+
+  //   const debug = getBooleanEnv(import.meta.env.VITE_SOCKET_DEBUG, false);
+
+  //   // console.log("🔌 Initializing Socket.IO connection:", {
+  //   //   url: socketUrl,
+  //   //   path: socketPath,
+  //   // });
 
   //   const activeSocket = io(socketUrl, {
-  //     path: "/socket.io",
+  //     path: socketPath,
   //     transports: ["polling", "websocket"],
   //     upgrade: true,
-  //     withCredentials: true,
+  //     withCredentials,
   //     reconnection: true,
-  //     reconnectionAttempts: 10,
+  //     reconnectionAttempts,
   //     reconnectionDelay: 1000,
   //     reconnectionDelayMax: 5000,
-  //     timeout: 20000,
+  //     timeout,
   //     autoConnect: true,
   //   });
 
@@ -97,106 +157,148 @@ export const SocketProvider = ({ children }) => {
   //   setSocket(activeSocket);
   //   setConnectionError(null);
 
-  //   const handleConnect = () => {
-  //     const currentTransport =
-  //       activeSocket.io.engine?.transport?.name || "unknown";
+  //   // const handleConnect = () => {
+  //   //   const currentTransport =
+  //   //     activeSocket.io.engine?.transport?.name || "unknown";
 
-  //     console.log(`✅ Socket.IO connected! ID: ${activeSocket.id}`);
-  //     console.log(`📡 Transport: ${currentTransport}`);
-      
-  //     setIsConnected(true);
-  //     setSocketId(activeSocket.id);
-  //     setTransport(currentTransport);
-  //     setConnectionError(null);
-  //     reconnectAttemptsRef.current = 0;
-      
-  //     // Restore subscriptions after successful connection
-  //     setTimeout(() => {
-  //       restoreSubscriptions();
-  //     }, 100);
+  //   //   console.log(`✅ Socket.IO connected! ID: ${activeSocket.id}`);
+  //   //   console.log(`📡 Transport: ${currentTransport}`);
 
-  //     activeSocket.io.engine?.once("upgrade", (upgradedTransport) => {
-  //       console.log(`⬆️ Transport upgraded to: ${upgradedTransport.name}`);
-  //       setTransport(upgradedTransport.name);
-  //     });
-  //   };
+  //   //   setIsConnected(true);
+  //   //   setSocketId(activeSocket.id);
+  //   //   setTransport(currentTransport);
+  //   //   setConnectionError(null);
+  //   //   reconnectAttemptsRef.current = 0;
 
-  //   const handleDisconnect = (reason) => {
-  //     // console.log(`❌ Socket.IO disconnected: ${reason}`);
-  //     setIsConnected(false);
-  //     setSocketId(null);
-  //     setTransport("");
-  //   };
+  //   //   // Restore all room subscriptions after a reconnect/new connection.
+  //   //   window.setTimeout(() => {
+  //   //     if (activeSocket.connected) {
+  //   //       restoreSubscriptions();
+  //   //     }
+  //   //   }, 100);
 
-  //   // const handleConnectError = (error) => {
-  //   //   // console.error("❌ Socket.IO connection error:", error);
-  //   //   setConnectionError(error.message || "Connection failed");
+  //   //   activeSocket.io.engine?.once("upgrade", (upgradedTransport) => {
+  //   //     console.log(`⬆️ Transport upgraded to: ${upgradedTransport.name}`);
+  //   //     setTransport(upgradedTransport.name);
+  //   //   });
+  //   // };
+
+  //   // const handleDisconnect = (reason) => {
+  //   //   console.log(`❌ Socket.IO disconnected: ${reason}`);
+
   //   //   setIsConnected(false);
-      
-  //   //   reconnectAttemptsRef.current += 1;
-  //   //   console.log(`🔄 Reconnection attempt ${reconnectAttemptsRef.current}`);
+  //   //   setSocketId(null);
+  //   //   setTransport("");
   //   // };
 
-  //   // const handleReconnect = (attemptNumber) => {
-  //   //   console.log(`🔄 Reconnected after ${attemptNumber} attempts`);
-  //   // };
+  //   const handleConnectError = (error) => {
+  //     console.error("❌ Socket.IO connection error:", error);
 
-  //   // const handleReconnectFailed = () => {
-  //   //   console.error("❌ Reconnection failed after all attempts");
-  //   //   setConnectionError("Failed to reconnect after multiple attempts");
-  //   // };
+  //     setConnectionError(error?.message || "Socket.IO connection failed");
+  //     setIsConnected(false);
+
+  //     reconnectAttemptsRef.current += 1;
+
+  //     console.log(`🔄 Reconnection attempt ${reconnectAttemptsRef.current}`);
+  //   };
+
+  //   const handleReconnectAttempt = (attemptNumber) => {
+  //     console.log(`🔄 Socket reconnect attempt ${attemptNumber}`);
+  //   };
+
+  //   const handleReconnect = (attemptNumber) => {
+  //     console.log(`✅ Socket.IO reconnected after ${attemptNumber} attempt(s)`);
+  //   };
+
+  //   const handleReconnectFailed = () => {
+  //     console.error("❌ Socket.IO reconnection failed after all attempts");
+
+  //     setConnectionError(
+  //       "Failed to reconnect to Socket.IO after multiple attempts",
+  //     );
+  //   };
 
   //   const publishSPCEvent = (eventName, payload = {}) => {
-  //     const eventId = normalizeId(payload.eventId);
+  //     const eventId = normalizeId(payload?.eventId);
 
-  //     // The backend may publish the same change to both the company room and
-  //     // the specific SPC stream room. Keep only one UI invalidation event.
+  //     // The backend may publish the same event to both a company room and
+  //     // an SPC stream room. Prevent duplicate UI invalidation.
   //     if (eventId && lastEventIdRef.current === eventId) {
-  //       console.log(`⏭️ Skipping duplicate event: ${eventId}`);
+  //       if (debug) {
+  //         console.log(`⏭️ Skipping duplicate event: ${eventId}`);
+  //       }
   //       return;
   //     }
-  //     if (eventId) lastEventIdRef.current = eventId;
 
-  //     console.log(`📨 Received ${eventName}:`, payload);
+  //     if (eventId) {
+  //       lastEventIdRef.current = eventId;
+  //     }
+
+  //     if (debug) {
+  //       console.log(`📨 Received ${eventName}:`, payload);
+  //     }
+
   //     setLastSPCEvent({
-  //       ...payload,
+  //       ...(payload || {}),
   //       eventName,
   //       receivedAt: new Date().toISOString(),
   //     });
   //   };
 
-  //   const handleSPCDataChanged = (payload) =>
+  //   const handleSPCDataChanged = (payload) => {
   //     publishSPCEvent("spc:data-changed", payload);
-  //   const handleSPCStreamChanged = (payload) =>
+  //   };
+
+  //   const handleSPCStreamChanged = (payload) => {
   //     publishSPCEvent("spc:stream-changed", payload);
+  //   };
 
   //   activeSocket.on("connect", handleConnect);
   //   activeSocket.on("disconnect", handleDisconnect);
   //   activeSocket.on("connect_error", handleConnectError);
-  //   activeSocket.on("reconnect", handleReconnect);
-  //   activeSocket.on("reconnect_failed", handleReconnectFailed);
+
+  //   // Reconnection events belong to the Manager (socket.io), not the Socket.
+  //   activeSocket.io.on("reconnect_attempt", handleReconnectAttempt);
+  //   activeSocket.io.on("reconnect", handleReconnect);
+  //   activeSocket.io.on("reconnect_failed", handleReconnectFailed);
+
   //   activeSocket.on("spc:data-changed", handleSPCDataChanged);
   //   activeSocket.on("spc:stream-changed", handleSPCStreamChanged);
 
-  //   // Log socket events for debugging
-  //   activeSocket.onAny((event, ...args) => {
-  //     console.log(`🔔 Socket event: ${event}`, args);
-  //   });
+  //   if (debug) {
+  //     activeSocket.onAny((event, ...args) => {
+  //       console.log(`🔔 Socket event: ${event}`, args);
+  //     });
+  //   }
 
   //   return () => {
   //     console.log("🧹 Cleaning up Socket.IO connection...");
+
   //     activeSocket.off("connect", handleConnect);
   //     activeSocket.off("disconnect", handleDisconnect);
   //     activeSocket.off("connect_error", handleConnectError);
-  //     activeSocket.off("reconnect", handleReconnect);
-  //     activeSocket.off("reconnect_failed", handleReconnectFailed);
+
+  //     activeSocket.io.off("reconnect_attempt", handleReconnectAttempt);
+  //     activeSocket.io.off("reconnect", handleReconnect);
+  //     activeSocket.io.off("reconnect_failed", handleReconnectFailed);
+
   //     activeSocket.off("spc:data-changed", handleSPCDataChanged);
   //     activeSocket.off("spc:stream-changed", handleSPCStreamChanged);
-  //     activeSocket.offAny();
+
+  //     if (debug) {
+  //       activeSocket.offAny();
+  //     }
+
   //     activeSocket.disconnect();
 
-  //     socketRef.current = null;
+  //     if (socketRef.current === activeSocket) {
+  //       socketRef.current = null;
+  //     }
+
   //     setSocket(null);
+  //     setIsConnected(false);
+  //     setSocketId(null);
+  //     setTransport("");
   //   };
   // }, [restoreSubscriptions]);
 
@@ -209,11 +311,13 @@ export const SocketProvider = ({ children }) => {
     }
 
     activeSocket.emit(eventName, payload, acknowledgement);
+
     return true;
   }, []);
 
   const unsubscribeCompany = useCallback((companyId) => {
     const normalizedCompanyId = normalizeId(companyId);
+
     if (!normalizedCompanyId) return;
 
     const currentCount =
@@ -230,6 +334,7 @@ export const SocketProvider = ({ children }) => {
     companySubscriptionsRef.current.delete(normalizedCompanyId);
 
     const activeSocket = socketRef.current;
+
     if (activeSocket?.connected) {
       activeSocket.emit("spc:unsubscribe-company", {
         companyId: normalizedCompanyId,
@@ -240,10 +345,14 @@ export const SocketProvider = ({ children }) => {
   const subscribeCompany = useCallback(
     (companyId) => {
       const normalizedCompanyId = normalizeId(companyId);
-      if (!normalizedCompanyId) return () => {};
+
+      if (!normalizedCompanyId) {
+        return () => {};
+      }
 
       const currentCount =
         companySubscriptionsRef.current.get(normalizedCompanyId) || 0;
+
       companySubscriptionsRef.current.set(
         normalizedCompanyId,
         currentCount + 1,
@@ -262,22 +371,21 @@ export const SocketProvider = ({ children }) => {
 
   const unsubscribeStream = useCallback((spcStreamKey) => {
     const normalizedStreamKey = normalizeId(spcStreamKey);
+
     if (!normalizedStreamKey) return;
 
     const currentCount =
       streamSubscriptionsRef.current.get(normalizedStreamKey) || 0;
 
     if (currentCount > 1) {
-      streamSubscriptionsRef.current.set(
-        normalizedStreamKey,
-        currentCount - 1,
-      );
+      streamSubscriptionsRef.current.set(normalizedStreamKey, currentCount - 1);
       return;
     }
 
     streamSubscriptionsRef.current.delete(normalizedStreamKey);
 
     const activeSocket = socketRef.current;
+
     if (activeSocket?.connected) {
       activeSocket.emit("spc:unsubscribe-stream", {
         spcStreamKey: normalizedStreamKey,
@@ -288,14 +396,15 @@ export const SocketProvider = ({ children }) => {
   const subscribeStream = useCallback(
     (spcStreamKey) => {
       const normalizedStreamKey = normalizeId(spcStreamKey);
-      if (!normalizedStreamKey) return () => {};
+
+      if (!normalizedStreamKey) {
+        return () => {};
+      }
 
       const currentCount =
         streamSubscriptionsRef.current.get(normalizedStreamKey) || 0;
-      streamSubscriptionsRef.current.set(
-        normalizedStreamKey,
-        currentCount + 1,
-      );
+
+      streamSubscriptionsRef.current.set(normalizedStreamKey, currentCount + 1);
 
       if (currentCount === 0) {
         emitSubscription("spc:subscribe-stream", {
