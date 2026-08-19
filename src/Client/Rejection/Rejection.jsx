@@ -79,7 +79,7 @@ const statusMeta = {
   recorded: ["Recorded", "bg-blue-100 text-blue-700", CheckCircle2],
 };
 
-export default function RejectionHistory() {
+const RejectionHistory = () =>  {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
   const [activeTab, setActiveTab] = useState("rejections");
@@ -206,8 +206,8 @@ export default function RejectionHistory() {
 
   return (
     <div className="min-h-full bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 p-5 text-white shadow-lg">
+      <div className="mx-auto  space-y-5">
+        <header className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 px-8 py-6 text-white shadow-lg">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -612,3 +612,6 @@ function Tab({ active, onClick, children }) {
 function Empty({ text }) {
   return <div className="p-12 text-center text-sm text-slate-400">{text}</div>;
 }
+
+
+export default RejectionHistory;

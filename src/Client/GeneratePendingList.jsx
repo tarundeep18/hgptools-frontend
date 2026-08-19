@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import * as XLSX from "xlsx";
+import toast, { Toaster } from "react-hot-toast";
 import {
   createDispatchRequestId,
   getApiErrorMessage,
@@ -1431,6 +1432,137 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
 });
 
 // ============================================
+// REUSABLE CONFIRMATION DIALOG
+// ============================================
+const ConfirmActionDialog = React.memo(function ConfirmActionDialog({
+  confirmation,
+  onConfirm,
+  onCancel,
+}) {
+  useEffect(() => {
+    if (!confirmation) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirmation, onCancel]);
+
+  if (!confirmation) return null;
+
+  const tone = confirmation.tone || "danger";
+  const toneStyles = {
+    danger: {
+      iconWrap: "bg-rose-100 text-rose-600 ring-rose-200",
+      confirm:
+        "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 shadow-rose-600/20",
+    },
+    warning: {
+      iconWrap: "bg-amber-100 text-amber-700 ring-amber-200",
+      confirm:
+        "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/20",
+    },
+    primary: {
+      iconWrap: "bg-blue-100 text-blue-700 ring-blue-200",
+      confirm:
+        "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-600/20",
+    },
+  };
+  const palette = toneStyles[tone] || toneStyles.danger;
+
+  return (
+    <div
+      className="fixed inset-0 z-[12000] flex items-center justify-center overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-action-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        onClick={onCancel}
+        aria-label="Cancel confirmation"
+      />
+
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/80 bg-white shadow-2xl ring-1 ring-slate-900/5">
+        <div className="px-6 pb-5 pt-6">
+          <div className="flex items-start gap-4">
+            <div
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ${palette.iconWrap}`}
+            >
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3
+                id="confirm-action-title"
+                className="text-lg font-bold tracking-tight text-slate-900"
+              >
+                {confirmation.title || "Confirm action"}
+              </h3>
+              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                {confirmation.message}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+          >
+            {confirmation.cancelLabel || "Cancel"}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition ${palette.confirm}`}
+          >
+            {confirmation.confirmLabel || "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const useConfirmDialog = () => {
+  const [confirmation, setConfirmation] = useState(null);
+  const resolverRef = useRef(null);
+
+  const askForConfirmation = useCallback((options) => {
+    if (resolverRef.current) resolverRef.current(false);
+    return new Promise((resolve) => {
+      resolverRef.current = resolve;
+      setConfirmation(options);
+    });
+  }, []);
+
+  const resolveConfirmation = useCallback((confirmed) => {
+    const resolver = resolverRef.current;
+    resolverRef.current = null;
+    setConfirmation(null);
+    resolver?.(confirmed);
+  }, []);
+
+  useEffect(
+    () => () => {
+      resolverRef.current?.(false);
+      resolverRef.current = null;
+    },
+    [],
+  );
+
+  return {
+    confirmation,
+    askForConfirmation,
+    confirmAction: () => resolveConfirmation(true),
+    cancelAction: () => resolveConfirmation(false),
+  };
+};
+
+// ============================================
 // DISPATCH HISTORY BILL DETAILS COMPONENT
 // ============================================
 const DispatchBillDetails = React.memo(function DispatchBillDetails({
@@ -1452,6 +1584,8 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
   const remarks = safeEntries[0]?.remarks;
   const receivedBy = safeEntries[0]?.receivedBy;
   const canManage = Boolean(onEditDispatch || onDeleteDispatch);
+  const { confirmation, askForConfirmation, confirmAction, cancelAction } =
+    useConfirmDialog();
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -1477,15 +1611,21 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
   );
 
   const handleDelete = useCallback(
-    (dispatchId, poId) => {
+    async (dispatchId, poId) => {
       if (!dispatchId) return;
-      if (
-        window.confirm("Are you sure you want to delete this dispatch entry?")
-      ) {
-        onDeleteDispatch?.(dispatchId, poId);
-      }
+
+      const confirmed = await askForConfirmation({
+        title: "Delete dispatch entry?",
+        message:
+          "This dispatch entry will be permanently removed. This action cannot be undone.",
+        confirmLabel: "Delete",
+        cancelLabel: "Keep Entry",
+        tone: "danger",
+      });
+
+      if (confirmed) onDeleteDispatch?.(dispatchId, poId);
     },
-    [onDeleteDispatch],
+    [askForConfirmation, onDeleteDispatch],
   );
 
   return (
@@ -1678,6 +1818,11 @@ const DispatchBillDetails = React.memo(function DispatchBillDetails({
           </div>
         </div>
       </div>
+      <ConfirmActionDialog
+        confirmation={confirmation}
+        onConfirm={confirmAction}
+        onCancel={cancelAction}
+      />
     </div>
   );
 });
@@ -4511,6 +4656,8 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
     inspectorName: "",
     notes: "",
   });
+  const { confirmation, askForConfirmation, confirmAction, cancelAction } =
+    useConfirmDialog();
 
   const sourceItems = useMemo(
     () => (item ? getSourcePurchaseOrders(item) : []),
@@ -4807,7 +4954,14 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
           : `Accept ${rejectedQty} rejected piece(s) WITHOUT changing this PO pending quantity? The rejection will remain available for Inventory & Disposition.`
         : "Deny this rejection? It will not affect pending quantity.";
 
-      if (!window.confirm(promptText)) return;
+      const confirmed = await askForConfirmation({
+        title: isApprove ? "Accept rejection?" : "Deny rejection?",
+        message: promptText,
+        confirmLabel: isApprove ? "Accept" : "Deny",
+        cancelLabel: "Cancel",
+        tone: isApprove ? "primary" : "danger",
+      });
+      if (!confirmed) return;
 
       setReviewingId(record._id);
       setError("");
@@ -4852,7 +5006,7 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
         setReviewingId("");
       }
     },
-    [reviewingId, loadHistory, onChanged],
+    [reviewingId, askForConfirmation, loadHistory, onChanged],
   );
 
   if (!isOpen || !item) return null;
@@ -5518,6 +5672,11 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
           </div>
         </div>
       </div>
+      <ConfirmActionDialog
+        confirmation={confirmation}
+        onConfirm={confirmAction}
+        onCancel={cancelAction}
+      />
     </div>
   );
 });
@@ -6421,7 +6580,6 @@ const GeneratePendingList = () => {
     key: "deliveryDate",
     direction: "asc",
   });
-  const [notification, setNotification] = useState(null);
   const [selectedItemForDispatch, setSelectedItemForDispatch] = useState(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isMultipleDispatchModalOpen, setIsMultipleDispatchModalOpen] =
@@ -6497,7 +6655,22 @@ const GeneratePendingList = () => {
   const getItemKey = useCallback((item) => getPurchaseOrderKey(item), []);
 
   const showNotification = useCallback((message, type = "info") => {
-    setNotification({ message, type });
+    const toastMessage = normalizeText(message);
+    if (!toastMessage) return;
+
+    switch (type) {
+      case "success":
+        toast.success(toastMessage);
+        break;
+      case "error":
+        toast.error(toastMessage);
+        break;
+      case "warning":
+        toast(toastMessage, { icon: "⚠️" });
+        break;
+      default:
+        toast(toastMessage);
+    }
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -6694,12 +6867,6 @@ const GeneratePendingList = () => {
     ],
   );
 
-  useEffect(() => {
-    if (!notification) return undefined;
-    const timer = window.setTimeout(() => setNotification(null), 5000);
-    return () => window.clearTimeout(timer);
-  }, [notification]);
-
   const loadPurchaseOrders = useCallback(
     async (
       { quiet = false, signal = undefined } = {
@@ -6874,7 +7041,7 @@ const GeneratePendingList = () => {
         setLoadError(message);
 
         if (!quiet) {
-          setNotification({ message, type: "error" });
+          showNotification(message, "error");
         }
 
         return false;
@@ -6884,7 +7051,7 @@ const GeneratePendingList = () => {
         }
       }
     },
-    [getItemKey, startTransition],
+    [getItemKey, showNotification, startTransition],
   );
   const resetImportPreview = useCallback(() => {
     setIsImportPreviewOpen(false);
@@ -7728,62 +7895,9 @@ const GeneratePendingList = () => {
     }
   }, [showNotification]);
 
-  const renderNotification = useCallback(() => {
-    if (!notification) return null;
-
-    const variants = {
-      success: {
-        classes: "border-emerald-200 bg-white text-emerald-800",
-        icon: CheckCircle2,
-        iconClasses: "bg-emerald-50 text-emerald-600",
-      },
-      error: {
-        classes: "border-rose-200 bg-white text-rose-800",
-        icon: CircleAlert,
-        iconClasses: "bg-rose-50 text-rose-600",
-      },
-      warning: {
-        classes: "border-amber-200 bg-white text-amber-800",
-        icon: AlertCircle,
-        iconClasses: "bg-amber-50 text-amber-600",
-      },
-      info: {
-        classes: "border-blue-200 bg-white text-blue-800",
-        icon: Activity,
-        iconClasses: "bg-blue-50 text-blue-600",
-      },
-    };
-    const variant = variants[notification.type] || variants.info;
-    const NotificationIcon = variant.icon;
-
-    return (
-      <div
-        className={`fixed right-4 top-4 z-[70] flex max-w-sm items-center gap-3 rounded-2xl border p-3 pr-4 shadow-2xl shadow-slate-900/10 ${variant.classes} animate-slideIn`}
-        role={notification.type === "error" ? "alert" : "status"}
-        aria-live={notification.type === "error" ? "assertive" : "polite"}
-      >
-        <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${variant.iconClasses}`}
-        >
-          <NotificationIcon className="h-4 w-4" />
-        </span>
-        <span className="text-sm font-medium">{notification.message}</span>
-        <button
-          type="button"
-          onClick={() => setNotification(null)}
-          className="ml-auto rounded-md p-1 opacity-60 hover:bg-slate-100 hover:opacity-100"
-          aria-label="Dismiss notification"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    );
-  }, [notification]);
-
   return (
     <>
-      {/* This page intentionally has no vertical scroll container.
-          DashboardLayout <main> owns vertical scrolling. */}
+
       <style>
         {`
           @keyframes slideIn {
@@ -7807,7 +7921,15 @@ const GeneratePendingList = () => {
         `}
       </style>
 
-      {renderNotification()}
+    <Toaster
+  position="top-right"
+  containerStyle={{
+    zIndex: 99999,
+  }}
+  toastOptions={{
+    duration: 5000,
+  }}
+/>
 
       {/* Excel preview is staged locally; no API import happens until confirm. */}
       <ExcelImportPreviewModal
