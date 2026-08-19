@@ -123,13 +123,7 @@ const menuItems = [
     roles: ["admin"],
     group: "Order Management",
   },
-  {
-    title: "Rejected Items",
-    icon: <Ban size={18} />,
-    path: "/rejection-items",
-    roles: ["admin", "client","qc"],
-    group: "Order Management",
-  },
+ 
   {
     title: "Quality Reports",
     icon: <TbReportSearch size={18} />,
@@ -157,6 +151,13 @@ const menuItems = [
     path: "/generate/pendinglist",
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
+  },
+   {
+    title: "Rejected Items",
+    icon: <Ban size={18} />,
+    path: "/rejection-items",
+    roles: ["admin", "client","qc"],
+    group: "Order Management",
   },
   {
     title: "Inventory",

@@ -5,6 +5,7 @@ import {
   Clock3,
   Eye,
   Loader2,
+  Package,
   RefreshCw,
   Search,
   ThumbsDown,
@@ -17,6 +18,7 @@ import { useAuth } from "../../context/AuthContext";
 import { pendingPoApi } from "./../pendingPoApi.js";
 import rejectionApi, { getApiErrorMessage } from "../rejectionApi.js";
 import ItemRejection from "./ItemRejection.jsx";
+import Inventory from "./Inventory.jsx";
 
 const text = (value) => String(value ?? "").trim();
 const qty = (value) => {
@@ -85,6 +87,7 @@ export default function RejectionHistory() {
   const [rejections, setRejections] = useState([]);
   const [selectedDispatch, setSelectedDispatch] = useState(null);
   const [selectedRejection, setSelectedRejection] = useState(null);
+  const [selectedInventoryRejection, setSelectedInventoryRejection] = useState(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -162,6 +165,13 @@ export default function RejectionHistory() {
       qty: rejections
         .filter((r) => r.affectsPending)
         .reduce((sum, r) => sum + qty(r.rejectedQuantity), 0),
+      inventoryQty: rejections.reduce(
+        (sum, r) => sum + qty(r.inventoryAddedQuantity),
+        0,
+      ),
+      inventoryRecords: rejections.filter(
+        (r) => r.inventoryStatus === "stored" || r.inventoryStatus === "partial",
+      ).length,
     }),
     [rejections],
   );
@@ -205,7 +215,7 @@ export default function RejectionHistory() {
                 <h1 className="text-xl font-bold">Rejection Management</h1>
               </div>
               <p className="mt-1 text-sm text-slate-300">
-                One history for manual and Excel-imported rejections.
+                One history for manual and Excel-imported rejections, with quarantine inventory traceability.
               </p>
             </div>
             <button
@@ -223,7 +233,7 @@ export default function RejectionHistory() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <Stat label="Total Records" value={stats.total} />
           <Stat label="Pending Review" value={stats.pending} />
           <Stat label="Approved" value={stats.approved} />
@@ -231,6 +241,10 @@ export default function RejectionHistory() {
           <Stat
             label="Effective Rejected Qty"
             value={stats.qty.toLocaleString("en-IN")}
+          />
+          <Stat
+            label="Stored in Inventory"
+            value={`${stats.inventoryQty.toLocaleString("en-IN")} / ${stats.inventoryRecords} record(s)`}
           />
         </div>
 
@@ -303,6 +317,19 @@ export default function RejectionHistory() {
                                 ? "Excel Import"
                                 : "Manual"}
                             </span>
+                            {r.inventoryStatus && r.inventoryStatus !== "not_stored" && (
+                              <span
+                                className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                                  r.inventoryStatus === "stored"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-cyan-100 text-cyan-700"
+                                }`}
+                              >
+                                {r.inventoryStatus === "stored"
+                                  ? "Inventory stored"
+                                  : `Inventory ${qty(r.inventoryAddedQuantity).toLocaleString("en-IN")} / ${qty(r.rejectedQuantity).toLocaleString("en-IN")}`}
+                              </span>
+                            )}
                           </div>
                           <div className="mt-2 grid gap-1 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-5">
                             <span>
@@ -332,12 +359,26 @@ export default function RejectionHistory() {
                             </span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => setSelectedRejection(r)}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                        >
-                          <Eye className="h-3.5 w-3.5" /> View
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          {["approved", "recorded"].includes(r.status) && (
+                            <button
+                              onClick={() => setSelectedInventoryRejection(r)}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                            >
+                              <Package className="h-3.5 w-3.5" />{
+                                qty(r.inventoryAddedQuantity) > 0
+                                  ? "Inventory / Disposition"
+                                  : "Store Inventory"
+                              }
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedRejection(r)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> View
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -404,13 +445,33 @@ export default function RejectionHistory() {
           isAdmin={isAdmin}
           onClose={() => setSelectedRejection(null)}
           onReview={review}
+          onStoreInventory={(rejection) => {
+            setSelectedRejection(null);
+            setSelectedInventoryRejection(rejection);
+          }}
+        />
+      )}
+      {selectedInventoryRejection && (
+        <Inventory
+          rejection={selectedInventoryRejection}
+          onClose={() => setSelectedInventoryRejection(null)}
+          onSuccess={async (_data, options = {}) => {
+            await load();
+            if (options.close) setSelectedInventoryRejection(null);
+          }}
         />
       )}
     </div>
   );
 }
 
-function RejectionDetails({ rejection, isAdmin, onClose, onReview }) {
+function RejectionDetails({
+  rejection,
+  isAdmin,
+  onClose,
+  onReview,
+  onStoreInventory,
+}) {
   const [label, badge] =
     statusMeta[rejection.status] || statusMeta.pending_review;
   return (
@@ -455,6 +516,20 @@ function RejectionDetails({ rejection, isAdmin, onClose, onReview }) {
             label="Rejected Qty"
             value={qty(rejection.rejectedQuantity).toLocaleString("en-IN")}
           />
+          <Detail
+            label="Inventory Stored"
+            value={`${qty(rejection.inventoryAddedQuantity).toLocaleString("en-IN")} / ${qty(rejection.rejectedQuantity).toLocaleString("en-IN")}`}
+          />
+          <Detail
+            label="Inventory Status"
+            value={
+              rejection.inventoryStatus === "stored"
+                ? "Fully stored"
+                : rejection.inventoryStatus === "partial"
+                  ? "Partially stored"
+                  : "Not stored"
+            }
+          />
           <Detail label="Reason" value={rejection.reason} />
           <Detail label="Detailed Reason" value={rejection.subReason} />
           <Detail label="Severity" value={rejection.severity} />
@@ -466,22 +541,39 @@ function RejectionDetails({ rejection, isAdmin, onClose, onReview }) {
           <Detail label="Notes" value={rejection.notes} />
           <Detail label="Admin Remarks" value={rejection.adminRemarks} />
         </div>
-        {isAdmin && rejection.status === "pending_review" && (
-          <div className="flex gap-2 border-t border-slate-200 bg-slate-50 p-4">
-            <button
-              onClick={() => onReview(rejection, "approve")}
-              className="flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Approve & Reopen Pending
-            </button>
-            <button
-              onClick={() => onReview(rejection, "deny")}
-              className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-            >
-              Deny
-            </button>
+        {(isAdmin && rejection.status === "pending_review") ||
+        ["approved", "recorded"].includes(rejection.status) ? (
+          <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row">
+            {isAdmin && rejection.status === "pending_review" && (
+              <>
+                <button
+                  onClick={() => onReview(rejection, "approve")}
+                  className="flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  Approve & Reopen Pending
+                </button>
+                <button
+                  onClick={() => onReview(rejection, "deny")}
+                  className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                >
+                  Deny
+                </button>
+              </>
+            )}
+            {["approved", "recorded"].includes(rejection.status) && (
+              <button
+                onClick={() => onStoreInventory(rejection)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+              >
+                <Package className="h-4 w-4" />{
+                  qty(rejection.inventoryAddedQuantity) > 0
+                    ? "Manage Inventory / Disposition"
+                    : "Store in Inventory"
+                }
+              </button>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
