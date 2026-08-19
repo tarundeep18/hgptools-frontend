@@ -1,4 +1,3 @@
-// components/RejectedInventory.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
@@ -295,7 +294,7 @@ const RejectedInventory = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100/50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 shadow-lg shadow-indigo-500/10">
+      <div className="bg-gradient-to-r from-blue-600 rounded-2xl to-indigo-600 px-8 py-6 shadow-lg shadow-indigo-500/10">
         <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -540,145 +539,375 @@ const RejectedInventory = () => {
           </div>
         ) : (
           <>
-            {/* Table View */}
+            {/* Excel-style Table View */}
             {viewMode === "table" && (
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50/80 border-b border-slate-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleSort("itemCode")}
-                            className="flex items-center gap-1 hover:text-slate-800"
+              <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+                {/* Excel-style sheet title bar */}
+                <div className="flex flex-col gap-2 border-b border-slate-300 bg-[#217346] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <div className="grid h-7 w-7 place-items-center border border-white/20 bg-white/10">
+                      <Grid className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide">
+                        Rejected Inventory Worksheet
+                      </p>
+                      <p className="text-[10px] text-emerald-100">
+                        {totalItems.toLocaleString("en-IN")} total record
+                        {totalItems === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[10px] text-emerald-50">
+                    <span>
+                      Page {currentPage} of {Math.max(totalPages, 1)}
+                    </span>
+                    <span className="hidden sm:inline">
+                      Showing {inventory.length} row
+                      {inventory.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-auto">
+                  <table className="min-w-[2380px] w-full border-collapse table-fixed text-[11px] text-slate-700">
+                    {/* Excel column letters */}
+                    <thead className="sticky top-0 z-30">
+                      <tr className="h-6 bg-slate-200 text-center text-[10px] font-semibold text-slate-600">
+                        <th className="sticky left-0 z-50 w-12 border border-slate-300 bg-slate-300">
+                          ▾
+                        </th>
+                        {[
+                          "A",
+                          "B",
+                          "C",
+                          "D",
+                          "E",
+                          "F",
+                          "G",
+                          "H",
+                          "I",
+                          "J",
+                          "K",
+                          "L",
+                          "M",
+                          "N",
+                          "O",
+                          "P",
+                        ].map((letter) => (
+                          <th
+                            key={letter}
+                            className="border border-slate-300 bg-slate-200 px-2 py-1"
                           >
-                            Item
-                            <ArrowUpDown className="w-3 h-3" />
+                            {letter}
+                          </th>
+                        ))}
+                        <th className="sticky right-0 z-50 w-24 border border-slate-300 bg-slate-300">
+                          Q
+                        </th>
+                      </tr>
+
+                      {/* Field header row */}
+                      <tr className="bg-[#E2EFDA] text-left text-[10px] font-bold uppercase tracking-wide text-slate-700">
+                        <th className="sticky left-0 z-50 w-12 border border-slate-300 bg-slate-200 px-2 py-2 text-center">
+                          #
+                        </th>
+
+                        <th className="w-[145px] border border-slate-300 px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSort("itemCode")}
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
+                          >
+                            Item Code
+                            <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[300px] border border-slate-300 px-2 py-2">
+                          Description
+                        </th>
+
+                        <th className="w-[135px] border border-slate-300 px-2 py-2">
                           <button
+                            type="button"
                             onClick={() => handleSort("poNumber")}
-                            className="flex items-center gap-1 hover:text-slate-800"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
                           >
                             PO Number
-                            <ArrowUpDown className="w-3 h-3" />
+                            <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[170px] border border-slate-300 px-2 py-2">
+                          Company
+                        </th>
+
+                        <th className="w-[125px] border border-slate-300 px-2 py-2">
                           <button
+                            type="button"
                             onClick={() => handleSort("batchNumber")}
-                            className="flex items-center gap-1 hover:text-slate-800"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
                           >
                             Batch
-                            <ArrowUpDown className="w-3 h-3" />
+                            <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[95px] border border-slate-300 px-2 py-2 text-right">
                           <button
+                            type="button"
                             onClick={() => handleSort("quantity")}
-                            className="flex items-center gap-1 hover:text-slate-800"
+                            className="flex w-full items-center justify-end gap-1 hover:text-[#217346]"
                           >
-                            Qty
-                            <ArrowUpDown className="w-3 h-3" />
+                            Quantity
+                            <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          Location
+
+                        <th className="w-[70px] border border-slate-300 px-2 py-2 text-center">
+                          Unit
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[175px] border border-slate-300 px-2 py-2">
+                          Storage Location
+                        </th>
+
+                        <th className="w-[90px] border border-slate-300 px-2 py-2">
+                          Rack
+                        </th>
+
+                        <th className="w-[90px] border border-slate-300 px-2 py-2">
+                          Shelf
+                        </th>
+
+                        <th className="w-[125px] border border-slate-300 px-2 py-2">
                           Status
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[115px] border border-slate-300 px-2 py-2">
                           Condition
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+
+                        <th className="w-[120px] border border-slate-300 px-2 py-2">
+                          Received Date
+                        </th>
+
+                        <th className="w-[120px] border border-slate-300 px-2 py-2">
                           <button
+                            type="button"
                             onClick={() => handleSort("addedAt")}
-                            className="flex items-center gap-1 hover:text-slate-800"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
                           >
-                            Added
-                            <ArrowUpDown className="w-3 h-3" />
+                            Added Date
+                            <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          Actions
+
+                        <th className="w-[190px] border border-slate-300 px-2 py-2">
+                          Added By
+                        </th>
+
+                        <th className="w-[170px] border border-slate-300 px-2 py-2">
+                          Notes
+                        </th>
+
+                        <th className="sticky right-0 z-50 w-24 border border-slate-300 bg-[#E2EFDA] px-2 py-2 text-center">
+                          Action
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {inventory.map((item) => (
-                        <tr
-                          key={item._id}
-                          className="hover:bg-indigo-50/50 transition-colors"
-                        >
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-semibold text-slate-800">
-                                {item.itemCode}
-                              </p>
-                              <p className="text-xs text-slate-500 truncate max-w-[150px]">
-                                {item.description}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-sm text-slate-600">
-                              {item.poNumber}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="px-2.5 py-1 text-xs font-mono bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
-                              {item.batchNumber || "N/A"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-slate-800">
-                              {item.quantity} {item.unit || "pcs"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              <span>
-                                {item.storageLocation} · R{item.rackNumber} S{item.shelfNumber}
+
+                    <tbody>
+                      {inventory.map((item, index) => {
+                        const rowNumber =
+                          (currentPage - 1) * itemsPerPage + index + 1;
+
+                        return (
+                          <tr
+                            key={item._id}
+                            onDoubleClick={() => handleViewDetails(item)}
+                            className="group bg-white hover:bg-[#EAF4E4]"
+                          >
+                            {/* Excel row number */}
+                            <td className="sticky left-0 z-20 border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-mono text-[10px] font-semibold text-slate-500 group-hover:bg-[#D9EAD3]">
+                              {rowNumber}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 font-mono font-semibold text-slate-800">
+                              <div
+                                className="truncate"
+                                title={item.itemCode || "-"}
+                              >
+                                {item.itemCode || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <div
+                                className="truncate"
+                                title={item.description || "-"}
+                              >
+                                {item.description || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                              <div
+                                className="truncate"
+                                title={item.poNumber || "-"}
+                              >
+                                {item.poNumber || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <div
+                                className="truncate"
+                                title={item.companyName || "-"}
+                              >
+                                {item.companyName || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                              {item.batchNumber || "-"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                              {Number(item.quantity || 0).toLocaleString("en-IN")}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 text-center">
+                              {item.unit || "pcs"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <div
+                                className="truncate"
+                                title={item.storageLocation || "-"}
+                              >
+                                {item.storageLocation || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                              {item.rackNumber || "-"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                              {item.shelfNumber || "-"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <span
+                                className={`inline-flex max-w-full items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold capitalize ${getStatusBadge(
+                                  item.status,
+                                )}`}
+                              >
+                                {getStatusIcon(item.status)}
+                                <span className="truncate">
+                                  {item.status || "-"}
+                                </span>
                               </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(item.status)}`}
-                            >
-                              {getStatusIcon(item.status)}
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-medium border ${getConditionBadge(item.condition)}`}
-                            >
-                              {item.condition}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-slate-600">
-                            {new Date(item.addedAt).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => handleViewDetails(item)}
-                              className="p-2 hover:bg-indigo-100 rounded-lg transition text-indigo-600 hover:text-indigo-700"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <span
+                                className={`inline-flex max-w-full border px-1.5 py-0.5 text-[10px] font-semibold capitalize ${getConditionBadge(
+                                  item.condition,
+                                )}`}
+                              >
+                                {item.condition || "-"}
+                              </span>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 whitespace-nowrap">
+                              {item.receivedDate
+                                ? new Date(item.receivedDate).toLocaleDateString(
+                                    "en-IN",
+                                    {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                    },
+                                  )
+                                : "-"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5 whitespace-nowrap">
+                              {item.addedAt
+                                ? new Date(item.addedAt).toLocaleDateString(
+                                    "en-IN",
+                                    {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                    },
+                                  )
+                                : "-"}
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <div
+                                className="truncate"
+                                title={item.addedByName || "-"}
+                              >
+                                {item.addedByName || "-"}
+                              </div>
+                            </td>
+
+                            <td className="border border-slate-300 px-2 py-1.5">
+                              <div
+                                className="truncate text-slate-500"
+                                title={item.notes || "-"}
+                              >
+                                {item.notes || "-"}
+                              </div>
+                            </td>
+
+                            <td className="sticky right-0 z-20 border border-slate-300 bg-white px-2 py-1 text-center group-hover:bg-[#EAF4E4]">
+                              <button
+                                type="button"
+                                onClick={() => handleViewDetails(item)}
+                                className="inline-flex items-center gap-1 border border-[#217346] bg-white px-2 py-1 text-[10px] font-semibold text-[#217346] transition hover:bg-[#217346] hover:text-white"
+                                title="View inventory details"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Excel-style worksheet status bar */}
+                <div className="flex flex-col gap-1 border-t border-slate-300 bg-slate-100 px-3 py-2 text-[10px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="font-semibold text-[#217346]">
+                      Ready
+                    </span>
+                    <span>
+                      Records: {inventory.length.toLocaleString("en-IN")}
+                    </span>
+                    <span>
+                      Total Qty:{" "}
+                      {inventory
+                        .reduce(
+                          (sum, item) => sum + Number(item.quantity || 0),
+                          0,
+                        )
+                        .toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <span className="text-slate-400">
+                    Double-click a row to open details
+                  </span>
                 </div>
               </div>
             )}
@@ -784,6 +1013,7 @@ const RejectedInventory = () => {
           </>
         )}
       </div>
+
 
       {/* Details Modal */}
       {showDetailsModal && selectedItem && (
