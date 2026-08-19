@@ -207,7 +207,7 @@ const RejectionHistory = () =>  {
   return (
     <div className="min-h-full bg-slate-50 p-4 sm:p-6">
       <div className="mx-auto  space-y-5">
-        <header className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 px-8 py-6 text-white shadow-lg">
+        <header className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 px-8 py-12 text-white shadow-lg">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -233,203 +233,406 @@ const RejectionHistory = () =>  {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           <Stat label="Total Records" value={stats.total} />
           <Stat label="Pending Review" value={stats.pending} />
           <Stat label="Approved" value={stats.approved} />
-          <Stat label="Excel Recorded" value={stats.recorded} />
           <Stat
             label="Effective Rejected Qty"
             value={stats.qty.toLocaleString("en-IN")}
           />
-          <Stat
-            label="Stored in Inventory"
-            value={`${stats.inventoryQty.toLocaleString("en-IN")} / ${stats.inventoryRecords} record(s)`}
+          
+        </div>
+
+        <section className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+  {/* Toolbar */}
+  <div className="border-b border-slate-300 bg-slate-50">
+    <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* Tabs */}
+      <div className="inline-flex w-fit overflow-hidden rounded-md border border-slate-300 bg-white">
+        <button
+          type="button"
+          onClick={() => setActiveTab("rejections")}
+          className={`border-r border-slate-300 px-4 py-2 text-xs font-semibold transition ${
+            activeTab === "rejections"
+              ? "bg-red-600 text-white"
+              : "bg-white text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          Rejection History ({rejections.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("dispatches")}
+          className={`px-4 py-2 text-xs font-semibold transition ${
+            activeTab === "dispatches"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          Dispatches ({dispatches.length})
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search PO, item, company..."
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:w-72"
           />
         </div>
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-              <Tab
-                active={activeTab === "rejections"}
-                onClick={() => setActiveTab("rejections")}
-              >
-                Rejection History ({rejections.length})
-              </Tab>
-              <Tab
-                active={activeTab === "dispatches"}
-                onClick={() => setActiveTab("dispatches")}
-              >
-                Dispatches ({dispatches.length})
-              </Tab>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search PO, item, company..."
-                  className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-red-400 sm:w-72"
-                />
-              </div>
-              {activeTab === "rejections" && (
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="pending_review">Pending review</option>
-                  <option value="approved">Approved</option>
-                  <option value="denied">Denied</option>
-                  <option value="recorded">Excel recorded</option>
-                </select>
-              )}
-            </div>
-          </div>
+        {activeTab === "rejections" && (
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs outline-none focus:border-blue-500"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending_review">Pending review</option>
+            <option value="approved">Approved</option>
+            <option value="denied">Denied</option>
+            <option value="recorded">Excel recorded</option>
+          </select>
+        )}
+      </div>
+    </div>
+  </div>
 
-          {activeTab === "rejections" ? (
-            <div className="divide-y divide-slate-100">
-              {filteredRejections.length === 0 ? (
-                <Empty text="No rejection records found" />
-              ) : (
-                filteredRejections.map((r) => {
-                  const [label, badge, Icon] =
-                    statusMeta[r.status] || statusMeta.pending_review;
-                  return (
-                    <div key={r._id} className="p-4 hover:bg-slate-50">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-slate-900">
-                              {r.poNumber || "-"}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${badge}`}
-                            >
-                              <Icon className="h-3 w-3" />
-                              {label}
-                            </span>
-                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700">
-                              {r.source === "excel_import"
-                                ? "Excel Import"
-                                : "Manual"}
-                            </span>
-                            {r.inventoryStatus && r.inventoryStatus !== "not_stored" && (
-                              <span
-                                className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                                  r.inventoryStatus === "stored"
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-cyan-100 text-cyan-700"
-                                }`}
-                              >
-                                {r.inventoryStatus === "stored"
-                                  ? "Inventory stored"
-                                  : `Inventory ${qty(r.inventoryAddedQuantity).toLocaleString("en-IN")} / ${qty(r.rejectedQuantity).toLocaleString("en-IN")}`}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-2 grid gap-1 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-5">
-                            <span>
-                              <b>Company:</b> {r.companyName || "-"}
-                            </span>
-                            <span>
-                              <b>Item:</b> {r.itemCode || "-"}
-                            </span>
-                            <span>
-                              <b>Rejected:</b>{" "}
-                              <strong className="text-red-600">
-                                {qty(r.rejectedQuantity).toLocaleString(
-                                  "en-IN",
-                                )}
-                              </strong>
-                            </span>
-                            <span>
-                              <b>Reason:</b> {r.reason || "-"}
-                            </span>
-                            <span>
-                              <b>Date:</b>{" "}
-                              {r.rejectionDate
-                                ? new Date(r.rejectionDate).toLocaleDateString(
-                                    "en-IN",
-                                  )
-                                : "-"}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {["approved", "recorded"].includes(r.status) && (
-                            <button
-                              onClick={() => setSelectedInventoryRejection(r)}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                            >
-                              <Package className="h-3.5 w-3.5" />{
-                                qty(r.inventoryAddedQuantity) > 0
-                                  ? "Inventory / Disposition"
-                                  : "Store Inventory"
-                              }
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelectedRejection(r)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {filteredDispatches.length === 0 ? (
-                <Empty text="No dispatch records found" />
-              ) : (
-                filteredDispatches.map((d) => (
-                  <div
-                    key={`${d.poId}-${d.dispatchId}`}
-                    className="flex flex-col gap-3 p-4 hover:bg-slate-50 lg:flex-row lg:items-center lg:justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-blue-600" />
-                        <span className="font-mono text-sm font-bold">
-                          {d.poNumber}
-                        </span>
-                        <span className="text-sm text-slate-500">
-                          {d.itemCode || d.description}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
-                        <span>{d.companyName}</span>
-                        <span>
-                          Dispatch: {d.quantity.toLocaleString("en-IN")}
-                        </span>
-                        <span>
-                          Available to reject:{" "}
-                          {d.availableForRejection.toLocaleString("en-IN")}
-                        </span>
-                        <span>Bill: {d.billNumber || "-"}</span>
-                      </div>
-                    </div>
-                    <button
-                      disabled={d.availableForRejection <= 0}
-                      onClick={() => setSelectedDispatch(d)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+  {/* Excel style table */}
+  <div className="overflow-x-auto">
+    {activeTab === "rejections" ? (
+      filteredRejections.length === 0 ? (
+        <Empty text="No rejection records found" />
+      ) : (
+        <table className="min-w-[1500px] w-full border-collapse text-xs">
+          {/* Header */}
+          <thead className="sticky top-0 z-20 bg-slate-200">
+            <tr className="text-left text-[11px] font-bold uppercase tracking-wide text-slate-700">
+              <th className="w-12 border border-slate-300 px-2 py-2 text-center">
+                #
+              </th>
+
+              <th className="min-w-[120px] border border-slate-300 px-3 py-2">
+                PO Number
+              </th>
+
+              <th className="min-w-[150px] border border-slate-300 px-3 py-2">
+                Company
+              </th>
+
+              <th className="min-w-[120px] border border-slate-300 px-3 py-2">
+                Item Code
+              </th>
+
+              <th className="min-w-[110px] border border-slate-300 px-3 py-2">
+                Rejected Qty
+              </th>
+
+              <th className="min-w-[110px] border border-slate-300 px-3 py-2">
+                Status
+              </th>
+
+              <th className="min-w-[100px] border border-slate-300 px-3 py-2">
+                Source
+              </th>
+
+              <th className="min-w-[170px] border border-slate-300 px-3 py-2">
+                Inventory
+              </th>
+
+              <th className="min-w-[180px] border border-slate-300 px-3 py-2">
+                Reason
+              </th>
+
+              <th className="min-w-[120px] border border-slate-300 px-3 py-2">
+                Rejection Date
+              </th>
+
+              <th className="sticky right-0 z-30 min-w-[210px] border border-slate-300 bg-slate-200 px-3 py-2 text-center">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          {/* Body */}
+          <tbody>
+            {filteredRejections.map((r, index) => {
+              const [label, badge, Icon] =
+                statusMeta[r.status] || statusMeta.pending_review;
+
+              return (
+                <tr
+                  key={r._id}
+                  className={`transition hover:bg-blue-50 ${
+                    index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                  }`}
+                >
+                  {/* Row Number */}
+                  <td className="border border-slate-300 px-2 py-2 text-center font-mono text-slate-500">
+                    {index + 1}
+                  </td>
+
+                  {/* PO */}
+                  <td className="border border-slate-300 px-3 py-2">
+                    <span className="font-mono font-bold text-slate-900">
+                      {r.poNumber || "-"}
+                    </span>
+                  </td>
+
+                  {/* Company */}
+                  <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                    {r.companyName || "-"}
+                  </td>
+
+                  {/* Item */}
+                  <td className="border border-slate-300 px-3 py-2 font-mono text-slate-700">
+                    {r.itemCode || "-"}
+                  </td>
+
+                  {/* Rejected */}
+                  <td className="border border-slate-300 px-3 py-2 text-right font-bold text-red-600">
+                    {qty(r.rejectedQuantity).toLocaleString("en-IN")}
+                  </td>
+
+                  {/* Status */}
+                  <td className="border border-slate-300 px-3 py-2">
+                    <span
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[10px] font-semibold ${badge}`}
                     >
-                      <ThumbsDown className="h-3.5 w-3.5" /> Reject
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </section>
+                      <Icon className="h-3 w-3" />
+                      {label}
+                    </span>
+                  </td>
+
+                  {/* Source */}
+                  <td className="border border-slate-300 px-3 py-2">
+                    <span
+                      className={`inline-flex whitespace-nowrap rounded px-2 py-1 text-[10px] font-semibold ${
+                        r.source === "excel_import"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-violet-100 text-violet-700"
+                      }`}
+                    >
+                      {r.source === "excel_import"
+                        ? "Excel Import"
+                        : "Manual"}
+                    </span>
+                  </td>
+
+                  {/* Inventory */}
+                  <td className="border border-slate-300 px-3 py-2">
+                    {!r.inventoryStatus ||
+                    r.inventoryStatus === "not_stored" ? (
+                      <span className="text-slate-400">Not Stored</span>
+                    ) : r.inventoryStatus === "stored" ? (
+                      <span className="inline-flex whitespace-nowrap rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                        Stored
+                      </span>
+                    ) : (
+                      <span className="inline-flex whitespace-nowrap rounded bg-cyan-100 px-2 py-1 text-[10px] font-semibold text-cyan-700">
+                        {qty(r.inventoryAddedQuantity).toLocaleString("en-IN")} /{" "}
+                        {qty(r.rejectedQuantity).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Reason */}
+                  <td
+                    className="max-w-[220px] truncate border border-slate-300 px-3 py-2 text-slate-700"
+                    title={r.reason || "-"}
+                  >
+                    {r.reason || "-"}
+                  </td>
+
+                  {/* Date */}
+                  <td className="whitespace-nowrap border border-slate-300 px-3 py-2 text-slate-600">
+                    {r.rejectionDate
+                      ? new Date(r.rejectionDate).toLocaleDateString("en-IN")
+                      : "-"}
+                  </td>
+
+                  {/* Actions */}
+                  <td
+                    className={`sticky right-0 border border-slate-300 px-2 py-1.5 ${
+                      index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      {["approved", "recorded"].includes(r.status) && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInventoryRejection(r)}
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          <Package className="h-3.5 w-3.5" />
+
+                          {qty(r.inventoryAddedQuantity) > 0
+                            ? "Inventory"
+                            : "Store"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRejection(r)}
+                        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )
+    ) : filteredDispatches.length === 0 ? (
+      <Empty text="No dispatch records found" />
+    ) : (
+      <table className="min-w-[1350px] w-full border-collapse text-xs">
+        {/* Dispatch Header */}
+        <thead className="sticky top-0 z-20 bg-slate-200">
+          <tr className="text-left text-[11px] font-bold uppercase tracking-wide text-slate-700">
+            <th className="w-12 border border-slate-300 px-2 py-2 text-center">
+              #
+            </th>
+
+            <th className="min-w-[120px] border border-slate-300 px-3 py-2">
+              PO Number
+            </th>
+
+            <th className="min-w-[160px] border border-slate-300 px-3 py-2">
+              Company
+            </th>
+
+            <th className="min-w-[130px] border border-slate-300 px-3 py-2">
+              Item Code
+            </th>
+
+            <th className="min-w-[240px] border border-slate-300 px-3 py-2">
+              Description
+            </th>
+
+            <th className="min-w-[110px] border border-slate-300 px-3 py-2 text-right">
+              Dispatch Qty
+            </th>
+
+            <th className="min-w-[140px] border border-slate-300 px-3 py-2 text-right">
+              Available To Reject
+            </th>
+
+            <th className="min-w-[130px] border border-slate-300 px-3 py-2">
+              Bill Number
+            </th>
+
+            <th className="sticky right-0 z-30 min-w-[110px] border border-slate-300 bg-slate-200 px-3 py-2 text-center">
+              Action
+            </th>
+          </tr>
+        </thead>
+
+        {/* Dispatch Body */}
+        <tbody>
+          {filteredDispatches.map((d, index) => (
+            <tr
+              key={`${d.poId}-${d.dispatchId}`}
+              className={`transition hover:bg-blue-50 ${
+                index % 2 === 0 ? "bg-white" : "bg-slate-50"
+              }`}
+            >
+              <td className="border border-slate-300 px-2 py-2 text-center font-mono text-slate-500">
+                {index + 1}
+              </td>
+
+              <td className="border border-slate-300 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+
+                  <span className="font-mono font-bold text-slate-900">
+                    {d.poNumber || "-"}
+                  </span>
+                </div>
+              </td>
+
+              <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                {d.companyName || "-"}
+              </td>
+
+              <td className="border border-slate-300 px-3 py-2 font-mono text-slate-700">
+                {d.itemCode || "-"}
+              </td>
+
+              <td
+                className="max-w-[300px] truncate border border-slate-300 px-3 py-2 text-slate-600"
+                title={d.description || ""}
+              >
+                {d.description || "-"}
+              </td>
+
+              <td className="border border-slate-300 px-3 py-2 text-right font-semibold text-slate-800">
+                {qty(d.quantity).toLocaleString("en-IN")}
+              </td>
+
+              <td
+                className={`border border-slate-300 px-3 py-2 text-right font-bold ${
+                  d.availableForRejection > 0
+                    ? "text-red-600"
+                    : "text-slate-400"
+                }`}
+              >
+                {qty(d.availableForRejection).toLocaleString("en-IN")}
+              </td>
+
+              <td className="border border-slate-300 px-3 py-2 font-mono text-slate-600">
+                {d.billNumber || "-"}
+              </td>
+
+              <td
+                className={`sticky right-0 border border-slate-300 px-2 py-1.5 text-center ${
+                  index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                }`}
+              >
+                <button
+                  type="button"
+                  disabled={d.availableForRejection <= 0}
+                  onClick={() => setSelectedDispatch(d)}
+                  className="inline-flex items-center gap-1.5 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-[10px] font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                  Reject
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+
+  {/* Bottom status bar */}
+  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-300 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+    <span>
+      {activeTab === "rejections"
+        ? `${filteredRejections.length} rejection record${
+            filteredRejections.length === 1 ? "" : "s"
+          }`
+        : `${filteredDispatches.length} dispatch record${
+            filteredDispatches.length === 1 ? "" : "s"
+          }`}
+    </span>
+
+    <span>Scroll horizontally to view all columns</span>
+  </div>
+</section>
       </div>
 
       {selectedDispatch && (
