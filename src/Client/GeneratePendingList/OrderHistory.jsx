@@ -43,6 +43,7 @@ const OrderHistory = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [editingDispatch, setEditingDispatch] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [viewingDispatch, setViewingDispatch] = useState(null);
   const [editFormData, setEditFormData] = useState({
     dispatchQuantity: "",
     dispatchDate: "",
@@ -58,169 +59,159 @@ const OrderHistory = () => {
 
   const { user } = useAuth();
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
-  const userCompany = user?.companyName || user?.company || user?.companyname;
+  const userCompany =
+    user?.companyName ||
+    user?.company?.name ||
+    (typeof user?.company === "string" ? user.company : "") ||
+    user?.companyname ||
+    user?.clientCompany ||
+    user?.customerName ||
+    user?.organization?.name ||
+    "";
 
   const fetchData = async () => {
-  try {
-    setIsLoading(true);
+    try {
+      setIsLoading(true);
 
-    const res = await axios.get(
-      `${import.meta.env.VITE_REACT_APP_BACKEND_BASEURL}/dispatch/history`,
-      {
-        withCredentials: true,
-      },
-    );
+      const res = await axios.get(
+        `${import.meta.env.VITE_REACT_APP_BACKEND_BASEURL}/dispatch/history`,
+        {
+          withCredentials: true,
+        },
+      );
 
-    if (res.data.success) {
-      const groups = Array.isArray(res.data.data) ? res.data.data : [];
+      if (res.data.success) {
+        const groups = Array.isArray(res.data.data) ? res.data.data : [];
 
-      // API returns:
-      // [
-      //   {
-      //     billNumber,
-      //     dispatchDate,
-      //     entries: [...]
-      //   }
-      // ]
-      //
-      // Flatten every bill's entries into individual table rows.
-      let formatted = groups
-        .flatMap((group) => {
-          const entries = Array.isArray(group.entries) ? group.entries : [];
+        // API returns:
+        // [
+        //   {
+        //     billNumber,
+        //     dispatchDate,
+        //     entries: [...]
+        //   }
+        // ]
+        //
+        // Flatten every bill's entries into individual table rows.
+        let formatted = groups
+          .flatMap((group) => {
+            const entries = Array.isArray(group.entries) ? group.entries : [];
 
-          return entries.map((entry) => ({
-            // Unique row ID
-            id:
-              entry._id ||
-              `${entry.dispatchId}-${entry.poId}-${entry.itemCode}`,
+            return entries.map((entry) => ({
+              // Unique row ID
+              id:
+                entry._id ||
+                `${entry.dispatchId}-${entry.poId}-${entry.itemCode}`,
 
-            dispatchId: entry.dispatchId,
-            poId: entry.poId,
+              dispatchId: entry.dispatchId,
+              poId: entry.poId,
 
-            // Accept both the current grouped API names and legacy aliases.
-            orderNumber: entry.po || entry.poNumber || "",
+              // Accept both the current grouped API names and legacy aliases.
+              orderNumber: entry.po || entry.poNumber || "",
 
-            companyName: entry.company || entry.companyName || "",
+              companyName: entry.company || entry.companyName || "",
 
-            itemId: entry.itemId || null,
-            itemCode: entry.itemCode || "",
+              itemId: entry.itemId || null,
+              itemCode: entry.itemCode || "",
 
-            description: entry.item || entry.itemDescription || "",
+              description: entry.item || entry.itemDescription || "",
 
-            drawing: entry.drawing || "",
+              drawing: entry.drawing || "",
 
-            quantity: Number(entry.dispatchQty ?? entry.quantity ?? 0),
+              quantity: Number(entry.dispatchQty ?? entry.quantity ?? 0),
 
-            originalPending: Number(entry.originalPending || 0),
-            newPending: Number(entry.newPending || 0),
+              originalPending: Number(entry.originalPending || 0),
+              newPending: Number(entry.newPending || 0),
 
-            batchNumber: entry.batchNumber || "",
+              batchNumber: entry.batchNumber || "",
 
-            // Prefer entry date, fallback to group date
-            date:
-              entry.dispatchDate ||
-              group.dispatchDate ||
-              entry.createdAt ||
-              "",
+              // Prefer entry date, fallback to group date
+              date:
+                entry.dispatchDate ||
+                group.dispatchDate ||
+                entry.createdAt ||
+                "",
 
-            dispatchDate:
-              entry.dispatchDate ||
-              group.dispatchDate ||
-              "",
+              dispatchDate: entry.dispatchDate || group.dispatchDate || "",
 
-            dispatchedBy:
-              entry.dispatchedBy ||
-              entry.createdBy ||
-              "System",
+              dispatchedBy: entry.dispatchedBy || entry.createdBy || "System",
 
-            notes: entry.remarks || entry.notes || "",
-            remarks: entry.remarks || entry.notes || group.remarks || "",
+              notes: entry.remarks || entry.notes || "",
+              remarks: entry.remarks || entry.notes || group.remarks || "",
 
-            transportMode:
-              entry.transportMode ||
-              group.transportMode ||
-              "",
+              transportMode: entry.transportMode || group.transportMode || "",
 
-            trackingNumber: entry.trackingNumber || "",
+              trackingNumber: entry.trackingNumber || "",
 
-            receivedBy:
-              entry.receivedBy ||
-              group.receivedBy ||
-              "",
+              receivedBy: entry.receivedBy || group.receivedBy || "",
 
-            createdAt:
-              entry.createdAt ||
-              entry.timestamp ||
-              entry.dispatchDate ||
-              group.dispatchDate,
+              createdAt:
+                entry.createdAt ||
+                entry.timestamp ||
+                entry.dispatchDate ||
+                group.dispatchDate,
 
-            // Prefer entry bill number
-            billNumber:
-              entry.billNumber ||
-              group.billNumber ||
-              "",
+              // Prefer entry bill number
+              billNumber: entry.billNumber || group.billNumber || "",
 
-            billFile:
-              entry.billFile ||
-              group.billFile ||
-              null,
+              billFile: entry.billFile || group.billFile || null,
 
-            status: entry.status || "confirmed",
+              status: entry.status || "confirmed",
 
-            isBulkDispatch: Boolean(entry.isBulkDispatch),
+              isBulkDispatch: Boolean(entry.isBulkDispatch),
 
-            totalItemsDispatched:
-              entry.totalItemsDispatched ??
-              group.totalItems ??
-              0,
+              totalItemsDispatched:
+                entry.totalItemsDispatched ?? group.totalItems ?? 0,
 
-            totalQuantityDispatched:
-              entry.totalQuantityDispatched ??
-              group.totalQuantity ??
-              0,
-          }));
-        })
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt || b.dispatchDate || 0) -
-            new Date(a.createdAt || a.dispatchDate || 0),
-        );
+              totalQuantityDispatched:
+                entry.totalQuantityDispatched ?? group.totalQuantity ?? 0,
+            }));
+          })
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt || b.dispatchDate || 0) -
+              new Date(a.createdAt || a.dispatchDate || 0),
+          );
 
-      console.log("Raw Dispatch API:", res.data.data);
-      console.log("Formatted Dispatch Rows:", formatted);
+        console.log("Raw Dispatch API:", res.data.data);
+        console.log("Formatted Dispatch Rows:", formatted);
 
-      // Client can only see its own company
-      if (!isAdmin && userCompany) {
-        const normalizedUserCompany = String(userCompany)
-          .toLowerCase()
-          .trim();
-
-        formatted = formatted.filter((item) => {
-          const normalizedItemCompany = String(
-            item.companyName || "",
-          )
+        // Client can only see its own company
+        if (!isAdmin && userCompany) {
+          const normalizedUserCompany = String(userCompany)
             .toLowerCase()
             .trim();
 
-          return normalizedItemCompany === normalizedUserCompany;
-        });
-      }
+          formatted = formatted.filter((item) => {
+            const normalizedItemCompany = String(item.companyName || "")
+              .toLowerCase()
+              .trim();
 
-      setData(formatted);
-    } else {
+            return normalizedItemCompany === normalizedUserCompany;
+          });
+        }
+
+        setData(formatted);
+      } else {
+        setData([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch dispatch timeline:", error);
       setData([]);
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error("Failed to fetch dispatch timeline:", error);
-    setData([]);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
+    if (!isAdmin && !userCompany) {
+      setData([]);
+      setIsLoading(false);
+      return;
+    }
+
     fetchData();
-  }, []);
+  }, [isAdmin, userCompany]);
 
   // Get unique companies for filter (admin only)
   const uniqueCompanies = isAdmin
@@ -295,6 +286,11 @@ const OrderHistory = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedCompany, dateFilter, rowsPerPage]);
+
+  const handleView = (row) => {
+    if (!row) return;
+    setViewingDispatch(row);
+  };
 
   const handleEdit = async (row) => {
     if (!isAdmin) {
@@ -413,70 +409,68 @@ const OrderHistory = () => {
     setShowFilters(false);
   };
 
- const getStatusBadge = (status) => {
-  const normalizedStatus = String(status || "")
-    .trim()
-    .toLowerCase();
+  const getStatusBadge = (status) => {
+    const normalizedStatus = String(status || "")
+      .trim()
+      .toLowerCase();
 
-  const statusConfig = {
-    completed: {
-      icon: CheckCircle,
-      classes: "bg-green-50 text-green-700 border-green-200",
-      label: "Completed",
-    },
+    const statusConfig = {
+      completed: {
+        icon: CheckCircle,
+        classes: "bg-green-50 text-green-700 border-green-200",
+        label: "Completed",
+      },
 
-    full: {
-      icon: CheckCircle,
-      classes: "bg-green-50 text-green-700 border-green-200",
-      label: "Completed",
-    },
+      full: {
+        icon: CheckCircle,
+        classes: "bg-green-50 text-green-700 border-green-200",
+        label: "Completed",
+      },
 
-    confirmed: {
-      icon: CheckCircle,
-      classes: "bg-green-50 text-green-700 border-green-200",
-      label: "Confirmed",
-    },
+      confirmed: {
+        icon: CheckCircle,
+        classes: "bg-green-50 text-green-700 border-green-200",
+        label: "Confirmed",
+      },
 
-    partial: {
-      icon: Clock,
-      classes: "bg-amber-50 text-amber-700 border-amber-200",
-      label: "Partial",
-    },
+      partial: {
+        icon: Clock,
+        classes: "bg-amber-50 text-amber-700 border-amber-200",
+        label: "Partial",
+      },
 
-    pending: {
-      icon: Clock,
-      classes: "bg-yellow-50 text-yellow-700 border-yellow-200",
-      label: "Pending",
-    },
+      pending: {
+        icon: Clock,
+        classes: "bg-yellow-50 text-yellow-700 border-yellow-200",
+        label: "Pending",
+      },
 
-    cancelled: {
-      icon: AlertCircle,
-      classes: "bg-red-50 text-red-700 border-red-200",
-      label: "Cancelled",
-    },
-  };
+      cancelled: {
+        icon: AlertCircle,
+        classes: "bg-red-50 text-red-700 border-red-200",
+        label: "Cancelled",
+      },
+    };
 
-  const config =
-    statusConfig[normalizedStatus] || {
+    const config = statusConfig[normalizedStatus] || {
       icon: Clock,
       classes: "bg-gray-50 text-gray-700 border-gray-200",
       label: status || "Unknown",
     };
 
-  const Icon = config.icon;
+    const Icon = config.icon;
 
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1
         rounded-full text-xs font-medium border ${config.classes}`}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      {config.label}
-    </span>
-  );
-};
+      >
+        <Icon className="w-3.5 h-3.5" />
+        {config.label}
+      </span>
+    );
+  };
 
-  
   const renderSortIcon = (field) => {
     if (sortField !== field) {
       return <Funnel className="w-3 h-3 text-gray-400" />;
@@ -490,7 +484,6 @@ const OrderHistory = () => {
 
   return (
     <>
-    
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
         {/* Welcome Banner */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg mb-6 sm:mb-8 overflow-hidden">
@@ -561,9 +554,11 @@ const OrderHistory = () => {
 
             {/* Action Buttons - Positioned on right */}
             <div className="flex flex-wrap items-center gap-3">
-              <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm">
-                <FileSpreadsheet className="w-4 h-4" /> Export Excel
-              </button>
+              {isAdmin && (
+                <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-sm">
+                  <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                </button>
+              )}
               <button
                 onClick={fetchData}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition text-sm font-medium shadow-sm"
@@ -804,7 +799,10 @@ const OrderHistory = () => {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={isAdmin ? 10 : 9} className="py-16 text-center">
+                    <td
+                      colSpan={isAdmin ? 10 : 9}
+                      className="py-16 text-center"
+                    >
                       <div className="flex flex-col items-center gap-3">
                         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                         <p className="text-gray-500">
@@ -834,12 +832,15 @@ const OrderHistory = () => {
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">
                             {row.dispatchDate
-  ? new Date(row.dispatchDate).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-  : "—"}
+                              ? new Date(row.dispatchDate).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  },
+                                )
+                              : "—"}
                           </p>
                         </div>
                       </td>
@@ -931,9 +932,19 @@ const OrderHistory = () => {
 
                       <td className="border border-gray-300 px-3 py-2 align-middle">
                         <div className="flex items-center justify-center gap-2">
-                          {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => handleView(row)}
+                            className="p-2 rounded-lg bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition"
+                            title="View"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          {isAdmin && (
                             <>
                               <button
+                                type="button"
                                 onClick={() => handleEdit(row)}
                                 className="p-2 rounded-lg bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition"
                                 title="Edit"
@@ -941,6 +952,7 @@ const OrderHistory = () => {
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleDelete(row)}
                                 className="p-2 rounded-lg bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-600 transition"
                                 title="Delete"
@@ -948,13 +960,6 @@ const OrderHistory = () => {
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </>
-                          ) : (
-                            <button
-                              className="p-2 rounded-lg bg-gray-50 text-gray-600 cursor-default"
-                              title="View only"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
                           )}
                         </div>
                       </td>
@@ -962,7 +967,10 @@ const OrderHistory = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={isAdmin ? 10 : 9} className="py-16 text-center">
+                    <td
+                      colSpan={isAdmin ? 10 : 9}
+                      className="py-16 text-center"
+                    >
                       <div className="flex flex-col items-center gap-3">
                         <Package className="w-12 h-12 text-gray-300" />
                         <div>
@@ -1085,7 +1093,116 @@ const OrderHistory = () => {
       </div>
 
       {/* Edit Modal */}
-      {isEditModalOpen && editingDispatch && (
+      {viewingDispatch && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Dispatch Details
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  {isAdmin
+                    ? "Dispatch record details"
+                    : "Read-only order history"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDispatch(null)}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              <ViewField
+                label="PO Number"
+                value={viewingDispatch.orderNumber}
+              />
+              <ViewField label="Company" value={viewingDispatch.companyName} />
+              <ViewField label="Item Code" value={viewingDispatch.itemCode} />
+              <ViewField
+                label="Description"
+                value={viewingDispatch.description}
+              />
+              <ViewField label="Drawing" value={viewingDispatch.drawing} />
+              <ViewField
+                label="Dispatch Quantity"
+                value={
+                  viewingDispatch.quantity?.toLocaleString?.() ||
+                  viewingDispatch.quantity
+                }
+              />
+              <ViewField
+                label="Pending Before"
+                value={viewingDispatch.originalPending}
+              />
+              <ViewField
+                label="Pending After"
+                value={viewingDispatch.newPending}
+              />
+              <ViewField label="Status" value={viewingDispatch.status} />
+              <ViewField
+                label="Dispatch Date"
+                value={
+                  viewingDispatch.dispatchDate
+                    ? new Date(viewingDispatch.dispatchDate).toLocaleDateString(
+                        "en-IN",
+                      )
+                    : "-"
+                }
+              />
+              <ViewField
+                label="Bill Number"
+                value={viewingDispatch.billNumber}
+              />
+              <ViewField
+                label="Transport Mode"
+                value={viewingDispatch.transportMode}
+              />
+              <ViewField
+                label="Tracking Number"
+                value={viewingDispatch.trackingNumber}
+              />
+              <ViewField
+                label="Received By"
+                value={viewingDispatch.receivedBy}
+              />
+              <div className="sm:col-span-2">
+                <ViewField
+                  label="Remarks / Notes"
+                  value={viewingDispatch.remarks || viewingDispatch.notes}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-4">
+              {viewingDispatch.billFile && (
+                <a
+                  href={viewingDispatch.billFile}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  <FileText className="h-4 w-4" />
+                  View Bill
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewingDispatch(null)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && isEditModalOpen && editingDispatch && (
         <div className="fixed inset-0 bg-black/60 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
@@ -1297,5 +1414,16 @@ const OrderHistory = () => {
     </>
   );
 };
+
+const ViewField = ({ label, value }) => (
+  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+    <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+      {label}
+    </div>
+    <div className="mt-1 break-words text-sm font-semibold text-gray-800">
+      {value === undefined || value === null || value === "" ? "-" : value}
+    </div>
+  </div>
+);
 
 export default OrderHistory;

@@ -40,7 +40,7 @@ import RequestRFQ from "./Client/RFQ/RequestRFQ";
 import ProfileSettings from "./Client/Settings/ProfileSettings";
 import SupportTicket from "./Client/SupportTicket/SupportTicket";
 import PurchaseOrder from "./Client/PoManagement/PurchaseOrder";
-import QualityReports from "./Client/QualityReports";
+import QualityReports from "./Client/Qc/QualityReports";
 import PendingPOList from "./Client/GeneratePendingList/PendingPo";
 import UpateDispatch from "./Client/Dispatch/UpateDispatch";
 import Rejection from "./Client/Rejection/Rejection";
