@@ -7,7 +7,7 @@ import {
   Building2,
   Phone,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 

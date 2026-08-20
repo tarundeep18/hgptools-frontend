@@ -34,23 +34,21 @@ import Employees from "./DashboardRoutes/Employees/Employees";
 import Attendence from "./DashboardRoutes/Attendence/Attendence";
 import AccessDenied from "./ProtectedRoute/AccessDenied";
 import ClientDashboard from "./adminDashboard/ClientDashboard/ClientDashboard";
-import OrderTracking from "./Client/OrderTracking";
-import ClientDrawing from "./Client/ClientDrawing";
-import RequestRFQ from "./Client/RequestRFQ";
-import ProfileSettings from "./Client/ProfileSettings";
-import SupportTicket from "./Client/SupportTicket";
-import PurchaseOrder from "./Client/PurchaseOrder";
+import OrderTracking from "./Client/PoManagement/OrderTracking";
+import ClientDrawing from "./Client/Drawing/ClientDrawing";
+import RequestRFQ from "./Client/RFQ/RequestRFQ";
+import ProfileSettings from "./Client/Settings/ProfileSettings";
+import SupportTicket from "./Client/SupportTicket/SupportTicket";
+import PurchaseOrder from "./Client/PoManagement/PurchaseOrder";
 import QualityReports from "./Client/QualityReports";
-import PendingPOList from "./Client/PendingPo";
-import UpateDispatch from "./Client/UpateDispatch";
+import PendingPOList from "./Client/GeneratePendingList/PendingPo";
+import UpateDispatch from "./Client/Dispatch/UpateDispatch";
 import Rejection from "./Client/Rejection/Rejection";
-import OrderHistory from "./Client/OrderHistory";
-import Supervisor from "./Client/Supervisor";
+import OrderHistory from "./Client/GeneratePendingList/OrderHistory";
 import Inventory from "./Client/Rejection/Inventory";
 import RejectedInventory from "./Client/Rejection/RejectedInventory";
-import OldData from "./Client/OldData";
-import AllPo from "./Client/AllPo";
-import { QrCode, PDFViewerPage } from "./Client/QrCode";
+import OldData from "./Client/PoManagement/OldData";
+import AllPo from "./Client/PoManagement/AllPo";
 import QC from "./Client/Qc/QC";
 import QcDashboard from "./adminDashboard/QCDashboard/QcDashboard";
 import SocketTest from "./Socket.io/SocketTest";
@@ -59,7 +57,7 @@ import CAPAHistoryPage from "./Client/Qc/CapaHistoryTable";
 import CAPAHistoryTable from "./Client/Qc/CapaHistoryTable";
 import GeneratePdiReport from "./Client/Qc/GeneratePdiReport";
 import QCGuide from "./Client/Qc/QCGuide";
-import GeneratePendingList from "./Client/GeneratePendingList";
+import GeneratePendingList from "./Client/GeneratePendingList/GeneratePendingList";
 
 /* =========================
    Lazy-loaded Route Pages
@@ -337,7 +335,6 @@ const App = () => {
 
               {/* products section*/}
               <Route path="/products" element={<ProductSection />} />
-              <Route path="/view/:billId" element={<PDFViewerPage />} />
             </Route>
 
             {/* Protected routes for the admin */}
@@ -556,14 +553,7 @@ const App = () => {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/supervisor"
-                element={
-                  <ProtectedRoute allowedRoles={["client", "admin"]}>
-                    <Supervisor />
-                  </ProtectedRoute>
-                }
-              />
+         
               <Route
                 path="/all/purchase/orders"
                 element={

@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 const ClientSupportSystem = () => {
   const [tickets, setTickets] = useState([]);

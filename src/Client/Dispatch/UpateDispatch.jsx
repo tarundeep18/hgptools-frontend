@@ -29,10 +29,10 @@ import {
   ListChecks,
   Edit2,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
-import EditDispatchModal from "./Dispatch/EditDispatch";
-import OldData from "./OldData";
+import EditDispatchModal from "./EditDispatch";
+import OldData from "../PoManagement/OldData";
 
 const UpdateDispatch = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);

@@ -31,7 +31,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 const OrderHistory = () => {
   const [data, setData] = useState([]);

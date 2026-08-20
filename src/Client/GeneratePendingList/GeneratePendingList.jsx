@@ -15,12 +15,12 @@ import {
   getApiErrorMessage,
   pendingPoApi,
 } from "./pendingPoApi.js";
-import rejectionApi from "./rejectionApi.js";
+import rejectionApi from "../Rejection/rejectionApi.js";
 import {
   attachRejectionSummary,
   buildRejectionSummaryMap,
   calculatePOBalance,
-} from "./Rejection/rejection.math.js";
+} from "../Rejection/rejection.math.js";
 import {
   Activity,
   ArrowDown,
@@ -74,6 +74,11 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext.jsx";
+
+  // Check if user is admin
+  // const isAdmin = user?.role === "admin" || user?.isAdmin === true;
+  // const isClient = user?.role === "client" || !isAdmin;
 
 const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_BILL_NUMBER_LENGTH = 100;
@@ -97,6 +102,11 @@ const validateBillFile = (file) => {
   }
   return "";
 };
+
+
+
+
+
 
 
 const normalizeText = (value) => String(value ?? "").trim();
@@ -404,11 +414,7 @@ const getMergedStatus = (items, pending, dispatched) => {
   return dispatched > 0 ? "In Progress" : "Pending";
 };
 
-/**
- * Produces display-only rows. Source PO records are retained in _sourceItems,
- * so dispatch, history, selection, export, and API payloads still use the
- * underlying database records.
- */
+
 const mergePurchaseOrderRows = (items = []) => {
   const groups = new Map();
   const uniquePOItems = deduplicatePOItems(items);
@@ -1041,6 +1047,7 @@ const buildReviewedExcelFile = (rows, sourceFile, sheetName) => {
   });
 };
 
+
 // ============================================
 // EXCEL IMPORT PREVIEW COMPONENT
 // ============================================
@@ -1085,6 +1092,9 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
     "w-full min-w-[120px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 disabled:bg-slate-100";
   const update = (row, field) => (event) =>
     onUpdateRow(row._previewId, field, event.target.value);
+
+ 
+
 
   return (
 

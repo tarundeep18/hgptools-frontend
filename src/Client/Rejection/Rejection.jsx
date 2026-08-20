@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import { pendingPoApi } from "./../pendingPoApi.js";
-import rejectionApi, { getApiErrorMessage } from "../rejectionApi.js";
+import { pendingPoApi } from "../GeneratePendingList/pendingPoApi.js";
+import rejectionApi, { getApiErrorMessage } from "./rejectionApi.js";
 import ItemRejection from "./ItemRejection.jsx";
 import Inventory from "./Inventory.jsx";
 

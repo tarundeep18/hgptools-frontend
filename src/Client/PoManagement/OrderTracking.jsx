@@ -36,7 +36,7 @@ import {
   Users as UsersIcon,
   BarChart3,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import { FaEye } from "react-icons/fa";
 

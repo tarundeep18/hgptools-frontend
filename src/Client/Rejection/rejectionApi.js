@@ -50,10 +50,7 @@ export const rejectionApi = {
     return unwrap(response);
   },
 
-  /**
-   * Create several rejection records against one exact dispatch.
-   * Each entry can have its own qty/reason/date/severity/notes.
-   */
+
   async createMany({ poId, dispatchId, rejections = [] }) {
     if (!poId) throw new Error("poId is required");
     if (!dispatchId) throw new Error("dispatchId is required");

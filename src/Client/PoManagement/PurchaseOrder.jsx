@@ -46,7 +46,7 @@ import {
   Phone,
   Truck,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
