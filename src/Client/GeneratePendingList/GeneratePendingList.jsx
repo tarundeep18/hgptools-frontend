@@ -80,7 +80,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 
   // const isAdmin = user?.role === "admin" || user?.isAdmin === true;
   // const isClient = user?.role === "client" || !isAdmin;
-
+   
 const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_BILL_NUMBER_LENGTH = 100;
 const MAX_SHORT_TEXT_LENGTH = 200;
@@ -94,6 +94,7 @@ const ACCEPTED_BILL_FILE_TYPES = [
 ];
 
 const validateBillFile = (file) => {
+  
   if (!file) return "";
   if (!ACCEPTED_BILL_FILE_TYPES.includes(file.type)) {
     return "Bill file must be PDF, JPG, JPEG, or PNG";
