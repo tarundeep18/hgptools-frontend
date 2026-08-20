@@ -34,10 +34,14 @@ import axios from "axios";
 import EditDispatchModal from "./Dispatch/EditDispatch";
 import OldData from "./OldData";
 
-const UpdateDispatch = () => {
+const UpdateDispatch = ({
+  embedded = false,
+  initialSearch = "",
+  initialMode = "single",
+}) => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [filteredPOs, setFilteredPOs] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearch || "");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [notification, setNotification] = useState(null);
@@ -82,6 +86,18 @@ const UpdateDispatch = () => {
   const [showOldDispatch, setShowOldDispatch] = useState(false);
 
   const { user } = useAuth();
+
+  useEffect(() => {
+    setSearchTerm(initialSearch || "");
+  }, [initialSearch]);
+
+  // When Pending List opens this component for a bulk context, surface the
+  // queue workflow immediately after users add the desired rows.
+  useEffect(() => {
+    if (initialMode === "history") {
+      setStatusFilter("all");
+    }
+  }, [initialMode]);
 
   const [stats, setStats] = useState({
     totalPOs: 0,
@@ -803,7 +819,13 @@ const UpdateDispatch = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div
+      className={
+        embedded
+          ? "min-h-full bg-gradient-to-br from-gray-50 to-gray-100"
+          : "min-h-screen bg-gradient-to-br from-gray-50 to-gray-100"
+      }
+    >
       {/* Notification */}
       {notification && (
         <div

@@ -116,18 +116,11 @@ const menuItems = [
     group: "Order Management",
   },
 
-  {
-    title: "Dispatch Management",
-    icon: <PackageCheck size={18} />,
-    path: "/update-dispatch",
-    roles: ["admin"],
-    group: "Order Management",
-  },
  
-  {
-    title: "Quality Reports",
-    icon: <TbReportSearch size={18} />,
-    path: "/qc-reports",
+   {
+    title: "Drawings",
+    icon: <PenTool size={18} />,
+    path: "/client-drawings",
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
   },
@@ -138,13 +131,7 @@ const menuItems = [
     roles: ["client", "admin","qc"],
     group: "Engineering & Quality",
   },
-  {
-    title: "Drawings",
-    icon: <PenTool size={18} />,
-    path: "/client-drawings",
-    roles: ["client", "admin","qc"],
-    group: "Engineering & Quality",
-  },
+
   {
     title: "Pending List",
     icon: <List  size={18} />,

@@ -541,25 +541,25 @@ const RejectedInventory = () => {
           <>
             {/* Excel-style Table View */}
             {viewMode === "table" && (
-              <div className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
                 {/* Excel-style sheet title bar */}
-                <div className="flex flex-col gap-2 border-b border-slate-300 bg-[#217346] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-white">
-                    <div className="grid h-7 w-7 place-items-center border border-white/20 bg-white/10">
+                <div className="flex flex-col gap-2 border-b border-[#d8e1ec] bg-[#f3f7fc] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 text-slate-800">
+                    <div className="grid h-8 w-8 place-items-center rounded-lg border border-blue-100 bg-blue-50 text-blue-600">
                       <Grid className="h-4 w-4" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide">
                         Rejected Inventory Worksheet
                       </p>
-                      <p className="text-[10px] text-emerald-100">
+                      <p className="text-[10px] text-slate-500">
                         {totalItems.toLocaleString("en-IN")} total record
                         {totalItems === 1 ? "" : "s"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 text-[10px] text-emerald-50">
+                  <div className="flex items-center gap-3 text-[10px] font-medium text-slate-500">
                     <span>
                       Page {currentPage} of {Math.max(totalPages, 1)}
                     </span>
@@ -574,8 +574,8 @@ const RejectedInventory = () => {
                   <table className="min-w-[2380px] w-full border-collapse table-fixed text-[11px] text-slate-700">
                     {/* Excel column letters */}
                     <thead className="sticky top-0 z-30">
-                      <tr className="h-6 bg-slate-200 text-center text-[10px] font-semibold text-slate-600">
-                        <th className="sticky left-0 z-50 w-12 border border-slate-300 bg-slate-300">
+                      <tr className="h-6 bg-[#eef3f8] text-center text-[10px] font-semibold text-slate-500">
+                        <th className="sticky left-0 z-50 w-12 border border-[#d8e1ec] bg-[#e8eef6]">
                           ▾
                         </th>
                         {[
@@ -598,122 +598,122 @@ const RejectedInventory = () => {
                         ].map((letter) => (
                           <th
                             key={letter}
-                            className="border border-slate-300 bg-slate-200 px-2 py-1"
+                            className="border border-[#d8e1ec] bg-[#eef3f8] px-2 py-1"
                           >
                             {letter}
                           </th>
                         ))}
-                        <th className="sticky right-0 z-50 w-24 border border-slate-300 bg-slate-300">
+                        <th className="sticky right-0 z-50 w-24 border border-[#d8e1ec] bg-[#e8eef6]">
                           Q
                         </th>
                       </tr>
 
                       {/* Field header row */}
-                      <tr className="bg-[#E2EFDA] text-left text-[10px] font-bold uppercase tracking-wide text-slate-700">
-                        <th className="sticky left-0 z-50 w-12 border border-slate-300 bg-slate-200 px-2 py-2 text-center">
+                      <tr className="bg-[#f8fafc] text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                        <th className="sticky left-0 z-50 w-12 border border-[#d8e1ec] bg-[#f1f5f9] px-2 py-2.5 text-center">
                           #
                         </th>
 
-                        <th className="w-[145px] border border-slate-300 px-2 py-2">
+                        <th className="w-[145px] border border-[#d8e1ec] px-3 py-2.5">
                           <button
                             type="button"
                             onClick={() => handleSort("itemCode")}
-                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-blue-600"
                           >
                             Item Code
                             <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
 
-                        <th className="w-[300px] border border-slate-300 px-2 py-2">
+                        <th className="w-[300px] border border-[#d8e1ec] px-3 py-2.5">
                           Description
                         </th>
 
-                        <th className="w-[135px] border border-slate-300 px-2 py-2">
+                        <th className="w-[135px] border border-[#d8e1ec] px-3 py-2.5">
                           <button
                             type="button"
                             onClick={() => handleSort("poNumber")}
-                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-blue-600"
                           >
                             PO Number
                             <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
 
-                        <th className="w-[170px] border border-slate-300 px-2 py-2">
+                        <th className="w-[170px] border border-[#d8e1ec] px-3 py-2.5">
                           Company
                         </th>
 
-                        <th className="w-[125px] border border-slate-300 px-2 py-2">
+                        <th className="w-[125px] border border-[#d8e1ec] px-3 py-2.5">
                           <button
                             type="button"
                             onClick={() => handleSort("batchNumber")}
-                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-blue-600"
                           >
                             Batch
                             <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
 
-                        <th className="w-[95px] border border-slate-300 px-2 py-2 text-right">
+                        <th className="w-[95px] border border-[#d8e1ec] px-3 py-2.5 text-right">
                           <button
                             type="button"
                             onClick={() => handleSort("quantity")}
-                            className="flex w-full items-center justify-end gap-1 hover:text-[#217346]"
+                            className="flex w-full items-center justify-end gap-1 hover:text-blue-600"
                           >
                             Quantity
                             <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
 
-                        <th className="w-[70px] border border-slate-300 px-2 py-2 text-center">
+                        <th className="w-[70px] border border-[#d8e1ec] px-3 py-2.5 text-center">
                           Unit
                         </th>
 
-                        <th className="w-[175px] border border-slate-300 px-2 py-2">
+                        <th className="w-[175px] border border-[#d8e1ec] px-3 py-2.5">
                           Storage Location
                         </th>
 
-                        <th className="w-[90px] border border-slate-300 px-2 py-2">
+                        <th className="w-[90px] border border-[#d8e1ec] px-3 py-2.5">
                           Rack
                         </th>
 
-                        <th className="w-[90px] border border-slate-300 px-2 py-2">
+                        <th className="w-[90px] border border-[#d8e1ec] px-3 py-2.5">
                           Shelf
                         </th>
 
-                        <th className="w-[125px] border border-slate-300 px-2 py-2">
+                        <th className="w-[125px] border border-[#d8e1ec] px-3 py-2.5">
                           Status
                         </th>
 
-                        <th className="w-[115px] border border-slate-300 px-2 py-2">
+                        <th className="w-[115px] border border-[#d8e1ec] px-3 py-2.5">
                           Condition
                         </th>
 
-                        <th className="w-[120px] border border-slate-300 px-2 py-2">
+                        <th className="w-[120px] border border-[#d8e1ec] px-3 py-2.5">
                           Received Date
                         </th>
 
-                        <th className="w-[120px] border border-slate-300 px-2 py-2">
+                        <th className="w-[120px] border border-[#d8e1ec] px-3 py-2.5">
                           <button
                             type="button"
                             onClick={() => handleSort("addedAt")}
-                            className="flex w-full items-center justify-between gap-1 text-left hover:text-[#217346]"
+                            className="flex w-full items-center justify-between gap-1 text-left hover:text-blue-600"
                           >
                             Added Date
                             <ArrowUpDown className="h-3 w-3 shrink-0" />
                           </button>
                         </th>
 
-                        <th className="w-[190px] border border-slate-300 px-2 py-2">
+                        <th className="w-[190px] border border-[#d8e1ec] px-3 py-2.5">
                           Added By
                         </th>
 
-                        <th className="w-[170px] border border-slate-300 px-2 py-2">
+                        <th className="w-[170px] border border-[#d8e1ec] px-3 py-2.5">
                           Notes
                         </th>
 
-                        <th className="sticky right-0 z-50 w-24 border border-slate-300 bg-[#E2EFDA] px-2 py-2 text-center">
+                        <th className="sticky right-0 z-50 w-24 border border-[#d8e1ec] bg-[#f8fafc] px-2 py-2.5 text-center">
                           Action
                         </th>
                       </tr>
@@ -728,14 +728,14 @@ const RejectedInventory = () => {
                           <tr
                             key={item._id}
                             onDoubleClick={() => handleViewDetails(item)}
-                            className="group bg-white hover:bg-[#EAF4E4]"
+                            className={`group transition-colors ${index % 2 === 0 ? "bg-white" : "bg-[#fbfdff]"} hover:bg-[#eef6ff]`}
                           >
                             {/* Excel row number */}
-                            <td className="sticky left-0 z-20 border border-slate-300 bg-slate-100 px-2 py-1.5 text-center font-mono text-[10px] font-semibold text-slate-500 group-hover:bg-[#D9EAD3]">
+                            <td className="sticky left-0 z-20 border border-[#d8e1ec] bg-[#f8fafc] px-2 py-3 text-center font-mono text-[10px] font-semibold text-slate-500 group-hover:bg-[#e8f2ff]">
                               {rowNumber}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 font-mono font-semibold text-slate-800">
+                            <td className="border border-[#d8e1ec] px-3 py-3 font-mono font-semibold text-slate-800">
                               <div
                                 className="truncate"
                                 title={item.itemCode || "-"}
@@ -744,7 +744,7 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <div
                                 className="truncate"
                                 title={item.description || "-"}
@@ -753,7 +753,7 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                            <td className="border border-[#d8e1ec] px-3 py-3 font-mono">
                               <div
                                 className="truncate"
                                 title={item.poNumber || "-"}
@@ -762,7 +762,7 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <div
                                 className="truncate"
                                 title={item.companyName || "-"}
@@ -771,19 +771,19 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                            <td className="border border-[#d8e1ec] px-3 py-3 font-mono">
                               {item.batchNumber || "-"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                            <td className="border border-[#d8e1ec] px-3 py-3 text-right font-semibold tabular-nums text-slate-900">
                               {Number(item.quantity || 0).toLocaleString("en-IN")}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 text-center">
+                            <td className="border border-[#d8e1ec] px-3 py-3 text-center">
                               {item.unit || "pcs"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <div
                                 className="truncate"
                                 title={item.storageLocation || "-"}
@@ -792,15 +792,15 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                            <td className="border border-[#d8e1ec] px-3 py-3 font-mono">
                               {item.rackNumber || "-"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 font-mono">
+                            <td className="border border-[#d8e1ec] px-3 py-3 font-mono">
                               {item.shelfNumber || "-"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <span
                                 className={`inline-flex max-w-full items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold capitalize ${getStatusBadge(
                                   item.status,
@@ -813,7 +813,7 @@ const RejectedInventory = () => {
                               </span>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <span
                                 className={`inline-flex max-w-full border px-1.5 py-0.5 text-[10px] font-semibold capitalize ${getConditionBadge(
                                   item.condition,
@@ -823,7 +823,7 @@ const RejectedInventory = () => {
                               </span>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 whitespace-nowrap">
+                            <td className="border border-[#d8e1ec] px-3 py-3 whitespace-nowrap">
                               {item.receivedDate
                                 ? new Date(item.receivedDate).toLocaleDateString(
                                     "en-IN",
@@ -836,7 +836,7 @@ const RejectedInventory = () => {
                                 : "-"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5 whitespace-nowrap">
+                            <td className="border border-[#d8e1ec] px-3 py-3 whitespace-nowrap">
                               {item.addedAt
                                 ? new Date(item.addedAt).toLocaleDateString(
                                     "en-IN",
@@ -849,7 +849,7 @@ const RejectedInventory = () => {
                                 : "-"}
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <div
                                 className="truncate"
                                 title={item.addedByName || "-"}
@@ -858,7 +858,7 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="border border-slate-300 px-2 py-1.5">
+                            <td className="border border-[#d8e1ec] px-3 py-3">
                               <div
                                 className="truncate text-slate-500"
                                 title={item.notes || "-"}
@@ -867,11 +867,11 @@ const RejectedInventory = () => {
                               </div>
                             </td>
 
-                            <td className="sticky right-0 z-20 border border-slate-300 bg-white px-2 py-1 text-center group-hover:bg-[#EAF4E4]">
+                            <td className="sticky right-0 z-20 border border-[#d8e1ec] bg-white px-3 py-2.5 text-center group-hover:bg-[#eef6ff]">
                               <button
                                 type="button"
                                 onClick={() => handleViewDetails(item)}
-                                className="inline-flex items-center gap-1 border border-[#217346] bg-white px-2 py-1 text-[10px] font-semibold text-[#217346] transition hover:bg-[#217346] hover:text-white"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-600 bg-blue-600 px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition hover:border-blue-700 hover:bg-blue-700"
                                 title="View inventory details"
                               >
                                 <Eye className="h-3.5 w-3.5" />
@@ -886,9 +886,9 @@ const RejectedInventory = () => {
                 </div>
 
                 {/* Excel-style worksheet status bar */}
-                <div className="flex flex-col gap-1 border-t border-slate-300 bg-slate-100 px-3 py-2 text-[10px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1 border-t border-[#d8e1ec] bg-[#f8fafc] px-3 py-2 text-[10px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="font-semibold text-[#217346]">
+                    <span className="font-semibold text-blue-600">
                       Ready
                     </span>
                     <span>
@@ -1014,7 +1014,6 @@ const RejectedInventory = () => {
         )}
       </div>
 
-
       {/* Details Modal */}
       {showDetailsModal && selectedItem && (
         <InventoryDetailsModal
@@ -1067,7 +1066,6 @@ const StatCard = ({ label, value, icon: Icon, color }) => {
 };
 
 // Inventory Details Modal Component
-// Inventory Details Modal Component - Excel Style
 const InventoryDetailsModal = ({ item, onClose }) => {
   const [loading, setLoading] = useState(false);
 
@@ -1101,10 +1099,10 @@ const InventoryDetailsModal = ({ item, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Excel-style Header */}
-        <div className="bg-[#217346] px-6 py-3.5 flex justify-between items-center">
+        <div className="bg-[] bg-gradient-to-r from-blue-600 rounded-2xl to-indigo-600  px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-white/15 rounded-lg p-1.5">
               <Package className="w-5 h-5 text-white" />
@@ -1165,9 +1163,9 @@ const InventoryDetailsModal = ({ item, onClose }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left Column - Item Information */}
             <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-[#E2EFDA] px-3 py-1.5 border-b border-slate-200">
+              <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <Info className="w-3.5 h-3.5 text-[#217346]" />
+                  <Info className="w-3.5 h-3.5 text-white" />
                   Item Information
                 </h4>
               </div>

@@ -9,6 +9,7 @@ import {
 } from "react";
 import * as XLSX from "xlsx";
 import toast, { Toaster } from "react-hot-toast";
+import { createPortal } from "react-dom";
 import {
   createDispatchRequestId,
   getApiErrorMessage,
@@ -63,6 +64,13 @@ import {
   X,
   AlertCircle,
   Layers,
+  ShoppingCart,
+  ListChecks,
+  HelpCircle,
+  BookOpen,
+  ArrowRight,
+  MoreHorizontal,
+  Info,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -71,6 +79,25 @@ const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_BILL_NUMBER_LENGTH = 100;
 const MAX_SHORT_TEXT_LENGTH = 200;
 const MAX_REMARKS_LENGTH = 1000;
+
+const MAX_BILL_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ACCEPTED_BILL_FILE_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+];
+
+const validateBillFile = (file) => {
+  if (!file) return "";
+  if (!ACCEPTED_BILL_FILE_TYPES.includes(file.type)) {
+    return "Bill file must be PDF, JPG, JPEG, or PNG";
+  }
+  if (file.size > MAX_BILL_FILE_SIZE_BYTES) {
+    return "Bill file must be 5 MB or smaller";
+  }
+  return "";
+};
+
 
 const normalizeText = (value) => String(value ?? "").trim();
 
@@ -2131,6 +2158,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
   const [mergedDispatchQty, setMergedDispatchQty] = useState("");
   const [dispatchDate, setDispatchDate] = useState(getLocalDateInputValue());
   const [billNumber, setBillNumber] = useState("");
+  const [billFile, setBillFile] = useState(null);
   const [remarks, setRemarks] = useState("");
   const [transportMode, setTransportMode] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -2162,6 +2190,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     setMergedDispatchQty("");
     setDispatchDate(getLocalDateInputValue());
     setBillNumber("");
+    setBillFile(null);
     setRemarks("");
     setTransportMode("");
     setTrackingNumber("");
@@ -2365,6 +2394,8 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     } else if (billNumber.trim().length > MAX_BILL_NUMBER_LENGTH) {
       newErrors.billNumber = `Bill number cannot exceed ${MAX_BILL_NUMBER_LENGTH} characters`;
     }
+    const billFileError = validateBillFile(billFile);
+    if (billFileError) newErrors.billFile = billFileError;
     if (remarks.trim().length > MAX_REMARKS_LENGTH) {
       newErrors.remarks = `Remarks cannot exceed ${MAX_REMARKS_LENGTH} characters`;
     }
@@ -2375,6 +2406,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
     individualQuantities,
     dispatchDate,
     billNumber,
+    billFile,
     remarks,
     getItemKey,
     mergedGroup,
@@ -2405,6 +2437,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
           items,
           dispatchDate,
           billNumber: billNumber.trim(),
+          billFile: billFile || null,
           remarks: remarks.trim(),
           transportMode: transportMode.trim(),
           trackingNumber: trackingNumber.trim(),
@@ -2429,6 +2462,7 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
       onDispatchUpdate,
       dispatchDate,
       billNumber,
+      billFile,
       remarks,
       transportMode,
       trackingNumber,
@@ -2905,6 +2939,92 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                         </p>
                       )}
                     </div>
+
+                    <div className="transform transition-all hover:scale-[1.01]">
+                      <label className="mb-1 flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <Upload className="h-4 w-4 text-blue-600" />
+                        Bill Upload
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                          Optional
+                        </span>
+                      </label>
+
+                      <label
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2.5 transition ${
+                          errors.billFile
+                            ? "border-red-300 bg-red-50"
+                            : billFile
+                              ? "border-emerald-300 bg-emerald-50"
+                              : "border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <FileText
+                            className={`h-4 w-4 shrink-0 ${
+                              billFile ? "text-emerald-600" : "text-gray-500"
+                            }`}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-gray-700">
+                              {billFile ? billFile.name : "Choose bill file"}
+                            </p>
+                            <p className="text-[10px] text-gray-500">
+                              PDF, JPG or PNG • Max 5 MB • Not required
+                            </p>
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-blue-600 shadow-sm">
+                          Browse
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            const error = validateBillFile(file);
+                            if (error) {
+                              setBillFile(null);
+                              setErrors((current) => ({
+                                ...current,
+                                billFile: error,
+                              }));
+                              e.target.value = "";
+                              return;
+                            }
+                            setBillFile(file);
+                            setErrors((current) => ({
+                              ...current,
+                              billFile: "",
+                            }));
+                          }}
+                        />
+                      </label>
+
+                      {billFile && (
+                        <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
+                          <span className="truncate pr-2">
+                            {billFile.name} • {(billFile.size / 1024).toFixed(1)} KB
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setBillFile(null)}
+                            className="shrink-0 rounded-md p-1 hover:bg-emerald-100"
+                            title="Remove bill file"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {errors.billFile && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.billFile}
+                        </p>
+                      )}
+                    </div>
+
                   </div>
 
                   <div>
@@ -3159,6 +3279,7 @@ const DispatchModal = React.memo(function DispatchModal({
   const [dispatchQty, setDispatchQty] = useState("");
   const [dispatchDate, setDispatchDate] = useState(getLocalDateInputValue());
   const [billNumber, setBillNumber] = useState("");
+  const [billFile, setBillFile] = useState(null);
   const [remarks, setRemarks] = useState("");
   const [transportMode, setTransportMode] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -3188,6 +3309,7 @@ const DispatchModal = React.memo(function DispatchModal({
         : getLocalDateInputValue(),
     );
     setBillNumber(shouldEdit ? initialDispatchEntry.billNumber || "" : "");
+    setBillFile(null);
     setRemarks(shouldEdit ? initialDispatchEntry.remarks || "" : "");
     setTransportMode(
       shouldEdit ? initialDispatchEntry.transportMode || "" : "",
@@ -3266,6 +3388,8 @@ const DispatchModal = React.memo(function DispatchModal({
     } else if (billNumber.trim().length > MAX_BILL_NUMBER_LENGTH) {
       newErrors.billNumber = `Bill number cannot exceed ${MAX_BILL_NUMBER_LENGTH} characters`;
     }
+    const billFileError = validateBillFile(billFile);
+    if (billFileError) newErrors.billFile = billFileError;
     if (remarks.trim().length > MAX_REMARKS_LENGTH) {
       newErrors.remarks = `Remarks cannot exceed ${MAX_REMARKS_LENGTH} characters`;
     }
@@ -3276,6 +3400,7 @@ const DispatchModal = React.memo(function DispatchModal({
     item,
     dispatchDate,
     billNumber,
+    billFile,
     remarks,
     getMaxDispatch,
     isEditingDispatch,
@@ -3299,6 +3424,7 @@ const DispatchModal = React.memo(function DispatchModal({
           dispatchQty: quantity,
           dispatchDate,
           billNumber: billNumber.trim(),
+          billFile: billFile || null,
           remarks: remarks.trim(),
           transportMode: transportMode.trim(),
           trackingNumber: trackingNumber.trim(),
@@ -3320,6 +3446,7 @@ const DispatchModal = React.memo(function DispatchModal({
       dispatchQty,
       dispatchDate,
       billNumber,
+      billFile,
       remarks,
       transportMode,
       trackingNumber,
@@ -3400,6 +3527,7 @@ const DispatchModal = React.memo(function DispatchModal({
           dispatchQty: Number(dispatchQty),
           dispatchDate,
           billNumber: billNumber.trim(),
+          billFile: billFile || null,
           remarks: remarks.trim(),
           transportMode: transportMode.trim(),
           trackingNumber: trackingNumber.trim(),
@@ -3423,6 +3551,7 @@ const DispatchModal = React.memo(function DispatchModal({
       dispatchQty,
       dispatchDate,
       billNumber,
+      billFile,
       remarks,
       transportMode,
       trackingNumber,
@@ -3821,6 +3950,92 @@ const DispatchModal = React.memo(function DispatchModal({
                       )}
                     </div>
 
+                    <div className="transform transition-all hover:scale-[1.01]">
+                      <label className="mb-1 flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <Upload className="h-4 w-4 text-blue-600" />
+                        Bill Upload
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                          Optional
+                        </span>
+                      </label>
+
+                      <label
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2.5 transition ${
+                          errors.billFile
+                            ? "border-red-300 bg-red-50"
+                            : billFile
+                              ? "border-emerald-300 bg-emerald-50"
+                              : "border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <FileText
+                            className={`h-4 w-4 shrink-0 ${
+                              billFile ? "text-emerald-600" : "text-gray-500"
+                            }`}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-gray-700">
+                              {billFile ? billFile.name : "Choose bill file"}
+                            </p>
+                            <p className="text-[10px] text-gray-500">
+                              PDF, JPG or PNG • Max 5 MB • Not required
+                            </p>
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-blue-600 shadow-sm">
+                          Browse
+                        </span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            const error = validateBillFile(file);
+                            if (error) {
+                              setBillFile(null);
+                              setErrors((current) => ({
+                                ...current,
+                                billFile: error,
+                              }));
+                              e.target.value = "";
+                              return;
+                            }
+                            setBillFile(file);
+                            setErrors((current) => ({
+                              ...current,
+                              billFile: "",
+                            }));
+                          }}
+                        />
+                      </label>
+
+                      {billFile && (
+                        <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
+                          <span className="truncate pr-2">
+                            {billFile.name} • {(billFile.size / 1024).toFixed(1)} KB
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setBillFile(null)}
+                            className="shrink-0 rounded-md p-1 hover:bg-emerald-100"
+                            title="Remove bill file"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {errors.billFile && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.billFile}
+                        </p>
+                      )}
+                    </div>
+
+
                     <div className="sm:col-span-2 transform transition-all hover:scale-[1.01]">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Remarks
@@ -4143,7 +4358,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
           aria-hidden="true"
         />
 
-        <div className="relative w-full max-w-2xl overflow-hidden bg-white rounded-2xl shadow-2xl animate-fadeIn">
+        <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-fadeIn">
           <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -4167,7 +4382,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6">
+          <form onSubmit={handleSubmit} className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
             {errors.form && (
               <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 mb-4">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -4356,7 +4571,7 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
+            <div className="sticky bottom-0 -mx-5 -mb-5 mt-6 flex items-center justify-between gap-3 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
               <div>
                 {showDeleteConfirm &&
                   (item.dispatchHistory?.length || 0) > 0 && (
@@ -5681,6 +5896,281 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
   );
 });
 
+
+// ============================================
+// USER GUIDE / ONBOARDING MODULE
+// ============================================
+const UserGuideModal = React.memo(function UserGuideModal({
+  isOpen,
+  onClose,
+}) {
+  const [activeStep, setActiveStep] = useState(0);
+
+  const steps = useMemo(
+    () => [
+      {
+        title: "Find the work you need",
+        icon: Search,
+        summary:
+          "Use search, company, status, category, pending quantity, or PO-date filters to narrow the pending list.",
+        bullets: [
+          "Companies are shown as collapsible sections.",
+          "The same item across related POs is merged for easier planning.",
+          "Expand a company only when you need to work on its pending items.",
+        ],
+      },
+      {
+        title: "Choose Single Dispatch or Queue",
+        icon: Truck,
+        summary:
+          "Use Dispatch for one item now, or Queue when you want to prepare several PO items before submitting.",
+        bullets: [
+          "Dispatch opens the single/merged dispatch form immediately.",
+          "Queue adds eligible PO lines to the Dispatch Queue without saving anything yet.",
+          "Queued items can be removed or cleared before you continue.",
+        ],
+      },
+      {
+        title: "Review quantities and dispatch details",
+        icon: ListChecks,
+        summary:
+          "For multiple items, open Dispatch Queue, enter each quantity, then complete the common dispatch details.",
+        bullets: [
+          "Dispatch Date and Bill Number are required.",
+          "Bill Upload is optional (PDF/JPG/PNG up to 5 MB).",
+          "Remarks, transport mode, LR/tracking number, and received-by are optional.",
+        ],
+      },
+      {
+        title: "Track history and exceptions",
+        icon: History,
+        summary:
+          "After dispatch, use history for audit details and More actions for rejection or PO maintenance.",
+        bullets: [
+          "View History shows bill-wise dispatch records.",
+          "Rejection is available only after a dispatch exists.",
+          "More contains rejection, edit/manage, and delete actions so the table stays clean.",
+        ],
+      },
+      {
+        title: "Import and maintain PO data",
+        icon: FileSpreadsheet,
+        summary:
+          "Excel import is reviewed before saving, so new users can fix rows before they reach the database.",
+        bullets: [
+          "Upload Excel → preview rows → fix validation issues → confirm upload.",
+          "Download the template when creating a new source file.",
+          "Refresh reloads the latest pending, rejection, and dispatch balances.",
+        ],
+      },
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    setActiveStep(0);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowRight") {
+        setActiveStep((current) => Math.min(steps.length - 1, current + 1));
+      }
+      if (event.key === "ArrowLeft") {
+        setActiveStep((current) => Math.max(0, current - 1));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose, steps.length]);
+
+  if (!isOpen) return null;
+
+  const current = steps[activeStep];
+  const StepIcon = current.icon;
+
+  return (
+    <div
+      className="fixed inset-0 z-[13000] overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pending-po-guide-title"
+    >
+      <div className="flex min-h-full items-center justify-center py-2">
+        <div className="w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-white/20">
+          <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 px-5 py-5 text-white sm:px-6">
+            <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-white/15 blur-3xl" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/15">
+                  <BookOpen className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">
+                    New user guide
+                  </p>
+                  <h2
+                    id="pending-po-guide-title"
+                    className="mt-1 text-xl font-bold sm:text-2xl"
+                  >
+                    How Pending PO & Dispatch works
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm text-blue-100">
+                    Follow the workflow once and you will know where every action lives.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:bg-white/15"
+                aria-label="Close user guide"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-[280px_1fr]">
+            <aside className="border-b border-slate-200 bg-slate-50 p-3 lg:border-b-0 lg:border-r lg:p-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                {steps.map((step, index) => {
+                  const Icon = step.icon;
+                  const active = index === activeStep;
+                  return (
+                    <button
+                      key={step.title}
+                      type="button"
+                      onClick={() => setActiveStep(index)}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
+                        active
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                          : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-blue-50 hover:text-blue-700"
+                      }`}
+                    >
+                      <span
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                          active ? "bg-white/15" : "bg-blue-50 text-blue-600"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider opacity-70">
+                          Step {index + 1}
+                        </span>
+                        <span className="block truncate text-sm font-semibold">
+                          {step.title}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                  <StepIcon className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
+                    Step {activeStep + 1} of {steps.length}
+                  </p>
+                  <h3 className="mt-1 text-xl font-bold text-slate-900">
+                    {current.title}
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    {current.summary}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3">
+                {current.bullets.map((bullet, index) => (
+                  <div
+                    key={bullet}
+                    className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  >
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm leading-6 text-slate-700">{bullet}</p>
+                  </div>
+                ))}
+              </div>
+
+              {activeStep === 1 && (
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                    <div className="flex items-center gap-2 font-semibold text-blue-800">
+                      <Truck className="h-4 w-4" />
+                      Single Dispatch
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-blue-700">
+                      Best when you want to dispatch one PO/item immediately.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-center gap-2 font-semibold text-emerald-800">
+                      <ShoppingCart className="h-4 w-4" />
+                      Queue Dispatch
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-emerald-700">
+                      Best when one bill or vehicle contains several PO items.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-7 flex items-center justify-between border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveStep((current) => Math.max(0, current - 1))
+                  }
+                  disabled={activeStep === 0}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                {activeStep < steps.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveStep((current) =>
+                        Math.min(steps.length - 1, current + 1),
+                      )
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700"
+                  >
+                    Next Step
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:from-blue-700 hover:to-indigo-700"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Got it
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 // ============================================
 // COMPANY ACCORDION ROW COMPONENT
 // ============================================
@@ -5693,6 +6183,8 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   onToggleSelection,
   onSetSelection,
   onDispatchClick,
+  onQueueToggle,
+  queueItemKeys,
   onRejectionClick,
   onEditClick,
   onDeleteClick,
@@ -5712,10 +6204,19 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   // Keep every company header visible. Row limiting happens inside
   // an expanded company instead of on the global company list.
   const [visibleItemCount, setVisibleItemCount] = useState(pageSize);
+  const [openActionMenu, setOpenActionMenu] = useState(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState({
+    top: 0,
+    left: 0,
+  });
 
   useEffect(() => {
     setVisibleItemCount(pageSize);
   }, [company, items.length, pageSize]);
+
+  useEffect(() => {
+    setOpenActionMenu(null);
+  }, [company, isExpanded]);
 
   const visibleItems = useMemo(
     () => items.slice(0, visibleItemCount),
@@ -5883,12 +6384,12 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Unit rate
                 </th>
-                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                {/* <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Pending value
                 </th>
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Priority
-                </th>
+                </th> */}
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Action
                 </th>
@@ -6066,7 +6567,7 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                         formatCurrency(item.rate)
                       )}
                     </td>
-                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                    {/* <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       {formatCurrency(item.total)}
                     </td>
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
@@ -6078,9 +6579,9 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                         />
                         {risk.label}
                       </span>
-                    </td>
+                    </td> */}
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => onDispatchClick(item)}
@@ -6089,23 +6590,15 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                               ? !canDispatch
                               : !canDispatch && itemHistoryCount === 0
                           }
-                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                           title={
-                            item._isMerged
-                              ? canDispatch
+                            canDispatch
+                              ? item._isMerged
                                 ? `Dispatch across ${dispatchableItems.length} eligible PO${dispatchableItems.length === 1 ? "" : "s"}`
-                                : "No related PO is eligible for dispatch"
-                              : canDispatch
-                                ? "Record dispatch"
-                                : itemHistoryCount > 0
-                                  ? "View dispatch history"
-                                  : status === "on hold"
-                                    ? "Release the PO hold before dispatching"
-                                    : status === "cancelled"
-                                      ? "Cancelled POs cannot be dispatched"
-                                      : !item._id
-                                        ? "Missing database id"
-                                        : "No dispatch history"
+                                : "Record dispatch"
+                              : itemHistoryCount > 0
+                                ? "View dispatch history"
+                                : "No dispatch is currently available"
                           }
                         >
                           {canDispatch ? (
@@ -6113,72 +6606,168 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                           ) : (
                             <History className="h-3.5 w-3.5" />
                           )}
+                          <span>{canDispatch ? "Dispatch" : "History"}</span>
                           {itemHistoryCount > 0 && (
-                            <span className="ml-0.5 rounded-full bg-blue-200 px-1.5 py-0.5 text-[9px] text-blue-800">
+                            <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px]">
                               {itemHistoryCount}
                             </span>
                           )}
-                          {item._isMerged && canDispatch && (
-                            <span>{dispatchableItems.length} POs</span>
-                          )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onRejectionClick(item)}
-                          disabled={itemHistoryCount === 0}
-                          className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
-                          title={
-                            itemHistoryCount > 0
-                              ? "Add, review, or accept rejection"
-                              : "Record a dispatch before adding rejection"
-                          }
-                        >
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          <span className="hidden xl:inline">Reject</span>
-                          {Number(item.rejected || 0) > 0 && (
-                            <span className="ml-0.5 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] text-rose-800">
-                              {Number(item.rejected || 0).toLocaleString(
-                                "en-IN",
-                              )}
-                            </span>
-                          )}
-                        </button>
-                        {item._isMerged ? (
+
+                        {canDispatch && (
                           <button
                             type="button"
-                            onClick={() => onEditClick(item)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
-                            title={`Edit or delete one of ${sourceItems.length} related POs`}
+                            onClick={() => onQueueToggle(item)}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                              dispatchableItems.every((sourceItem) =>
+                                queueItemKeys.has(getItemKey(sourceItem)),
+                              )
+                                ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-200"
+                                : "bg-emerald-600 text-white hover:bg-emerald-700"
+                            }`}
+                            title={
+                              dispatchableItems.every((sourceItem) =>
+                                queueItemKeys.has(getItemKey(sourceItem)),
+                              )
+                                ? "Remove from dispatch queue"
+                                : "Add to dispatch queue"
+                            }
                           >
-                            <SlidersHorizontal className="h-3.5 w-3.5" />
-                            Manage
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                            <span className="hidden 2xl:inline">
+                              {dispatchableItems.every((sourceItem) =>
+                                queueItemKeys.has(getItemKey(sourceItem)),
+                              )
+                                ? "Queued"
+                                : "Queue"}
+                            </span>
                           </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => onEditClick(item)}
-                              disabled={!item._id}
-                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:opacity-40"
-                              title={
-                                item._id ? "Edit PO" : "Missing database id"
-                              }
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteClick(item)}
-                              disabled={!item._id}
-                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition disabled:cursor-not-allowed disabled:opacity-40"
-                              title={
-                                item._id ? "Delete PO" : "Missing database id"
-                              }
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </>
                         )}
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              const rect =
+                                event.currentTarget.getBoundingClientRect();
+                              const menuWidth = 208;
+                              const menuHeight = item._isMerged ? 132 : 174;
+                              const viewportPadding = 12;
+
+                              const preferredLeft = rect.right - menuWidth;
+                              const left = Math.max(
+                                viewportPadding,
+                                Math.min(
+                                  window.innerWidth - menuWidth - viewportPadding,
+                                  preferredLeft,
+                                ),
+                              );
+
+                              const roomBelow =
+                                window.innerHeight - rect.bottom - viewportPadding;
+                              const top =
+                                roomBelow >= menuHeight
+                                  ? rect.bottom + 8
+                                  : Math.max(
+                                      viewportPadding,
+                                      rect.top - menuHeight - 8,
+                                    );
+
+                              setActionMenuPosition({ top, left });
+                              setOpenActionMenu((current) =>
+                                current === itemKey ? null : itemKey,
+                              );
+                            }}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                            title="More actions"
+                            aria-label="More actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+
+                          {openActionMenu === itemKey &&
+                            createPortal(
+                              <>
+                                <button
+                                  type="button"
+                                  className="fixed inset-0 z-[14000] cursor-default bg-transparent"
+                                  onClick={() => setOpenActionMenu(null)}
+                                  aria-label="Close action menu"
+                                />
+                                <div
+                                  className="fixed z-[14010] w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-2xl shadow-slate-900/15"
+                                  style={{
+                                    top: actionMenuPosition.top,
+                                    left: actionMenuPosition.left,
+                                  }}
+                                >
+                                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    More actions
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenu(null);
+                                      onRejectionClick(item);
+                                    }}
+                                    disabled={itemHistoryCount === 0}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    title={
+                                      itemHistoryCount > 0
+                                        ? "Add or review rejection"
+                                        : "A dispatch is required before rejection"
+                                    }
+                                  >
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                    Rejection
+                                    {Number(item.rejected || 0) > 0 && (
+                                      <span className="ml-auto rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px]">
+                                        {Number(item.rejected || 0).toLocaleString(
+                                          "en-IN",
+                                        )}
+                                      </span>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenu(null);
+                                      onEditClick(item);
+                                    }}
+                                    disabled={!item._isMerged && !item._id}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    {item._isMerged ? (
+                                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    )}
+                                    {item._isMerged
+                                      ? "Manage related POs"
+                                      : "Edit PO"}
+                                  </button>
+
+                                  {!item._isMerged && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionMenu(null);
+                                        onDeleteClick(item);
+                                      }}
+                                      disabled={!item._id}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      Delete PO
+                                    </button>
+                                  )}
+                                </div>
+                              </>,
+                              document.body,
+                            )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -6575,6 +7164,9 @@ const GeneratePendingList = () => {
   const [isConfirmingImport, setIsConfirmingImport] = useState(false);
   const [importPreviewError, setImportPreviewError] = useState("");
   const [selectedItems, setSelectedItems] = useState(new Set());
+  // Dispatch Queue uses the same Pending List records/APIs; it only changes the workflow/UI.
+  const [dispatchQueue, setDispatchQueue] = useState(new Set());
+  const [isQueuePanelOpen, setIsQueuePanelOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [sortConfig, setSortConfig] = useState({
     key: "deliveryDate",
@@ -6602,6 +7194,7 @@ const GeneratePendingList = () => {
   const [selectedPOGroup, setSelectedPOGroup] = useState(null);
   const [isPending, startTransition] = useTransition();
   const [expandedCompanies, setExpandedCompanies] = useState(new Set());
+  const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const loadSequenceRef = useRef(0);
 
   // Pending PO must never create a second document/browser scrollbar.
@@ -7299,9 +7892,38 @@ const GeneratePendingList = () => {
         );
       }
 
+      // Remove successfully dispatched rows from the queue when they no longer
+      // have pending quantity after the list refresh. Any still-pending rows
+      // stay available for another dispatch batch.
+      if (payload.isBulk) {
+        const dispatchedIds = new Set(
+          (payload.items || []).map((entry) => normalizeText(entry.poId)),
+        );
+        if (dispatchedIds.size > 0) {
+          setDispatchQueue((current) => {
+            const next = new Set(current);
+            data.forEach((item) => {
+              if (dispatchedIds.has(normalizeText(item?._id))) {
+                next.delete(getItemKey(item));
+              }
+            });
+            return next;
+          });
+        }
+      } else if (payload.poId) {
+        setDispatchQueue((current) => {
+          const next = new Set(current);
+          const matched = data.find(
+            (item) => normalizeText(item?._id) === normalizeText(payload.poId),
+          );
+          if (matched) next.delete(getItemKey(matched));
+          return next;
+        });
+      }
+
       return result;
     },
-    [loadPurchaseOrders, showNotification],
+    [data, getItemKey, loadPurchaseOrders, showNotification],
   );
 
   const handleDispatchEdit = useCallback(
@@ -7362,6 +7984,7 @@ const GeneratePendingList = () => {
     setSelectedItemForDispatch(itemsWithHistory);
     setSelectedMergedDispatchGroup(null);
     setInitialDispatchEntry(null);
+    setIsQueuePanelOpen(false);
     setIsMultipleDispatchModalOpen(true);
   }, [dispatchableSelectedRows, getItemKey, dispatchHistory, showNotification]);
 
@@ -7524,6 +8147,97 @@ const GeneratePendingList = () => {
     },
     [getItemKey],
   );
+
+  const queueItems = useMemo(() => {
+    if (dispatchQueue.size === 0) return [];
+    return data.filter((item) => dispatchQueue.has(getItemKey(item)));
+  }, [data, dispatchQueue, getItemKey]);
+
+  const toggleDispatchQueue = useCallback(
+    (item) => {
+      const eligibleItems = getSourcePurchaseOrders(item).filter(
+        (sourceItem) => {
+          const status = normalizeText(sourceItem?.status).toLowerCase();
+          return (
+            Boolean(sourceItem?._id) &&
+            toNonNegativeNumber(sourceItem?.pending) > 0 &&
+            status !== "cancelled" &&
+            status !== "on hold"
+          );
+        },
+      );
+
+      if (eligibleItems.length === 0) {
+        showNotification(
+          "This item has no eligible pending PO available for the dispatch queue.",
+          "warning",
+        );
+        return;
+      }
+
+      setDispatchQueue((current) => {
+        const next = new Set(current);
+        const eligibleKeys = eligibleItems.map(getItemKey);
+        const allAlreadyQueued = eligibleKeys.every((key) => next.has(key));
+
+        eligibleKeys.forEach((key) => {
+          if (allAlreadyQueued) next.delete(key);
+          else next.add(key);
+        });
+
+        return next;
+      });
+    },
+    [getItemKey, showNotification],
+  );
+
+  const removeQueueItem = useCallback((itemKey) => {
+    setDispatchQueue((current) => {
+      const next = new Set(current);
+      next.delete(itemKey);
+      if (next.size === 0) {
+        setIsQueuePanelOpen(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearDispatchQueue = useCallback(() => {
+    setDispatchQueue(new Set());
+    setIsQueuePanelOpen(false);
+  }, []);
+
+  const openDispatchQueue = useCallback(() => {
+    const eligibleQueueItems = queueItems.filter((item) => {
+      const status = normalizeText(item?.status).toLowerCase();
+      return (
+        Boolean(item?._id) &&
+        toNonNegativeNumber(item?.pending) > 0 &&
+        status !== "cancelled" &&
+        status !== "on hold"
+      );
+    });
+
+    if (eligibleQueueItems.length === 0) {
+      showNotification("Your dispatch queue is empty.", "warning");
+      return;
+    }
+
+    const itemsWithHistory = eligibleQueueItems.map((item) => ({
+      ...item,
+      dispatchHistory: dispatchHistory[getItemKey(item)] || [],
+    }));
+
+    setSelectedItemForDispatch(itemsWithHistory);
+    setSelectedMergedDispatchGroup(null);
+    setInitialDispatchEntry(null);
+    setIsMultipleDispatchModalOpen(true);
+  }, [
+    queueItems,
+    dispatchHistory,
+    getItemKey,
+    showNotification,
+  ]);
 
   const handleDispatchClick = useCallback(
     (item) => {
@@ -7931,6 +8645,11 @@ const GeneratePendingList = () => {
   }}
 />
 
+      <UserGuideModal
+        isOpen={isUserGuideOpen}
+        onClose={() => setIsUserGuideOpen(false)}
+      />
+
       {/* Excel preview is staged locally; no API import happens until confirm. */}
       <ExcelImportPreviewModal
         isOpen={isImportPreviewOpen}
@@ -7989,6 +8708,7 @@ const GeneratePendingList = () => {
       />
 
       {/* Multiple Dispatch Modal */}
+
       <MultipleDispatchModal
         isOpen={isMultipleDispatchModalOpen}
         onClose={closeDispatchModal}
@@ -8056,6 +8776,15 @@ const GeneratePendingList = () => {
             </div>
 
             <div className="no-print flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsUserGuideOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+              >
+                <HelpCircle className="h-4 w-4" />
+                How to Use
+              </button>
+
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -8195,6 +8924,62 @@ const GeneratePendingList = () => {
             </div>
           )}
         </header>
+
+        {data.length > 0 && (
+          <section className="no-print mb-5 rounded-2xl border border-blue-100 bg-white px-4 py-4 shadow-sm sm:px-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                    <Info className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Working flow</p>
+                    <p className="text-xs text-slate-500">
+                      Follow these steps from left to right.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["1", "Find", "Search or filter pending items", Search],
+                  ["2", "Choose", "Dispatch now or add to Queue", Truck],
+                  ["3", "Review", "Enter qty, bill and transport details", ListChecks],
+                  ["4", "Track", "Use History, Rejection or Manage", History],
+                ].map(([number, title, description, Icon], index) => (
+                  <div
+                    key={title}
+                    className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                  >
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-600 text-[11px] font-bold text-white">
+                      {number}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800">{title}</p>
+                      <p className="truncate text-[10px] text-slate-500" title={description}>
+                        {description}
+                      </p>
+                    </div>
+                    {index < 3 && (
+                      <ArrowRight className="ml-auto hidden h-3.5 w-3.5 shrink-0 text-slate-300 xl:block" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsUserGuideOpen(true)}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-50 px-3.5 py-2.5 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Open Guide
+              </button>
+            </div>
+          </section>
+        )}
 
         {loadError && data.length > 0 && (
           <div
@@ -8633,7 +9418,7 @@ const GeneratePendingList = () => {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-bold text-slate-900">
-                    Merged pending items by Company
+                    Pending items by company
                   </h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                     {filteredCompanyCount} companies · {sortedData.length}{" "}
@@ -8641,12 +9426,41 @@ const GeneratePendingList = () => {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Items are grouped automatically by company + item + drawing;
-                  quantities are summed and every related PO remains traceable.
+                  Expand a company to work on its items. Use Dispatch for one item, Queue for multiple items, and More for rejection or PO maintenance.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <div className="hidden xl:flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500 ring-1 ring-inset ring-slate-200">
+                  <Info className="h-3.5 w-3.5 text-blue-600" />
+                  Use <strong className="text-blue-700">Dispatch</strong> for one item or <strong className="text-emerald-700">Queue</strong> for multiple items.
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsQueuePanelOpen((current) => !current)}
+                    disabled={queueItems.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    title={
+                      queueItems.length > 0
+                        ? `${isQueuePanelOpen ? "Hide" : "Review"} ${queueItems.length} queued dispatch item(s)`
+                        : "Add items to the dispatch queue from the Action column"
+                    }
+                  >
+                    <ListChecks className="h-3.5 w-3.5" />
+                    {isQueuePanelOpen ? "Hide Queue" : "Review Queue"} ({queueItems.length})
+                  </button>
+                  {queueItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearDispatchQueue}
+                      className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-white"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
                 {selectedRows.length > 0 && (
                   <>
                     <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100">
@@ -8683,7 +9497,7 @@ const GeneratePendingList = () => {
                       className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                     >
                       <Layers className="h-3.5 w-3.5" />
-                      Dispatch Eligible ({dispatchableSelectedRows.length})
+                      Dispatch Selected ({dispatchableSelectedRows.length})
                     </button>
                   </>
                 )}
@@ -8747,6 +9561,99 @@ const GeneratePendingList = () => {
               </div>
             </div>
 
+            {isQueuePanelOpen && queueItems.length > 0 && (
+              <div className="no-print border-b border-emerald-100 bg-emerald-50/60 px-4 py-4 sm:px-5">
+                <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+                  <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white">
+                        <ShoppingCart className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-bold text-slate-900">
+                            Dispatch Queue
+                          </p>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                            {queueItems.length} item
+                            {queueItems.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          Keep browsing below and add more items. Nothing is dispatched
+                          until you click <strong>Dispatch Multiple</strong>.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsQueuePanelOpen(false)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Continue adding items
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDispatchQueue}
+                        className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        Clear Queue
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openDispatchQueue}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Dispatch Multiple
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {queueItems.map((item) => {
+                      const key = getItemKey(item);
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-[10px] font-bold text-blue-700">
+                                PO {item.po || "—"}
+                              </span>
+                              <span className="truncate text-xs font-bold text-slate-800">
+                                {item.itemCode || item.item || "Unnamed item"}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate text-[10px] text-slate-500">
+                              {item.company || "Unknown company"} · Pending{" "}
+                              <strong className="text-rose-600">
+                                {Number(item.pending || 0).toLocaleString("en-IN")}
+                              </strong>
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeQueueItem(key)}
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                            title="Remove from queue"
+                            aria-label={`Remove ${item.po || "item"} from queue`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Accordion View */}
             <div className="p-4 bg-gray-50">
               {companyList.length === 0 ? (
@@ -8770,6 +9677,8 @@ const GeneratePendingList = () => {
                       onToggleSelection={toggleItemSelection}
                       onSetSelection={setItemsSelection}
                       onDispatchClick={handleDispatchClick}
+                      onQueueToggle={toggleDispatchQueue}
+                      queueItemKeys={dispatchQueue}
                       onRejectionClick={handleRejectionClick}
                       onEditClick={handleEditClick}
                       onDeleteClick={handleDeleteClick}
