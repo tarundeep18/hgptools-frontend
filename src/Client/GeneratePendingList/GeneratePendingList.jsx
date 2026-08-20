@@ -76,11 +76,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 
-  // Check if user is admin
-
-  // const isAdmin = user?.role === "admin" || user?.isAdmin === true;
-  // const isClient = user?.role === "client" || !isAdmin;
-   
 const MAX_IMPORT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_BILL_NUMBER_LENGTH = 100;
 const MAX_SHORT_TEXT_LENGTH = 200;
@@ -94,7 +89,6 @@ const ACCEPTED_BILL_FILE_TYPES = [
 ];
 
 const validateBillFile = (file) => {
-  
   if (!file) return "";
   if (!ACCEPTED_BILL_FILE_TYPES.includes(file.type)) {
     return "Bill file must be PDF, JPG, JPEG, or PNG";
@@ -112,6 +106,19 @@ const validateBillFile = (file) => {
 
 
 const normalizeText = (value) => String(value ?? "").trim();
+
+const getUserCompanyName = (user) =>
+  normalizeText(
+    user?.companyName ||
+      user?.company?.name ||
+      user?.company ||
+      user?.customerName ||
+      user?.clientCompany ||
+      user?.organization?.name,
+  );
+
+const isSameCompany = (left, right) =>
+  normalizeMergeKeyPart(left) === normalizeMergeKeyPart(right);
 
 const normalizeMergeKeyPart = (value) =>
   normalizeText(value).toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
@@ -4171,6 +4178,169 @@ const DispatchModal = React.memo(function DispatchModal({
 });
 
 // ============================================
+// READ-ONLY PO VIEW MODAL (CLIENT SAFE)
+// ============================================
+const PurchaseOrderViewModal = React.memo(function PurchaseOrderViewModal({
+  isOpen,
+  onClose,
+  item,
+  formatCurrency,
+  formatDate,
+}) {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !item) return null;
+
+  const sourceItems = getSourcePurchaseOrders(item);
+  const fields = [
+    ["Company", item.company || "—"],
+    ["PO Number", item.po || "—"],
+    ["Item", item.item || "—"],
+    ["Item Code", item.itemCode || "—"],
+    ["Drawing", item.drawing || "—"],
+    ["PO Date", formatDate(item.poDate)],
+    ["Delivery Date", formatDate(item.deliveryDate)],
+    ["PO Quantity", toNonNegativeNumber(item.poQty).toLocaleString("en-IN")],
+    ["Dispatched", toNonNegativeNumber(item.dispatched).toLocaleString("en-IN")],
+    ["Rejected", toNonNegativeNumber(item.rejected).toLocaleString("en-IN")],
+    ["Net Accepted", toNonNegativeNumber(item.accepted).toLocaleString("en-IN")],
+    ["Pending", toNonNegativeNumber(item.pending).toLocaleString("en-IN")],
+    ["Unit Rate", formatCurrency(item.rate)],
+    ["Status", item.status || "Pending"],
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[15000] flex items-center justify-center overflow-y-auto bg-slate-950/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="po-view-title"
+    >
+      <button
+        type="button"
+        className="fixed inset-0 cursor-default"
+        onClick={onClose}
+        aria-label="Close purchase order view"
+      />
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-blue-700 to-indigo-700 px-6 py-5 text-white">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-blue-100">
+              Read only
+            </p>
+            <h3 id="po-view-title" className="mt-1 text-xl font-bold">
+              Purchase Order Details
+            </h3>
+            <p className="mt-1 text-sm text-blue-100">
+              {item.company || "Unknown company"} · {item.item || "Unnamed item"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-xl text-white transition hover:bg-white/15"
+            aria-label="Close purchase order view"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[75vh] overflow-auto p-5 sm:p-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {fields.map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {label}
+                </p>
+                <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {sourceItems.length > 1 && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm font-bold text-slate-800">
+                  Related Purchase Orders
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  This merged item contains {sourceItems.length} source PO lines.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-slate-800 text-xs text-white">
+                    <tr>
+                      <th className="px-3 py-2 text-left">PO</th>
+                      <th className="px-3 py-2 text-left">PO Date</th>
+                      <th className="px-3 py-2 text-left">Due Date</th>
+                      <th className="px-3 py-2 text-right">PO Qty</th>
+                      <th className="px-3 py-2 text-right">Dispatched</th>
+                      <th className="px-3 py-2 text-right">Pending</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {sourceItems.map((sourceItem) => (
+                      <tr key={getPurchaseOrderKey(sourceItem)}>
+                        <td className="px-3 py-2 font-mono font-semibold text-slate-700">
+                          {sourceItem.po || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {formatDate(sourceItem.poDate)}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {formatDate(sourceItem.deliveryDate)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {toNonNegativeNumber(sourceItem.poQty).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {toNonNegativeNumber(sourceItem.dispatched).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-rose-600">
+                          {toNonNegativeNumber(sourceItem.pending).toLocaleString("en-IN")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================
 // EDIT/DELETE PO MODAL COMPONENT
 // ============================================
 const EditDeleteModal = React.memo(function EditDeleteModal({
@@ -6200,6 +6370,8 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
   onRejectionClick,
   onEditClick,
   onDeleteClick,
+  onViewClick,
+  isAdmin,
   dispatchHistory,
   getCompletionPercentage,
   getRiskMeta,
@@ -6331,17 +6503,19 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={(node) => {
-              if (node) node.indeterminate = someSelected;
-            }}
-            onChange={handleSelectAll}
-            onClick={(e) => e.stopPropagation()}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 cursor-pointer"
-            aria-label={`${allSelected ? "Deselect" : "Select"} all visible items for ${company}`}
-          />
+          {isAdmin && (
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(node) => {
+                if (node) node.indeterminate = someSelected;
+              }}
+              onChange={handleSelectAll}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600 cursor-pointer"
+              aria-label={`${allSelected ? "Deselect" : "Select"} all visible items for ${company}`}
+            />
+          )}
           {isExpanded ? (
             <ChevronUp className="w-5 h-5 text-gray-400" />
           ) : (
@@ -6356,19 +6530,21 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
           <table className="w-full border-collapse text-sm text-center">
             <thead className="bg-gray-50">
               <tr>
-                <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(node) => {
-                      if (node) node.indeterminate = someSelected;
-                    }}
-                    onChange={handleSelectAll}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-                    aria-label={`Select all items for ${company}`}
-                  />
-                </th>
+                {isAdmin && (
+                  <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(node) => {
+                        if (node) node.indeterminate = someSelected;
+                      }}
+                      onChange={handleSelectAll}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                      aria-label={`Select all items for ${company}`}
+                    />
+                  </th>
+                )}
                 <th className="border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap">
                   Related PO numbers
                 </th>
@@ -6445,22 +6621,24 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                     key={itemKey}
                     className={`hover:bg-blue-50 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
                   >
-                    <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        ref={(node) => {
-                          if (node) node.indeterminate = isPartiallySelected;
-                        }}
-                        onChange={() => onToggleSelection(item)}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
-                        aria-label={
-                          item._isMerged
-                            ? `Select all ${item.poCount} related POs for ${item.item}`
-                            : `Select ${item.po} ${item.item}`
-                        }
-                      />
-                    </td>
+                    {isAdmin && (
+                      <td className="border border-gray-300 px-3 py-2 align-middle text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          ref={(node) => {
+                            if (node) node.indeterminate = isPartiallySelected;
+                          }}
+                          onChange={() => onToggleSelection(item)}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 accent-blue-600"
+                          aria-label={
+                            item._isMerged
+                              ? `Select all ${item.poCount} related POs for ${item.item}`
+                              : `Select ${item.po} ${item.item}`
+                          }
+                        />
+                      </td>
+                    )}
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       {item._isMerged ? (
                         <div className="min-w-[220px]">
@@ -6593,7 +6771,8 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                       </span>
                     </td> */}
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                      {isAdmin ? (
+                        <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => onDispatchClick(item)}
@@ -6780,7 +6959,18 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                               document.body,
                             )}
                         </div>
-                      </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onViewClick(item)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
+                          title="View purchase order details"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -7147,6 +7337,11 @@ const StatCard = React.memo(function StatCard({
 // MAIN COMPONENT
 // ============================================
 const GeneratePendingList = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.isAdmin === true;
+  const isClient = !isAdmin;
+  const clientCompany = useMemo(() => getUserCompanyName(user), [user]);
+
   const [data, setData] = useState([]);
   const [manager, setManager] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -7204,6 +7399,8 @@ const GeneratePendingList = () => {
   const [selectedPOAction, setSelectedPOAction] = useState("edit");
   const [isPOGroupModalOpen, setIsPOGroupModalOpen] = useState(false);
   const [selectedPOGroup, setSelectedPOGroup] = useState(null);
+  const [selectedItemForView, setSelectedItemForView] = useState(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [expandedCompanies, setExpandedCompanies] = useState(new Set());
   const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
@@ -7279,31 +7476,44 @@ const GeneratePendingList = () => {
   }, []);
 
   const clearFilters = useCallback(() => {
-    setSelectedCompany("all");
+    setSelectedCompany(isAdmin ? "all" : clientCompany || "__client_company__");
     setSearchTerm("");
     setDebouncedSearchTerm("");
-    setSelectedStatus("all");
+    setSelectedStatus(isAdmin ? "all" : "pending");
     setSelectedCategory("all");
     setMinPending("");
     setMaxPending("");
     setDateRange({ start: "", end: "" });
     setCurrentPage(1);
-  }, []);
+  }, [clientCompany, isAdmin]);
 
   const filteredData = useMemo(() => {
     if (!manager) return [];
     const filters = {
-      company: selectedCompany,
+      company: isAdmin ? selectedCompany : "all",
       searchTerm: debouncedSearchTerm,
-      status: selectedStatus,
+      status: isAdmin ? selectedStatus : "pending",
       category: selectedCategory,
       minPending: minPending,
       maxPending: maxPending,
       dateRange: dateRange,
     };
-    return manager.filterData(filters);
+
+    const result = manager.filterData(filters);
+
+    if (isAdmin) return result;
+    if (!clientCompany) return [];
+
+    return result.filter(
+      (item) =>
+        isSameCompany(item.company, clientCompany) &&
+        !isCancelledRecord(item) &&
+        toNonNegativeNumber(item.pending) > 0,
+    );
   }, [
     manager,
+    isAdmin,
+    clientCompany,
     selectedCompany,
     debouncedSearchTerm,
     selectedStatus,
@@ -7491,8 +7701,10 @@ const GeneratePendingList = () => {
         const limit = 500;
 
         const firstResult = await pendingPoApi.listAll({
-          all: true,
+          all: isAdmin,
           includeHistory: true,
+          company: isAdmin ? undefined : clientCompany || undefined,
+          status: isAdmin ? undefined : "pending",
           page: 1,
           limit,
           signal,
@@ -7540,6 +7752,8 @@ const GeneratePendingList = () => {
             const result = await pendingPoApi.listAll({
               all: false,
               includeHistory: true,
+              company: isAdmin ? undefined : clientCompany || undefined,
+              status: isAdmin ? undefined : "pending",
               page,
               limit,
               signal,
@@ -7573,11 +7787,21 @@ const GeneratePendingList = () => {
         // same Company + same PO + same item identity.
         // Different PO or different Company must remain.
         const uniqueRecords = deduplicatePOItems(records);
+        const accessibleRecords = isAdmin
+          ? uniqueRecords
+          : clientCompany
+            ? uniqueRecords.filter(
+                (item) =>
+                  isSameCompany(item.company, clientCompany) &&
+                  !isCancelledRecord(item) &&
+                  toNonNegativeNumber(item.pending) > 0,
+              )
+            : [];
 
-        const nextManager = new PendingPOManager(uniqueRecords);
+        const nextManager = new PendingPOManager(accessibleRecords);
         const nextHistory = {};
 
-        uniqueRecords.forEach((item) => {
+        accessibleRecords.forEach((item) => {
           const itemKey = getItemKey(item);
           nextHistory[itemKey] = Array.isArray(item.dispatchHistory)
             ? item.dispatchHistory.map((entry) =>
@@ -7595,17 +7819,20 @@ const GeneratePendingList = () => {
         const nextCategories = nextManager.itemCategories;
 
         startTransition(() => {
-          setData(uniqueRecords);
+          setData(accessibleRecords);
           setManager(nextManager);
           setDispatchHistory(nextHistory);
-          setCompanies(["all", ...nextCompanies]);
+          setCompanies(isAdmin ? ["all", ...nextCompanies] : clientCompany ? [clientCompany] : []);
           setCategories(["all", ...nextCategories]);
 
           setSelectedCompany((current) =>
-            current === "all" || nextCompanies.includes(current)
-              ? current
-              : "all",
+            isAdmin
+              ? current === "all" || nextCompanies.includes(current)
+                ? current
+                : "all"
+              : clientCompany || "__client_company__",
           );
+          if (!isAdmin) setSelectedStatus("pending");
           setSelectedCategory((current) =>
             current === "all" || nextCategories.includes(current)
               ? current
@@ -7615,7 +7842,7 @@ const GeneratePendingList = () => {
           setSelectedItems(new Set());
           setIsDataReady(true);
           setDataQualityIssueCount(
-            uniqueRecords.filter(
+            accessibleRecords.filter(
               (item) =>
                 Array.isArray(item._dataIssues) && item._dataIssues.length > 0,
             ).length,
@@ -7656,7 +7883,7 @@ const GeneratePendingList = () => {
         }
       }
     },
-    [getItemKey, showNotification, startTransition],
+    [clientCompany, getItemKey, isAdmin, showNotification, startTransition],
   );
   const resetImportPreview = useCallback(() => {
     setIsImportPreviewOpen(false);
@@ -7668,6 +7895,11 @@ const GeneratePendingList = () => {
 
   const handleFileUpload = useCallback(
     async (event) => {
+      if (!isAdmin) {
+        showNotification("Admin access required", "error");
+        event.target.value = "";
+        return;
+      }
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -7704,7 +7936,7 @@ const GeneratePendingList = () => {
         event.target.value = "";
       }
     },
-    [showNotification],
+    [isAdmin, showNotification],
   );
 
   const handlePreviewRowUpdate = useCallback((rowId, field, value) => {
@@ -7726,6 +7958,10 @@ const GeneratePendingList = () => {
   }, []);
 
   const confirmReviewedImport = useCallback(async () => {
+    if (!isAdmin) {
+      showNotification("Admin access required", "error");
+      return;
+    }
     if (!importPreviewFile || importPreviewRows.length === 0) {
       setImportPreviewError("Keep at least one row before uploading");
       return;
@@ -7880,6 +8116,7 @@ const GeneratePendingList = () => {
 
   const handleDispatchUpdate = useCallback(
     async (payload) => {
+      if (!isAdmin) throw new Error("Admin access required");
       const result = payload.isBulk
         ? await pendingPoApi.createBulkDispatch(payload)
         : await pendingPoApi.createDispatch(payload);
@@ -7935,11 +8172,12 @@ const GeneratePendingList = () => {
 
       return result;
     },
-    [data, getItemKey, loadPurchaseOrders, showNotification],
+    [data, getItemKey, isAdmin, loadPurchaseOrders, showNotification],
   );
 
   const handleDispatchEdit = useCallback(
     async (payload) => {
+      if (!isAdmin) throw new Error("Admin access required");
       try {
         const result = await pendingPoApi.updateDispatch(payload);
         const refreshed = await loadPurchaseOrders({ quiet: true });
@@ -7955,11 +8193,12 @@ const GeneratePendingList = () => {
         throw error;
       }
     },
-    [loadPurchaseOrders, showNotification],
+    [isAdmin, loadPurchaseOrders, showNotification],
   );
 
   const handleDispatchDelete = useCallback(
     async (payload) => {
+      if (!isAdmin) throw new Error("Admin access required");
       try {
         await pendingPoApi.deleteDispatch(payload);
         const refreshed = await loadPurchaseOrders({ quiet: true });
@@ -7974,10 +8213,11 @@ const GeneratePendingList = () => {
         throw error;
       }
     },
-    [loadPurchaseOrders, showNotification],
+    [isAdmin, loadPurchaseOrders, showNotification],
   );
 
   const openMultipleDispatchModal = useCallback(() => {
+    if (!isAdmin) return;
     const itemsToDispatch = dispatchableSelectedRows;
 
     if (itemsToDispatch.length === 0) {
@@ -8167,6 +8407,7 @@ const GeneratePendingList = () => {
 
   const toggleDispatchQueue = useCallback(
     (item) => {
+      if (!isAdmin) return;
       const eligibleItems = getSourcePurchaseOrders(item).filter(
         (sourceItem) => {
           const status = normalizeText(sourceItem?.status).toLowerCase();
@@ -8253,6 +8494,7 @@ const GeneratePendingList = () => {
 
   const handleDispatchClick = useCallback(
     (item) => {
+      if (!isAdmin) return;
       if (item._isMerged) {
         const eligibleItems = item._dispatchableItems || [];
         if (eligibleItems.length === 0) {
@@ -8283,11 +8525,12 @@ const GeneratePendingList = () => {
       });
       setIsDispatchModalOpen(true);
     },
-    [dispatchHistory, getItemKey, showNotification],
+    [dispatchHistory, getItemKey, isAdmin, showNotification],
   );
 
   const handleRejectionClick = useCallback(
     (item) => {
+      if (!isAdmin) return;
       const sourceItems = getSourcePurchaseOrders(item);
       const hasDispatch = sourceItems.some((sourceItem) => {
         const history = dispatchHistory[getItemKey(sourceItem)] || [];
@@ -8309,7 +8552,7 @@ const GeneratePendingList = () => {
       setSelectedItemForRejection(item);
       setIsRejectionManagerOpen(true);
     },
-    [dispatchHistory, getItemKey, showNotification],
+    [dispatchHistory, getItemKey, isAdmin, showNotification],
   );
 
   const closeRejectionManager = useCallback(() => {
@@ -8368,8 +8611,20 @@ const GeneratePendingList = () => {
     [closePOGroupManager, openSinglePOEditor],
   );
 
+  const handleViewClick = useCallback((item) => {
+    if (!item) return;
+    setSelectedItemForView(item);
+    setIsViewModalOpen(true);
+  }, []);
+
+  const closeViewModal = useCallback(() => {
+    setIsViewModalOpen(false);
+    setSelectedItemForView(null);
+  }, []);
+
   const handleEditClick = useCallback(
     (item) => {
+      if (!isAdmin) return;
       const sourceItems = getSourcePurchaseOrders(item);
       if (sourceItems.length > 1) {
         openPOGroupManager(item);
@@ -8377,11 +8632,12 @@ const GeneratePendingList = () => {
       }
       openSinglePOEditor(sourceItems[0] || item, "edit");
     },
-    [openPOGroupManager, openSinglePOEditor],
+    [isAdmin, openPOGroupManager, openSinglePOEditor],
   );
 
   const handleDeleteClick = useCallback(
     (item) => {
+      if (!isAdmin) return;
       const sourceItems = getSourcePurchaseOrders(item);
       if (sourceItems.length > 1) {
         openPOGroupManager(item);
@@ -8389,11 +8645,12 @@ const GeneratePendingList = () => {
       }
       openSinglePOEditor(sourceItems[0] || item, "delete");
     },
-    [openPOGroupManager, openSinglePOEditor],
+    [isAdmin, openPOGroupManager, openSinglePOEditor],
   );
 
   const handleUpdatePO = useCallback(
     async (id, updateData) => {
+      if (!isAdmin) throw new Error("Admin access required");
       try {
         const result = await pendingPoApi.updatePO(id, updateData);
         const refreshed = await loadPurchaseOrders({ quiet: true });
@@ -8414,6 +8671,7 @@ const GeneratePendingList = () => {
 
   const handleDeletePO = useCallback(
     async (id) => {
+      if (!isAdmin) throw new Error("Admin access required");
       try {
         await pendingPoApi.deletePO(id);
         const refreshed = await loadPurchaseOrders({ quiet: true });
@@ -8428,7 +8686,7 @@ const GeneratePendingList = () => {
         throw error;
       }
     },
-    [loadPurchaseOrders, showNotification],
+    [isAdmin, loadPurchaseOrders, showNotification],
   );
 
   const toggleCompany = useCallback((company) => {
@@ -8685,7 +8943,16 @@ const GeneratePendingList = () => {
         onChanged={handleRejectionChanged}
       />
 
+      <PurchaseOrderViewModal
+        isOpen={isViewModalOpen}
+        onClose={closeViewModal}
+        item={selectedItemForView}
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+      />
+
       {/* Edit/Delete PO Modal */}
+      {isAdmin && (
       <EditDeleteModal
         isOpen={isEditModalOpen}
         onClose={closeSinglePOEditor}
@@ -8694,7 +8961,10 @@ const GeneratePendingList = () => {
         onDelete={handleDeletePO}
         initialDeleteConfirmation={selectedPOAction === "delete"}
       />
+      )}
 
+      {isAdmin && (
+        <>
       {/* Merged rows retain their source records so the user can safely choose
           exactly which database PO to edit or delete. */}
       <PurchaseOrderGroupModal
@@ -8760,6 +9030,9 @@ const GeneratePendingList = () => {
         onDispatchDelete={handleDispatchDelete}
       />
 
+        </>
+      )}
+
       <div className="mx-auto w-full min-w-0 max-w-[1600px] bg-gradient-to-br from-slate-50 via-blue-50/70 to-indigo-50 p-3 text-slate-900 sm:p-5 lg:p-6">
         {/* Header */}
         <header className="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 animate-fadeInUp sm:p-6 lg:p-7">
@@ -8797,6 +9070,8 @@ const GeneratePendingList = () => {
                 How to Use
               </button>
 
+              {isAdmin && (
+                <>
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -8821,6 +9096,9 @@ const GeneratePendingList = () => {
                     : "Preview Excel upload"}
               </label>
 
+                </>
+              )}
+
               {isDataReady && (
                 <button
                   type="button"
@@ -8835,7 +9113,7 @@ const GeneratePendingList = () => {
                 </button>
               )}
 
-              {data.length > 0 && (
+              {isAdmin && data.length > 0 && (
                 <>
                   <button
                     type="button"
@@ -8937,7 +9215,7 @@ const GeneratePendingList = () => {
           )}
         </header>
 
-        {data.length > 0 && (
+        {isAdmin && data.length > 0 && (
           <section className="no-print mb-5 rounded-2xl border border-blue-100 bg-white px-4 py-4 shadow-sm sm:px-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
@@ -8991,6 +9269,20 @@ const GeneratePendingList = () => {
               </button>
             </div>
           </section>
+        )}
+
+        {isClient && (
+          <div className="mb-5 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-bold">Client read-only access</p>
+              <p className="mt-0.5 text-xs text-blue-700">
+                {clientCompany
+                  ? `Showing only pending purchase orders for ${clientCompany}.`
+                  : "No company is assigned to this account, so purchase-order data is hidden."}
+              </p>
+            </div>
+          </div>
         )}
 
         {loadError && data.length > 0 && (
@@ -9271,17 +9563,23 @@ const GeneratePendingList = () => {
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                       Company
                     </label>
-                    <select
-                      value={selectedCompany}
-                      onChange={(e) => setSelectedCompany(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                    >
-                      {companies.map((company) => (
-                        <option key={company} value={company}>
-                          {company === "all" ? "All companies" : company}
-                        </option>
-                      ))}
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        value={selectedCompany}
+                        onChange={(e) => setSelectedCompany(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      >
+                        {companies.map((company) => (
+                          <option key={company} value={company}>
+                            {company === "all" ? "All companies" : company}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800">
+                        {clientCompany || "No company assigned"}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -9305,19 +9603,25 @@ const GeneratePendingList = () => {
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                       Status
                     </label>
-                    <select
-                      value={selectedStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                    >
-                      <option value="all">All statuses</option>
-                      <option value="pending">Open (all)</option>
-                      <option value="not_started">Not started</option>
-                      <option value="partial">Partially dispatched</option>
-                      <option value="completed">Completed</option>
-                      <option value="on_hold">On hold</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition hover:border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      >
+                        <option value="all">All statuses</option>
+                        <option value="pending">Open (all)</option>
+                        <option value="not_started">Not started</option>
+                        <option value="partial">Partially dispatched</option>
+                        <option value="completed">Completed</option>
+                        <option value="on_hold">On hold</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    ) : (
+                      <div className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800">
+                        Pending only
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -9438,11 +9742,15 @@ const GeneratePendingList = () => {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Expand a company to work on its items. Use Dispatch for one item, Queue for multiple items, and More for rejection or PO maintenance.
+                  {isAdmin
+                    ? "Expand a company to work on its items. Use Dispatch for one item, Queue for multiple items, and More for rejection or PO maintenance."
+                    : "Expand your company to review pending purchase orders. Client access is read-only."}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {isAdmin && (
+                  <>
                 <div className="hidden xl:flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500 ring-1 ring-inset ring-slate-200">
                   <Info className="h-3.5 w-3.5 text-blue-600" />
                   Use <strong className="text-blue-700">Dispatch</strong> for one item or <strong className="text-emerald-700">Queue</strong> for multiple items.
@@ -9514,6 +9822,8 @@ const GeneratePendingList = () => {
                   </>
                 )}
 
+                  </>
+                )}
                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                   <button
                     type="button"
@@ -9573,7 +9883,7 @@ const GeneratePendingList = () => {
               </div>
             </div>
 
-            {isQueuePanelOpen && queueItems.length > 0 && (
+            {isAdmin && isQueuePanelOpen && queueItems.length > 0 && (
               <div className="no-print border-b border-emerald-100 bg-emerald-50/60 px-4 py-4 sm:px-5">
                 <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
                   <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -9694,6 +10004,8 @@ const GeneratePendingList = () => {
                       onRejectionClick={handleRejectionClick}
                       onEditClick={handleEditClick}
                       onDeleteClick={handleDeleteClick}
+                      onViewClick={handleViewClick}
+                      isAdmin={isAdmin}
                       dispatchHistory={dispatchHistory}
                       getCompletionPercentage={getCompletionPercentage}
                       getRiskMeta={getRiskMeta}
@@ -9786,36 +10098,47 @@ const GeneratePendingList = () => {
                 Start with your source file
               </p>
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Turn your pending PO sheet into an operating dashboard
+                {isAdmin
+                  ? "Turn your pending PO sheet into an operating dashboard"
+                  : "No pending purchase orders to display"}
               </h2>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-                Select an Excel file, review every row, edit or delete unwanted
-                data, and confirm only when it is ready.
+                {isAdmin
+                  ? "Select an Excel file, review every row, edit or delete unwanted data, and confirm only when it is ready."
+                  : "Client accounts can only view pending purchase orders assigned to their own company."}
               </p>
 
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
-                <label
-                  htmlFor="file-upload"
-                  className={`inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 ${isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-                >
-                  {isPreparingImport ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  {isPreparingImport
-                    ? "Preparing preview..."
-                    : "Choose Excel file"}
-                </label>
-                <button
-                  type="button"
-                  onClick={downloadTemplate}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
-                >
-                  <FileDown className="h-4 w-4" />
-                  Download template
-                </button>
-              </div>
+              {isAdmin ? (
+                <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+                  <label
+                    htmlFor="file-upload"
+                    className={`inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 ${isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    {isPreparingImport ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {isPreparingImport
+                      ? "Preparing preview..."
+                      : "Choose Excel file"}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={downloadTemplate}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Download template
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-6 text-sm font-semibold text-slate-600">
+                  {clientCompany
+                    ? `No pending purchase orders are available for ${clientCompany}.`
+                    : "Your account does not have a company assigned."}
+                </p>
+              )}
               <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <Check className="h-3.5 w-3.5 text-emerald-500" /> .xlsx and
