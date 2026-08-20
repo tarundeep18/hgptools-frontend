@@ -77,6 +77,7 @@ import {
 import { useAuth } from "../../context/AuthContext.jsx";
 
   // Check if user is admin
+
   // const isAdmin = user?.role === "admin" || user?.isAdmin === true;
   // const isClient = user?.role === "client" || !isAdmin;
 
