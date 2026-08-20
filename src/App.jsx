@@ -632,7 +632,7 @@ const App = () => {
               <Route
                 path="/generate/pendinglist"
                 element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
+                  <ProtectedRoute allowedRoles={["admin","client"]}>
                     <GeneratePendingList />
                   </ProtectedRoute>
                 }

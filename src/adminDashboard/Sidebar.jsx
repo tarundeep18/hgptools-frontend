@@ -128,7 +128,7 @@ const menuItems = [
     title: "Quality Inspection",
     icon: <Book  size={18} />,
     path: "/qc-inspection",
-    roles: ["client", "admin","qc"],
+    roles: ["admin"],
     group: "Engineering & Quality",
   },
 
@@ -152,6 +152,13 @@ const menuItems = [
     path: "/inventory",
     roles: ["admin"],
     group: "Production",
+  },
+   {
+    title: "Order History",
+    icon: <History size={18} />,
+    path: "/order-history",
+    roles: ["admin","client"],
+    group: "Engineering & Quality",
   },
   {
     title: "Production Planning",
