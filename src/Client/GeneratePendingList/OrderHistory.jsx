@@ -1366,6 +1366,7 @@ const OrderHistory = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Notes
                   </label>
+                  
                   <textarea
                     rows="3"
                     value={editFormData.notes}
