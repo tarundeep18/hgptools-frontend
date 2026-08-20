@@ -26,6 +26,19 @@ const qty = (value) => {
   return Number.isFinite(n) ? Math.max(0, n) : 0;
 };
 
+const getUserCompanyName = (user) =>
+  text(
+    user?.companyName ||
+      user?.company?.name ||
+      user?.company ||
+      user?.clientCompany ||
+      user?.customerName ||
+      user?.organization?.name,
+  );
+
+const sameCompany = (left, right) =>
+  text(left).toLowerCase() === text(right).toLowerCase();
+
 const extractRecords = (result) => {
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.records)) return result.records;
@@ -82,6 +95,8 @@ const statusMeta = {
 const RejectionHistory = () =>  {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
+  const isClient = !isAdmin;
+  const clientCompany = useMemo(() => getUserCompanyName(user), [user]);
   const [activeTab, setActiveTab] = useState("rejections");
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [rejections, setRejections] = useState([]);
@@ -96,41 +111,73 @@ const RejectionHistory = () =>  {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
-      const [poResult, rejectionResult] = await Promise.all([
-        pendingPoApi.listAll({
-          all: true,
-          includeHistory: true,
-          page: 1,
-          limit: 1000,
-        }),
-        rejectionApi.list({ limit: 2000 }),
-      ]);
-      setPurchaseOrders(extractRecords(poResult));
-      setRejections(
-        Array.isArray(rejectionResult?.records)
-          ? rejectionResult.records
-          : rejectionResult || [],
-      );
+      if (isAdmin) {
+        const [poResult, rejectionResult] = await Promise.all([
+          pendingPoApi.listAll({
+            all: true,
+            includeHistory: true,
+            page: 1,
+            limit: 1000,
+          }),
+          rejectionApi.list({ limit: 2000 }),
+        ]);
+
+        setPurchaseOrders(extractRecords(poResult));
+        setRejections(
+          Array.isArray(rejectionResult?.records)
+            ? rejectionResult.records
+            : rejectionResult || [],
+        );
+      } else {
+        // Client history page does not load dispatch/inventory data.
+        // The API should also enforce company scoping server-side.
+        const rejectionResult = await rejectionApi.list({ limit: 2000 });
+
+        setPurchaseOrders([]);
+        setRejections(
+          Array.isArray(rejectionResult?.records)
+            ? rejectionResult.records
+            : rejectionResult || [],
+        );
+      }
     } catch (e) {
       setError(getApiErrorMessage(e, "Could not load rejection data"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
+
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isAdmin && activeTab !== "rejections") {
+      setActiveTab("rejections");
+    }
+  }, [activeTab, isAdmin]);
 
   const dispatches = useMemo(
     () => flattenDispatches(purchaseOrders, rejections),
     [purchaseOrders, rejections],
   );
 
+  const scopedRejections = useMemo(() => {
+    if (isAdmin) return rejections;
+
+    if (!clientCompany) return [];
+
+    return rejections.filter((rejection) =>
+      sameCompany(rejection.companyName || rejection.company, clientCompany),
+    );
+  }, [rejections, isAdmin, clientCompany]);
+
   const filteredRejections = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rejections.filter((r) => {
+    return scopedRejections.filter((r) => {
       const matchText =
         !q ||
         [r.poNumber, r.companyName, r.itemCode, r.description, r.reason].some(
@@ -139,7 +186,7 @@ const RejectionHistory = () =>  {
       const matchStatus = status === "all" || r.status === status;
       return matchText && matchStatus;
     });
-  }, [rejections, search, status]);
+  }, [scopedRejections, search, status]);
 
   const filteredDispatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -158,22 +205,15 @@ const RejectionHistory = () =>  {
 
   const stats = useMemo(
     () => ({
-      total: rejections.length,
-      pending: rejections.filter((r) => r.status === "pending_review").length,
-      approved: rejections.filter((r) => r.status === "approved").length,
-      recorded: rejections.filter((r) => r.status === "recorded").length,
-      qty: rejections
+      total: scopedRejections.length,
+      pending: scopedRejections.filter((r) => r.status === "pending_review").length,
+      approved: scopedRejections.filter((r) => r.status === "approved").length,
+      recorded: scopedRejections.filter((r) => r.status === "recorded").length,
+      qty: scopedRejections
         .filter((r) => r.affectsPending)
         .reduce((sum, r) => sum + qty(r.rejectedQuantity), 0),
-      inventoryQty: rejections.reduce(
-        (sum, r) => sum + qty(r.inventoryAddedQuantity),
-        0,
-      ),
-      inventoryRecords: rejections.filter(
-        (r) => r.inventoryStatus === "stored" || r.inventoryStatus === "partial",
-      ).length,
     }),
-    [rejections],
+    [scopedRejections],
   );
 
   const review = async (rejection, action) => {
@@ -215,7 +255,11 @@ const RejectionHistory = () =>  {
                 <h1 className="text-xl font-bold">Rejection Management</h1>
               </div>
               <p className="mt-1 text-sm text-slate-300">
-                One history for manual and Excel-imported rejections, with quarantine inventory traceability.
+                {isAdmin
+                  ? "One history for manual and Excel-imported rejections, with quarantine inventory traceability."
+                  : clientCompany
+                    ? `Showing rejection history for ${clientCompany} only.`
+                    : "No company is assigned to this client account."}
               </p>
             </div>
             <button
@@ -230,6 +274,12 @@ const RejectionHistory = () =>  {
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {isClient && !clientCompany && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+            No company is assigned to this client account, so no rejection history can be shown.
           </div>
         )}
 
@@ -259,20 +309,22 @@ const RejectionHistory = () =>  {
               : "bg-white text-slate-600 hover:bg-slate-100"
           }`}
         >
-          Rejection History ({rejections.length})
+          Rejection History ({scopedRejections.length})
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("dispatches")}
-          className={`px-4 py-2 text-xs font-semibold transition ${
-            activeTab === "dispatches"
-              ? "bg-blue-600 text-white"
-              : "bg-white text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          Dispatches ({dispatches.length})
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("dispatches")}
+            className={`px-4 py-2 text-xs font-semibold transition ${
+              activeTab === "dispatches"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Dispatches ({dispatches.length})
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -343,9 +395,11 @@ const RejectionHistory = () =>  {
                 Source
               </th>
 
-              <th className="min-w-[170px] border border-slate-300 px-3 py-2">
-                Inventory
-              </th>
+              {isAdmin && (
+                <th className="min-w-[170px] border border-slate-300 px-3 py-2">
+                  Inventory
+                </th>
+              )}
 
               <th className="min-w-[180px] border border-slate-300 px-3 py-2">
                 Reason
@@ -426,22 +480,24 @@ const RejectionHistory = () =>  {
                     </span>
                   </td>
 
-                  {/* Inventory */}
-                  <td className="border border-slate-300 px-3 py-2">
-                    {!r.inventoryStatus ||
-                    r.inventoryStatus === "not_stored" ? (
-                      <span className="text-slate-400">Not Stored</span>
-                    ) : r.inventoryStatus === "stored" ? (
-                      <span className="inline-flex whitespace-nowrap rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                        Stored
-                      </span>
-                    ) : (
-                      <span className="inline-flex whitespace-nowrap rounded bg-cyan-100 px-2 py-1 text-[10px] font-semibold text-cyan-700">
-                        {qty(r.inventoryAddedQuantity).toLocaleString("en-IN")} /{" "}
-                        {qty(r.rejectedQuantity).toLocaleString("en-IN")}
-                      </span>
-                    )}
-                  </td>
+                  {/* Inventory is admin-only */}
+                  {isAdmin && (
+                    <td className="border border-slate-300 px-3 py-2">
+                      {!r.inventoryStatus ||
+                      r.inventoryStatus === "not_stored" ? (
+                        <span className="text-slate-400">Not Stored</span>
+                      ) : r.inventoryStatus === "stored" ? (
+                        <span className="inline-flex whitespace-nowrap rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                          Stored
+                        </span>
+                      ) : (
+                        <span className="inline-flex whitespace-nowrap rounded bg-cyan-100 px-2 py-1 text-[10px] font-semibold text-cyan-700">
+                          {qty(r.inventoryAddedQuantity).toLocaleString("en-IN")} /{" "}
+                          {qty(r.rejectedQuantity).toLocaleString("en-IN")}
+                        </span>
+                      )}
+                    </td>
+                  )}
 
                   {/* Reason */}
                   <td
@@ -465,7 +521,7 @@ const RejectionHistory = () =>  {
                     }`}
                   >
                     <div className="flex items-center justify-center gap-1.5">
-                      {["approved", "recorded"].includes(r.status) && (
+                      {isAdmin && ["approved", "recorded"].includes(r.status) && (
                         <button
                           type="button"
                           onClick={() => setSelectedInventoryRejection(r)}
@@ -654,7 +710,7 @@ const RejectionHistory = () =>  {
           }}
         />
       )}
-      {selectedInventoryRejection && (
+      {isAdmin && selectedInventoryRejection && (
         <Inventory
           rejection={selectedInventoryRejection}
           onClose={() => setSelectedInventoryRejection(null)}
@@ -719,20 +775,24 @@ function RejectionDetails({
             label="Rejected Qty"
             value={qty(rejection.rejectedQuantity).toLocaleString("en-IN")}
           />
-          <Detail
-            label="Inventory Stored"
-            value={`${qty(rejection.inventoryAddedQuantity).toLocaleString("en-IN")} / ${qty(rejection.rejectedQuantity).toLocaleString("en-IN")}`}
-          />
-          <Detail
-            label="Inventory Status"
-            value={
-              rejection.inventoryStatus === "stored"
-                ? "Fully stored"
-                : rejection.inventoryStatus === "partial"
-                  ? "Partially stored"
-                  : "Not stored"
-            }
-          />
+          {isAdmin && (
+            <>
+              <Detail
+                label="Inventory Stored"
+                value={`${qty(rejection.inventoryAddedQuantity).toLocaleString("en-IN")} / ${qty(rejection.rejectedQuantity).toLocaleString("en-IN")}`}
+              />
+              <Detail
+                label="Inventory Status"
+                value={
+                  rejection.inventoryStatus === "stored"
+                    ? "Fully stored"
+                    : rejection.inventoryStatus === "partial"
+                      ? "Partially stored"
+                      : "Not stored"
+                }
+              />
+            </>
+          )}
           <Detail label="Reason" value={rejection.reason} />
           <Detail label="Detailed Reason" value={rejection.subReason} />
           <Detail label="Severity" value={rejection.severity} />
@@ -744,8 +804,9 @@ function RejectionDetails({
           <Detail label="Notes" value={rejection.notes} />
           <Detail label="Admin Remarks" value={rejection.adminRemarks} />
         </div>
-        {(isAdmin && rejection.status === "pending_review") ||
-        ["approved", "recorded"].includes(rejection.status) ? (
+        {isAdmin &&
+        (rejection.status === "pending_review" ||
+          ["approved", "recorded"].includes(rejection.status)) ? (
           <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row">
             {isAdmin && rejection.status === "pending_review" && (
               <>

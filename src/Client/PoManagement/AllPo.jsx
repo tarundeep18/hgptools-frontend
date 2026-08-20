@@ -944,7 +944,7 @@ const AllPo = () => {
                 )}
                 <span className="relative flex items-center gap-1 sm:gap-2">
                   <Database size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm">History</span>
+                  <span className="text-xs sm:text-sm">All POs</span>
                   {orders.length > 0 && (
                     <motion.span
                       initial={{ scale: 0 }}
@@ -965,14 +965,14 @@ const AllPo = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleAnimatedNavigation("/pending-purchase-orders")}
+                onClick={() => handleAnimatedNavigation("/generate/pendinglist")}
                 className={`relative flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl font-semibold transition-all duration-300 overflow-hidden backdrop-blur-sm ${
                   location.pathname === "/pending-purchase-orders"
                     ? "text-white shadow-md shadow-blue-500/20"
                     : "text-blue-100 bg-white/5 hover:bg-white/10 border border-white/10"
                 }`}
               >
-                {location.pathname === "/pending-purchase-orders" && (
+                {location.pathname === "/generate/pendinglist" && (
                   <motion.div
                     layoutId="activeTab"
                     className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl"
@@ -988,14 +988,14 @@ const AllPo = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleAnimatedNavigation("/order-tracking")}
+                onClick={() => handleAnimatedNavigation("/order-history")}
                 className={`relative flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl font-semibold transition-all duration-300 overflow-hidden backdrop-blur-sm ${
                   location.pathname === "/order-tracking"
                     ? "text-white shadow-md shadow-blue-500/20"
                     : "text-blue-100 bg-white/5 hover:bg-white/10 border border-white/10"
                 }`}
               >
-                {location.pathname === "/order-tracking" && (
+                {location.pathname === "/order-history" && (
                   <motion.div
                     layoutId="activeTab"
                     className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl"
@@ -1003,7 +1003,7 @@ const AllPo = () => {
                 )}
                 <span className="relative flex items-center gap-1 sm:gap-2">
                   <Truck size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm">Tracking</span>
+                  <span className="text-xs sm:text-sm">Dispatch history</span>
                 </span>
               </motion.button>
 

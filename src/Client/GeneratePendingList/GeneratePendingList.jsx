@@ -82,11 +82,7 @@ const MAX_SHORT_TEXT_LENGTH = 200;
 const MAX_REMARKS_LENGTH = 1000;
 
 const MAX_BILL_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const ACCEPTED_BILL_FILE_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-];
+const ACCEPTED_BILL_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 
 const validateBillFile = (file) => {
   if (!file) return "";
@@ -98,12 +94,6 @@ const validateBillFile = (file) => {
   }
   return "";
 };
-
-
-
-
-
-
 
 const normalizeText = (value) => String(value ?? "").trim();
 
@@ -422,7 +412,6 @@ const getMergedStatus = (items, pending, dispatched) => {
   if (hasBlockedItems) return "Mixed";
   return dispatched > 0 ? "In Progress" : "Pending";
 };
-
 
 const mergePurchaseOrderRows = (items = []) => {
   const groups = new Map();
@@ -1056,7 +1045,6 @@ const buildReviewedExcelFile = (rows, sourceFile, sheetName) => {
   });
 };
 
-
 // ============================================
 // EXCEL IMPORT PREVIEW COMPONENT
 // ============================================
@@ -1102,11 +1090,7 @@ const ExcelImportPreviewModal = React.memo(function ExcelImportPreviewModal({
   const update = (row, field) => (event) =>
     onUpdateRow(row._previewId, field, event.target.value);
 
- 
-
-
   return (
-
     <div
       className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4"
       role="dialog"
@@ -3023,7 +3007,8 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                       {billFile && (
                         <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
                           <span className="truncate pr-2">
-                            {billFile.name} • {(billFile.size / 1024).toFixed(1)} KB
+                            {billFile.name} •{" "}
+                            {(billFile.size / 1024).toFixed(1)} KB
                           </span>
                           <button
                             type="button"
@@ -3043,7 +3028,6 @@ const MultipleDispatchModal = React.memo(function MultipleDispatchModal({
                         </p>
                       )}
                     </div>
-
                   </div>
 
                   <div>
@@ -4033,7 +4017,8 @@ const DispatchModal = React.memo(function DispatchModal({
                       {billFile && (
                         <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
                           <span className="truncate pr-2">
-                            {billFile.name} • {(billFile.size / 1024).toFixed(1)} KB
+                            {billFile.name} •{" "}
+                            {(billFile.size / 1024).toFixed(1)} KB
                           </span>
                           <button
                             type="button"
@@ -4053,7 +4038,6 @@ const DispatchModal = React.memo(function DispatchModal({
                         </p>
                       )}
                     </div>
-
 
                     <div className="sm:col-span-2 transform transition-all hover:scale-[1.01]">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -4213,9 +4197,15 @@ const PurchaseOrderViewModal = React.memo(function PurchaseOrderViewModal({
     ["PO Date", formatDate(item.poDate)],
     ["Delivery Date", formatDate(item.deliveryDate)],
     ["PO Quantity", toNonNegativeNumber(item.poQty).toLocaleString("en-IN")],
-    ["Dispatched", toNonNegativeNumber(item.dispatched).toLocaleString("en-IN")],
+    [
+      "Dispatched",
+      toNonNegativeNumber(item.dispatched).toLocaleString("en-IN"),
+    ],
     ["Rejected", toNonNegativeNumber(item.rejected).toLocaleString("en-IN")],
-    ["Net Accepted", toNonNegativeNumber(item.accepted).toLocaleString("en-IN")],
+    [
+      "Net Accepted",
+      toNonNegativeNumber(item.accepted).toLocaleString("en-IN"),
+    ],
     ["Pending", toNonNegativeNumber(item.pending).toLocaleString("en-IN")],
     ["Unit Rate", formatCurrency(item.rate)],
     ["Status", item.status || "Pending"],
@@ -4244,7 +4234,8 @@ const PurchaseOrderViewModal = React.memo(function PurchaseOrderViewModal({
               Purchase Order Details
             </h3>
             <p className="mt-1 text-sm text-blue-100">
-              {item.company || "Unknown company"} · {item.item || "Unnamed item"}
+              {item.company || "Unknown company"} ·{" "}
+              {item.item || "Unnamed item"}
             </p>
           </div>
           <button
@@ -4281,7 +4272,8 @@ const PurchaseOrderViewModal = React.memo(function PurchaseOrderViewModal({
                   Related Purchase Orders
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  This merged item contains {sourceItems.length} source PO lines.
+                  This merged item contains {sourceItems.length} source PO
+                  lines.
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -4309,13 +4301,19 @@ const PurchaseOrderViewModal = React.memo(function PurchaseOrderViewModal({
                           {formatDate(sourceItem.deliveryDate)}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          {toNonNegativeNumber(sourceItem.poQty).toLocaleString("en-IN")}
+                          {toNonNegativeNumber(sourceItem.poQty).toLocaleString(
+                            "en-IN",
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          {toNonNegativeNumber(sourceItem.dispatched).toLocaleString("en-IN")}
+                          {toNonNegativeNumber(
+                            sourceItem.dispatched,
+                          ).toLocaleString("en-IN")}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold text-rose-600">
-                          {toNonNegativeNumber(sourceItem.pending).toLocaleString("en-IN")}
+                          {toNonNegativeNumber(
+                            sourceItem.pending,
+                          ).toLocaleString("en-IN")}
                         </td>
                       </tr>
                     ))}
@@ -4564,7 +4562,10 @@ const EditDeleteModal = React.memo(function EditDeleteModal({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+          <form
+            onSubmit={handleSubmit}
+            className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-5 sm:p-6"
+          >
             {errors.form && (
               <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 mb-4">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -5035,6 +5036,8 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
   getItemKey,
   onClose,
   onChanged,
+  isAdmin = false,
+  clientCompany = "",
 }) {
   const [activeTab, setActiveTab] = useState("add");
   const [selectedDispatchKey, setSelectedDispatchKey] = useState("");
@@ -5171,7 +5174,20 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
             ? result.records
             : [],
       );
-      allRecords.sort((left, right) => {
+      const visibleRecords = isAdmin
+        ? allRecords
+        : allRecords.filter((record) => {
+            const recordCompany = normalizeText(
+              record?.companyName || record?.company || record?.po?.company,
+            );
+            // The API should enforce this too. On the client, keep only the
+            // authenticated client's company whenever the record carries it.
+            return (
+              !recordCompany || isSameCompany(recordCompany, clientCompany)
+            );
+          });
+
+      visibleRecords.sort((left, right) => {
         const leftDate = Date.parse(
           left?.rejectionDate || left?.createdAt || "",
         );
@@ -5183,7 +5199,7 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
           (Number.isFinite(leftDate) ? leftDate : 0)
         );
       });
-      setRecords(allRecords);
+      setRecords(visibleRecords);
     } catch (historyError) {
       console.error("Could not load rejection history:", historyError);
       setError(
@@ -5194,7 +5210,7 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [isOpen, sourceItems]);
+  }, [isOpen, sourceItems, isAdmin, clientCompany]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -5440,7 +5456,7 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
                     id="rejection-manager-title"
                     className="text-lg font-bold sm:text-xl"
                   >
-                    Rejection Manager
+                    {isAdmin ? "Rejection Manager" : "Rejection"}
                   </h2>
                   <p className="mt-1 truncate text-xs text-red-100 sm:text-sm">
                     {item.company} · {item.itemCode || item.item || "Item"} ·{" "}
@@ -5463,40 +5479,50 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
           </div>
 
           <div className="shrink-0 border-b border-slate-200 bg-white px-4 pt-3 sm:px-6">
-            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Gross dispatch
-                </p>
-                <p className="mt-1 font-bold text-slate-800">
-                  {toNonNegativeNumber(item.dispatched).toLocaleString("en-IN")}
-                </p>
+            {isAdmin ? (
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Gross dispatch
+                  </p>
+                  <p className="mt-1 font-bold text-slate-800">
+                    {toNonNegativeNumber(item.dispatched).toLocaleString(
+                      "en-IN",
+                    )}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-rose-50 px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
+                    Applied rejection
+                  </p>
+                  <p className="mt-1 font-bold text-rose-700">
+                    {toNonNegativeNumber(item.rejected).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
+                    Net accepted
+                  </p>
+                  <p className="mt-1 font-bold text-emerald-700">
+                    {toNonNegativeNumber(item.accepted).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-amber-50 px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+                    Pending review
+                  </p>
+                  <p className="mt-1 font-bold text-amber-700">
+                    {pendingReviewCount}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-xl bg-rose-50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-400">
-                  Applied rejection
-                </p>
-                <p className="mt-1 font-bold text-rose-700">
-                  {toNonNegativeNumber(item.rejected).toLocaleString("en-IN")}
-                </p>
+            ) : (
+              <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5 text-xs text-rose-700">
+                You can submit a rejection and view your company's rejection
+                history. Inventory, disposition and approval controls are
+                hidden.
               </div>
-              <div className="rounded-xl bg-emerald-50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
-                  Net accepted
-                </p>
-                <p className="mt-1 font-bold text-emerald-700">
-                  {toNonNegativeNumber(item.accepted).toLocaleString("en-IN")}
-                </p>
-              </div>
-              <div className="rounded-xl bg-amber-50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">
-                  Pending review
-                </p>
-                <p className="mt-1 font-bold text-amber-700">
-                  {pendingReviewCount}
-                </p>
-              </div>
-            </div>
+            )}
 
             <div className="flex gap-1">
               <button
@@ -5805,10 +5831,16 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
                       Rejection History
                     </p>
                     <p className="text-xs text-slate-500">
-                      Applied rejection total:{" "}
-                      <strong className="text-rose-700">
-                        {totalRejected.toLocaleString("en-IN")}
-                      </strong>
+                      {isAdmin ? (
+                        <>
+                          Applied rejection total:{" "}
+                          <strong className="text-rose-700">
+                            {totalRejected.toLocaleString("en-IN")}
+                          </strong>
+                        </>
+                      ) : (
+                        <>Your company's submitted rejection records only</>
+                      )}
                     </p>
                   </div>
                   <button
@@ -5923,31 +5955,31 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
                                     "-"}
                                 </p>
                               </div>
-                              <div>
-                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                                  Dispatch
-                                </p>
-                                <p className="mt-0.5 max-w-[190px] truncate font-mono text-xs font-semibold text-slate-700">
-                                  {record.dispatchId ||
-                                    "Historical Excel total"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                                  Pending effect
-                                </p>
-                                <p
-                                  className={`mt-0.5 text-sm font-semibold ${
-                                    record.affectsPending
-                                      ? "text-rose-700"
-                                      : "text-slate-500"
-                                  }`}
-                                >
-                                  {record.affectsPending
-                                    ? "Applied"
-                                    : "Not applied"}
-                                </p>
-                              </div>
+                              {isAdmin && (
+                                <>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                      Dispatch
+                                    </p>
+                                    <p className="mt-0.5 max-w-[190px] truncate font-mono text-xs font-semibold text-slate-700">
+                                      {record.dispatchId ||
+                                        "Historical Excel total"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                                      Pending effect
+                                    </p>
+                                    <p
+                                      className={`mt-0.5 text-sm font-semibold ${record.affectsPending ? "text-rose-700" : "text-slate-500"}`}
+                                    >
+                                      {record.affectsPending
+                                        ? "Applied"
+                                        : "Not applied"}
+                                    </p>
+                                  </div>
+                                </>
+                              )}
                             </div>
 
                             {(record.subReason || record.notes) && (
@@ -5966,7 +5998,8 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
                             )}
                           </div>
 
-                          {status === "pending_review" &&
+                          {isAdmin &&
+                            status === "pending_review" &&
                             source !== "excel_import" && (
                               <div className="flex shrink-0 flex-wrap gap-2">
                                 <button
@@ -6031,10 +6064,9 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
           <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500">
-                Accepted rejection changes Pending only when you choose
-                “Add to This PO Pending”. “No Current PO Change” keeps the
-                rejection accepted for Inventory & Disposition without changing
-                this PO pending.
+                {isAdmin
+                  ? "Accepted rejection changes Pending only when you choose ‘Add to This PO Pending’. ‘No Current PO Change’ keeps the rejection accepted for Inventory & Disposition without changing this PO pending."
+                  : "Your rejection will be submitted for admin review. You can track its status here after submission."}
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -6078,14 +6110,10 @@ const RejectionManagerModal = React.memo(function RejectionManagerModal({
   );
 });
 
-
 // ============================================
 // USER GUIDE / ONBOARDING MODULE
 // ============================================
-const UserGuideModal = React.memo(function UserGuideModal({
-  isOpen,
-  onClose,
-}) {
+const UserGuideModal = React.memo(function UserGuideModal({ isOpen, onClose }) {
   const [activeStep, setActiveStep] = useState(0);
 
   const steps = useMemo(
@@ -6202,7 +6230,8 @@ const UserGuideModal = React.memo(function UserGuideModal({
                     How Pending PO & Dispatch works
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-blue-100">
-                    Follow the workflow once and you will know where every action lives.
+                    Follow the workflow once and you will know where every
+                    action lives.
                   </p>
                 </div>
               </div>
@@ -6773,203 +6802,223 @@ const CompanyAccordion = React.memo(function CompanyAccordion({
                     <td className="border border-gray-300 px-3 py-2 align-middle text-center">
                       {isAdmin ? (
                         <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => onDispatchClick(item)}
-                          disabled={
-                            item._isMerged
-                              ? !canDispatch
-                              : !canDispatch && itemHistoryCount === 0
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                          title={
-                            canDispatch
-                              ? item._isMerged
-                                ? `Dispatch across ${dispatchableItems.length} eligible PO${dispatchableItems.length === 1 ? "" : "s"}`
-                                : "Record dispatch"
-                              : itemHistoryCount > 0
-                                ? "View dispatch history"
-                                : "No dispatch is currently available"
-                          }
-                        >
-                          {canDispatch ? (
-                            <Truck className="h-3.5 w-3.5" />
-                          ) : (
-                            <History className="h-3.5 w-3.5" />
-                          )}
-                          <span>{canDispatch ? "Dispatch" : "History"}</span>
-                          {itemHistoryCount > 0 && (
-                            <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px]">
-                              {itemHistoryCount}
-                            </span>
-                          )}
-                        </button>
-
-                        {canDispatch && (
                           <button
                             type="button"
-                            onClick={() => onQueueToggle(item)}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
-                              dispatchableItems.every((sourceItem) =>
-                                queueItemKeys.has(getItemKey(sourceItem)),
-                              )
-                                ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-200"
-                                : "bg-emerald-600 text-white hover:bg-emerald-700"
-                            }`}
+                            onClick={() => onDispatchClick(item)}
+                            disabled={
+                              item._isMerged
+                                ? !canDispatch
+                                : !canDispatch && itemHistoryCount === 0
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             title={
-                              dispatchableItems.every((sourceItem) =>
-                                queueItemKeys.has(getItemKey(sourceItem)),
-                              )
-                                ? "Remove from dispatch queue"
-                                : "Add to dispatch queue"
+                              canDispatch
+                                ? item._isMerged
+                                  ? `Dispatch across ${dispatchableItems.length} eligible PO${dispatchableItems.length === 1 ? "" : "s"}`
+                                  : "Record dispatch"
+                                : itemHistoryCount > 0
+                                  ? "View dispatch history"
+                                  : "No dispatch is currently available"
                             }
                           >
-                            <ShoppingCart className="h-3.5 w-3.5" />
-                            <span className="hidden 2xl:inline">
-                              {dispatchableItems.every((sourceItem) =>
-                                queueItemKeys.has(getItemKey(sourceItem)),
-                              )
-                                ? "Queued"
-                                : "Queue"}
-                            </span>
+                            {canDispatch ? (
+                              <Truck className="h-3.5 w-3.5" />
+                            ) : (
+                              <History className="h-3.5 w-3.5" />
+                            )}
+                            <span>{canDispatch ? "Dispatch" : "History"}</span>
+                            {itemHistoryCount > 0 && (
+                              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px]">
+                                {itemHistoryCount}
+                              </span>
+                            )}
                           </button>
-                        )}
 
-                        <div>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              const rect =
-                                event.currentTarget.getBoundingClientRect();
-                              const menuWidth = 208;
-                              const menuHeight = item._isMerged ? 132 : 174;
-                              const viewportPadding = 12;
+                          {canDispatch && (
+                            <button
+                              type="button"
+                              onClick={() => onQueueToggle(item)}
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                                dispatchableItems.every((sourceItem) =>
+                                  queueItemKeys.has(getItemKey(sourceItem)),
+                                )
+                                  ? "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-200"
+                                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+                              }`}
+                              title={
+                                dispatchableItems.every((sourceItem) =>
+                                  queueItemKeys.has(getItemKey(sourceItem)),
+                                )
+                                  ? "Remove from dispatch queue"
+                                  : "Add to dispatch queue"
+                              }
+                            >
+                              <ShoppingCart className="h-3.5 w-3.5" />
+                              <span className="hidden 2xl:inline">
+                                {dispatchableItems.every((sourceItem) =>
+                                  queueItemKeys.has(getItemKey(sourceItem)),
+                                )
+                                  ? "Queued"
+                                  : "Queue"}
+                              </span>
+                            </button>
+                          )}
 
-                              const preferredLeft = rect.right - menuWidth;
-                              const left = Math.max(
-                                viewportPadding,
-                                Math.min(
-                                  window.innerWidth - menuWidth - viewportPadding,
-                                  preferredLeft,
-                                ),
-                              );
+                          <div>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                const rect =
+                                  event.currentTarget.getBoundingClientRect();
+                                const menuWidth = 208;
+                                const menuHeight = item._isMerged ? 132 : 174;
+                                const viewportPadding = 12;
 
-                              const roomBelow =
-                                window.innerHeight - rect.bottom - viewportPadding;
-                              const top =
-                                roomBelow >= menuHeight
-                                  ? rect.bottom + 8
-                                  : Math.max(
+                                const preferredLeft = rect.right - menuWidth;
+                                const left = Math.max(
+                                  viewportPadding,
+                                  Math.min(
+                                    window.innerWidth -
+                                      menuWidth -
                                       viewportPadding,
-                                      rect.top - menuHeight - 8,
-                                    );
+                                    preferredLeft,
+                                  ),
+                                );
 
-                              setActionMenuPosition({ top, left });
-                              setOpenActionMenu((current) =>
-                                current === itemKey ? null : itemKey,
-                              );
-                            }}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                            title="More actions"
-                            aria-label="More actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                                const roomBelow =
+                                  window.innerHeight -
+                                  rect.bottom -
+                                  viewportPadding;
+                                const top =
+                                  roomBelow >= menuHeight
+                                    ? rect.bottom + 8
+                                    : Math.max(
+                                        viewportPadding,
+                                        rect.top - menuHeight - 8,
+                                      );
 
-                          {openActionMenu === itemKey &&
-                            createPortal(
-                              <>
-                                <button
-                                  type="button"
-                                  className="fixed inset-0 z-[14000] cursor-default bg-transparent"
-                                  onClick={() => setOpenActionMenu(null)}
-                                  aria-label="Close action menu"
-                                />
-                                <div
-                                  className="fixed z-[14010] w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-2xl shadow-slate-900/15"
-                                  style={{
-                                    top: actionMenuPosition.top,
-                                    left: actionMenuPosition.left,
-                                  }}
-                                >
-                                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                    More actions
-                                  </div>
+                                setActionMenuPosition({ top, left });
+                                setOpenActionMenu((current) =>
+                                  current === itemKey ? null : itemKey,
+                                );
+                              }}
+                              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                              title="More actions"
+                              aria-label="More actions"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
 
+                            {openActionMenu === itemKey &&
+                              createPortal(
+                                <>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setOpenActionMenu(null);
-                                      onRejectionClick(item);
+                                    className="fixed inset-0 z-[14000] cursor-default bg-transparent"
+                                    onClick={() => setOpenActionMenu(null)}
+                                    aria-label="Close action menu"
+                                  />
+                                  <div
+                                    className="fixed z-[14010] w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-2xl shadow-slate-900/15"
+                                    style={{
+                                      top: actionMenuPosition.top,
+                                      left: actionMenuPosition.left,
                                     }}
-                                    disabled={itemHistoryCount === 0}
-                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                    title={
-                                      itemHistoryCount > 0
-                                        ? "Add or review rejection"
-                                        : "A dispatch is required before rejection"
-                                    }
                                   >
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    Rejection
-                                    {Number(item.rejected || 0) > 0 && (
-                                      <span className="ml-auto rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px]">
-                                        {Number(item.rejected || 0).toLocaleString(
-                                          "en-IN",
-                                        )}
-                                      </span>
-                                    )}
-                                  </button>
+                                    <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                      More actions
+                                    </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenu(null);
-                                      onEditClick(item);
-                                    }}
-                                    disabled={!item._isMerged && !item._id}
-                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    {item._isMerged ? (
-                                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                                    ) : (
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    )}
-                                    {item._isMerged
-                                      ? "Manage related POs"
-                                      : "Edit PO"}
-                                  </button>
-
-                                  {!item._isMerged && (
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setOpenActionMenu(null);
-                                        onDeleteClick(item);
+                                        onRejectionClick(item);
                                       }}
-                                      disabled={!item._id}
-                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                      disabled={itemHistoryCount === 0}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                      title={
+                                        itemHistoryCount > 0
+                                          ? "Add or review rejection"
+                                          : "A dispatch is required before rejection"
+                                      }
                                     >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      Delete PO
+                                      <AlertCircle className="h-3.5 w-3.5" />
+                                      Rejection
+                                      {Number(item.rejected || 0) > 0 && (
+                                        <span className="ml-auto rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px]">
+                                          {Number(
+                                            item.rejected || 0,
+                                          ).toLocaleString("en-IN")}
+                                        </span>
+                                      )}
                                     </button>
-                                  )}
-                                </div>
-                              </>,
-                              document.body,
-                            )}
-                        </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionMenu(null);
+                                        onEditClick(item);
+                                      }}
+                                      disabled={!item._isMerged && !item._id}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      {item._isMerged ? (
+                                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      )}
+                                      {item._isMerged
+                                        ? "Manage related POs"
+                                        : "Edit PO"}
+                                    </button>
+
+                                    {!item._isMerged && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenActionMenu(null);
+                                          onDeleteClick(item);
+                                        }}
+                                        disabled={!item._id}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        Delete PO
+                                      </button>
+                                    )}
+                                  </div>
+                                </>,
+                                document.body,
+                              )}
+                          </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => onViewClick(item)}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
-                          title="View purchase order details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onViewClick(item)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100 transition hover:bg-blue-100"
+                            title="View purchase order details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRejectionClick(item)}
+                            disabled={itemHistoryCount === 0}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              itemHistoryCount > 0
+                                ? "Add rejection or view rejection history"
+                                : "A dispatch is required before rejection"
+                            }
+                          >
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Rejection
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -7822,7 +7871,13 @@ const GeneratePendingList = () => {
           setData(accessibleRecords);
           setManager(nextManager);
           setDispatchHistory(nextHistory);
-          setCompanies(isAdmin ? ["all", ...nextCompanies] : clientCompany ? [clientCompany] : []);
+          setCompanies(
+            isAdmin
+              ? ["all", ...nextCompanies]
+              : clientCompany
+                ? [clientCompany]
+                : [],
+          );
           setCategories(["all", ...nextCategories]);
 
           setSelectedCompany((current) =>
@@ -7850,8 +7905,6 @@ const GeneratePendingList = () => {
           setLoadError("");
           setLastSyncedAt(new Date());
         });
-
-    
 
         return true;
       } catch (error) {
@@ -8485,12 +8538,7 @@ const GeneratePendingList = () => {
     setSelectedMergedDispatchGroup(null);
     setInitialDispatchEntry(null);
     setIsMultipleDispatchModalOpen(true);
-  }, [
-    queueItems,
-    dispatchHistory,
-    getItemKey,
-    showNotification,
-  ]);
+  }, [queueItems, dispatchHistory, getItemKey, showNotification]);
 
   const handleDispatchClick = useCallback(
     (item) => {
@@ -8525,12 +8573,22 @@ const GeneratePendingList = () => {
       });
       setIsDispatchModalOpen(true);
     },
-    [dispatchHistory, getItemKey, isAdmin, showNotification],
+    [dispatchHistory, getItemKey, isClient, clientCompany, showNotification],
   );
 
   const handleRejectionClick = useCallback(
     (item) => {
-      if (!isAdmin) return;
+      if (
+        isClient &&
+        clientCompany &&
+        !isSameCompany(item?.company, clientCompany)
+      ) {
+        showNotification(
+          "You can only add rejection for your assigned company.",
+          "error",
+        );
+        return;
+      }
       const sourceItems = getSourcePurchaseOrders(item);
       const hasDispatch = sourceItems.some((sourceItem) => {
         const history = dispatchHistory[getItemKey(sourceItem)] || [];
@@ -8881,7 +8939,6 @@ const GeneratePendingList = () => {
 
   return (
     <>
-
       <style>
         {`
           @keyframes slideIn {
@@ -8905,15 +8962,15 @@ const GeneratePendingList = () => {
         `}
       </style>
 
-    <Toaster
-  position="top-right"
-  containerStyle={{
-    zIndex: 99999,
-  }}
-  toastOptions={{
-    duration: 5000,
-  }}
-/>
+      <Toaster
+        position="top-right"
+        containerStyle={{
+          zIndex: 99999,
+        }}
+        toastOptions={{
+          duration: 5000,
+        }}
+      />
 
       <UserGuideModal
         isOpen={isUserGuideOpen}
@@ -8941,6 +8998,8 @@ const GeneratePendingList = () => {
         getItemKey={getItemKey}
         onClose={closeRejectionManager}
         onChanged={handleRejectionChanged}
+        isAdmin={isAdmin}
+        clientCompany={clientCompany}
       />
 
       <PurchaseOrderViewModal
@@ -8953,83 +9012,84 @@ const GeneratePendingList = () => {
 
       {/* Edit/Delete PO Modal */}
       {isAdmin && (
-      <EditDeleteModal
-        isOpen={isEditModalOpen}
-        onClose={closeSinglePOEditor}
-        item={selectedItemForEdit}
-        onUpdate={handleUpdatePO}
-        onDelete={handleDeletePO}
-        initialDeleteConfirmation={selectedPOAction === "delete"}
-      />
+        <EditDeleteModal
+          isOpen={isEditModalOpen}
+          onClose={closeSinglePOEditor}
+          item={selectedItemForEdit}
+          onUpdate={handleUpdatePO}
+          onDelete={handleDeletePO}
+          initialDeleteConfirmation={selectedPOAction === "delete"}
+        />
       )}
 
       {isAdmin && (
         <>
-      {/* Merged rows retain their source records so the user can safely choose
+          {/* Merged rows retain their source records so the user can safely choose
           exactly which database PO to edit or delete. */}
-      <PurchaseOrderGroupModal
-        isOpen={isPOGroupModalOpen}
-        onClose={closePOGroupManager}
-        group={selectedPOGroup}
-        onEdit={handleGroupPOEdit}
-        onDelete={handleGroupPODelete}
-        formatCurrency={formatCurrency}
-        formatDate={formatDate}
-      />
+          <PurchaseOrderGroupModal
+            isOpen={isPOGroupModalOpen}
+            onClose={closePOGroupManager}
+            group={selectedPOGroup}
+            onEdit={handleGroupPOEdit}
+            onDelete={handleGroupPODelete}
+            formatCurrency={formatCurrency}
+            formatDate={formatDate}
+          />
 
-      {/* Dispatch Modal */}
-      <DispatchModal
-        isOpen={isDispatchModalOpen}
-        onClose={closeDispatchModal}
-        item={selectedItemForDispatch}
-        onDispatchUpdate={handleDispatchUpdate}
-        onDispatchEdit={handleDispatchEdit}
-        onDispatchDelete={handleDispatchDelete}
-        dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
-        initialDispatchEntry={initialDispatchEntry}
-      />
+          {/* Dispatch Modal */}
+          <DispatchModal
+            isOpen={isDispatchModalOpen}
+            onClose={closeDispatchModal}
+            item={selectedItemForDispatch}
+            onDispatchUpdate={handleDispatchUpdate}
+            onDispatchEdit={handleDispatchEdit}
+            onDispatchDelete={handleDispatchDelete}
+            dispatchHistory={selectedItemForDispatch?.dispatchHistory || []}
+            initialDispatchEntry={initialDispatchEntry}
+          />
 
-      {/* Multiple Dispatch Modal */}
+          {/* Multiple Dispatch Modal */}
 
-      <MultipleDispatchModal
-        isOpen={isMultipleDispatchModalOpen}
-        onClose={closeDispatchModal}
-        selectedItems={
-          Array.isArray(selectedItemForDispatch) ? selectedItemForDispatch : []
-        }
-        onDispatchUpdate={handleDispatchUpdate}
-        dispatchHistory={dispatchHistory}
-        mergedGroup={selectedMergedDispatchGroup}
-      />
+          <MultipleDispatchModal
+            isOpen={isMultipleDispatchModalOpen}
+            onClose={closeDispatchModal}
+            selectedItems={
+              Array.isArray(selectedItemForDispatch)
+                ? selectedItemForDispatch
+                : []
+            }
+            onDispatchUpdate={handleDispatchUpdate}
+            dispatchHistory={dispatchHistory}
+            mergedGroup={selectedMergedDispatchGroup}
+          />
 
-      {/* Global History Modal */}
-      <GlobalDispatchHistoryModal
-        isOpen={isGlobalHistoryOpen}
-        onClose={() => setIsGlobalHistoryOpen(false)}
-        dispatchHistory={dispatchHistory}
-        formatDate={formatDate}
-        onDispatchEdit={(entry, billNumber) => {
-          setIsGlobalHistoryOpen(false);
-          const parentItem =
-            dataByKey.get(String(entry.poId || "")) ||
-            dataByKey.get(entry.itemKey);
-          if (!parentItem) {
-            showNotification(
-              `Could not find the purchase order for bill ${billNumber}`,
-              "error",
-            );
-            return;
-          }
-          setSelectedItemForDispatch({
-            ...parentItem,
-            dispatchHistory: dispatchHistory[entry.itemKey] || [],
-          });
-          setInitialDispatchEntry(entry);
-          setIsDispatchModalOpen(true);
-        }}
-        onDispatchDelete={handleDispatchDelete}
-      />
-
+          {/* Global History Modal */}
+          <GlobalDispatchHistoryModal
+            isOpen={isGlobalHistoryOpen}
+            onClose={() => setIsGlobalHistoryOpen(false)}
+            dispatchHistory={dispatchHistory}
+            formatDate={formatDate}
+            onDispatchEdit={(entry, billNumber) => {
+              setIsGlobalHistoryOpen(false);
+              const parentItem =
+                dataByKey.get(String(entry.poId || "")) ||
+                dataByKey.get(entry.itemKey);
+              if (!parentItem) {
+                showNotification(
+                  `Could not find the purchase order for bill ${billNumber}`,
+                  "error",
+                );
+                return;
+              }
+              setSelectedItemForDispatch({
+                ...parentItem,
+                dispatchHistory: dispatchHistory[entry.itemKey] || [],
+              });
+              setInitialDispatchEntry(entry);
+              setIsDispatchModalOpen(true);
+            }}
+            onDispatchDelete={handleDispatchDelete}
+          />
         </>
       )}
 
@@ -9072,30 +9132,31 @@ const GeneratePendingList = () => {
 
               {isAdmin && (
                 <>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileUpload}
-                disabled={isLoading || isPreparingImport || isConfirmingImport}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className={`inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50 ${isLoading || isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-              >
-                {isPreparingImport ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                {isPreparingImport
-                  ? "Preparing preview..."
-                  : data.length > 0
-                    ? "Preview Excel update"
-                    : "Preview Excel upload"}
-              </label>
-
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    disabled={
+                      isLoading || isPreparingImport || isConfirmingImport
+                    }
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className={`inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-lg shadow-blue-950/20 transition hover:-translate-y-0.5 hover:bg-blue-50 ${isLoading || isPreparingImport || isConfirmingImport ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                  >
+                    {isPreparingImport ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {isPreparingImport
+                      ? "Preparing preview..."
+                      : data.length > 0
+                        ? "Preview Excel update"
+                        : "Preview Excel upload"}
+                  </label>
                 </>
               )}
 
@@ -9224,7 +9285,9 @@ const GeneratePendingList = () => {
                     <Info className="h-4 w-4" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">Working flow</p>
+                    <p className="text-sm font-bold text-slate-900">
+                      Working flow
+                    </p>
                     <p className="text-xs text-slate-500">
                       Follow these steps from left to right.
                     </p>
@@ -9236,7 +9299,12 @@ const GeneratePendingList = () => {
                 {[
                   ["1", "Find", "Search or filter pending items", Search],
                   ["2", "Choose", "Dispatch now or add to Queue", Truck],
-                  ["3", "Review", "Enter qty, bill and transport details", ListChecks],
+                  [
+                    "3",
+                    "Review",
+                    "Enter qty, bill and transport details",
+                    ListChecks,
+                  ],
                   ["4", "Track", "Use History, Rejection or Manage", History],
                 ].map(([number, title, description, Icon], index) => (
                   <div
@@ -9247,8 +9315,13 @@ const GeneratePendingList = () => {
                       {number}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800">{title}</p>
-                      <p className="truncate text-[10px] text-slate-500" title={description}>
+                      <p className="text-xs font-bold text-slate-800">
+                        {title}
+                      </p>
+                      <p
+                        className="truncate text-[10px] text-slate-500"
+                        title={description}
+                      >
                         {description}
                       </p>
                     </div>
@@ -9751,77 +9824,84 @@ const GeneratePendingList = () => {
               <div className="flex flex-wrap items-center gap-2">
                 {isAdmin && (
                   <>
-                <div className="hidden xl:flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500 ring-1 ring-inset ring-slate-200">
-                  <Info className="h-3.5 w-3.5 text-blue-600" />
-                  Use <strong className="text-blue-700">Dispatch</strong> for one item or <strong className="text-emerald-700">Queue</strong> for multiple items.
-                </div>
-                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsQueuePanelOpen((current) => !current)}
-                    disabled={queueItems.length === 0}
-                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    title={
-                      queueItems.length > 0
-                        ? `${isQueuePanelOpen ? "Hide" : "Review"} ${queueItems.length} queued dispatch item(s)`
-                        : "Add items to the dispatch queue from the Action column"
-                    }
-                  >
-                    <ListChecks className="h-3.5 w-3.5" />
-                    {isQueuePanelOpen ? "Hide Queue" : "Review Queue"} ({queueItems.length})
-                  </button>
-                  {queueItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={clearDispatchQueue}
-                      className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-white"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-
-                {selectedRows.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100">
-                      <Check className="h-3.5 w-3.5" />
-                      {`${selectedExportRows.length} merged item${selectedExportRows.length === 1 ? "" : "s"} (${selectedRows.length} PO lines)`}
+                    <div className="hidden xl:flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500 ring-1 ring-inset ring-slate-200">
+                      <Info className="h-3.5 w-3.5 text-blue-600" />
+                      Use <strong className="text-blue-700">
+                        Dispatch
+                      </strong>{" "}
+                      for one item or{" "}
+                      <strong className="text-emerald-700">Queue</strong> for
+                      multiple items.
+                    </div>
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-1.5">
                       <button
                         type="button"
                         onClick={() =>
-                          exportRows(selectedExportRows, "selected")
+                          setIsQueuePanelOpen((current) => !current)
                         }
-                        className="ml-1 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] shadow-sm transition hover:text-blue-900"
+                        disabled={queueItems.length === 0}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        title={
+                          queueItems.length > 0
+                            ? `${isQueuePanelOpen ? "Hide" : "Review"} ${queueItems.length} queued dispatch item(s)`
+                            : "Add items to the dispatch queue from the Action column"
+                        }
                       >
-                        <FileDown className="h-3 w-3" /> Export
+                        <ListChecks className="h-3.5 w-3.5" />
+                        {isQueuePanelOpen ? "Hide Queue" : "Review Queue"} (
+                        {queueItems.length})
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedItems(new Set())}
-                        className="rounded-md p-1 transition hover:bg-white"
-                        aria-label="Clear selected records"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      {queueItems.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearDispatchQueue}
+                          className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-white"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={openMultipleDispatchModal}
-                      disabled={dispatchableSelectedRows.length === 0}
-                      title={
-                        dispatchableSelectedRows.length === 0
-                          ? "Selected rows are completed, on hold, cancelled, or missing an id"
-                          : `Dispatch ${dispatchableSelectedRows.length} eligible item(s)`
-                      }
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-                    >
-                      <Layers className="h-3.5 w-3.5" />
-                      Dispatch Selected ({dispatchableSelectedRows.length})
-                    </button>
-                  </>
-                )}
+                    {selectedRows.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-100">
+                          <Check className="h-3.5 w-3.5" />
+                          {`${selectedExportRows.length} merged item${selectedExportRows.length === 1 ? "" : "s"} (${selectedRows.length} PO lines)`}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              exportRows(selectedExportRows, "selected")
+                            }
+                            className="ml-1 inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] shadow-sm transition hover:text-blue-900"
+                          >
+                            <FileDown className="h-3 w-3" /> Export
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedItems(new Set())}
+                            className="rounded-md p-1 transition hover:bg-white"
+                            aria-label="Clear selected records"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
 
+                        <button
+                          type="button"
+                          onClick={openMultipleDispatchModal}
+                          disabled={dispatchableSelectedRows.length === 0}
+                          title={
+                            dispatchableSelectedRows.length === 0
+                              ? "Selected rows are completed, on hold, cancelled, or missing an id"
+                              : `Dispatch ${dispatchableSelectedRows.length} eligible item(s)`
+                          }
+                          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                          Dispatch Selected ({dispatchableSelectedRows.length})
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
@@ -9902,8 +9982,9 @@ const GeneratePendingList = () => {
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-slate-600">
-                          Keep browsing below and add more items. Nothing is dispatched
-                          until you click <strong>Dispatch Multiple</strong>.
+                          Keep browsing below and add more items. Nothing is
+                          dispatched until you click{" "}
+                          <strong>Dispatch Multiple</strong>.
                         </p>
                       </div>
                     </div>
@@ -9954,7 +10035,9 @@ const GeneratePendingList = () => {
                             <p className="mt-1 truncate text-[10px] text-slate-500">
                               {item.company || "Unknown company"} · Pending{" "}
                               <strong className="text-rose-600">
-                                {Number(item.pending || 0).toLocaleString("en-IN")}
+                                {Number(item.pending || 0).toLocaleString(
+                                  "en-IN",
+                                )}
                               </strong>
                             </p>
                           </div>
