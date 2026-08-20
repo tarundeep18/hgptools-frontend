@@ -118,7 +118,6 @@ const AdminEmployees = () => {
       if (response.data.success) {
         setEmployees(response.data.data);
         setFilteredEmployees(response.data.data);
-        console.log("Employee Data:", response.data.data);
       } else {
         toast.error(response.data.message || "Failed to fetch employees");
       }

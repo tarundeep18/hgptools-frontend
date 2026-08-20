@@ -27,8 +27,7 @@ const Login = () => {
         },
       );
 
-      console.log("FULL RESPONSE:", response);
-      console.log("RESPONSE DATA:", response.data);
+  
 
       const loggedUser = response?.data?.user;
 

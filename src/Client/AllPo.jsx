@@ -275,7 +275,7 @@ const AllPo = () => {
       });
 
       const data = response.data;
-      console.log("po data", data);
+     
 
       if (data.success) {
         setOrders(data.data);
@@ -441,7 +441,7 @@ const AllPo = () => {
       });
 
       const result = JSON.parse(response.text);
-      console.log("Extracted result:", result);
+   
 
       setExtractedData(result);
 

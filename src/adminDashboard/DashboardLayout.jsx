@@ -24,100 +24,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 import DashboardLoader from "../PageLoader/DashboardLoader";
 
-// Compact Announcement Marquee Component for Navbar
-// Compact Announcement Marquee Component for Navbar
-const AnnouncementTicker = ({ darkMode }) => {
-  const [announcements, setAnnouncements] = useState([
-    {
-      id: 1,
-      text: "New Analytics Dashboard Released!",
-      icon: "🚀",
-      priority: "high",
-    },
-    {
-      id: 2,
-      text: "Maintenance: Dec 15th, 2AM EST",
-      icon: "🔧",
-      priority: "medium",
-    },
-    {
-      id: 3,
-      text: "30% off on premium plans!",
-      icon: "🎁",
-      priority: "high",
-    },
-  ]);
 
-  const [isHovered, setIsHovered] = useState(false);
-  const marqueeRef = useRef(null);
-
-  const duplicatedAnnouncements = [...announcements, ...announcements];
-
-  return (
-    <div
-      className={`relative max-w-8xl overflow-hidden ${
-        darkMode ? "text-gray-300" : "text-gray-600"
-      }`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Marquee Container */}
-      <div className="flex-1 min-w-0 relative">
-        <div
-          ref={marqueeRef}
-          className="whitespace-nowrap"
-          style={{
-            animation: `ticker ${announcements.length * 6.2}s linear infinite`,
-            animationPlayState: isHovered ? "paused" : "running",
-          }}
-        >
-          {duplicatedAnnouncements.map((announcement, index) => (
-            <span
-              key={`${announcement.id}-${index}`}
-              className="inline-flex items-center gap-2 mx-3"
-            >
-              <span className="text-base">{announcement.icon}</span>
-              <span className="text-sm font-medium truncate max-w-md">
-                {announcement.text}
-              </span>
-              {announcement.priority === "high" && (
-                <span
-                  className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                    darkMode
-                      ? "bg-red-900/50 text-red-400"
-                      : "bg-red-100 text-red-600"
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3 mr-0.5" />
-                  NEW
-                </span>
-              )}
-              <span
-                className={`text-xs opacity-50 ${darkMode ? "text-gray-500" : "text-gray-400"}`}
-              >
-                •
-              </span>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes ticker {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
-        }
-        .whitespace-nowrap {
-          display: inline-block;
-        }
-      `}</style>
-    </div>
-  );
-};
 
 export default function DashboardLayout() {
   const { user, loading } = useAuth();
@@ -272,32 +179,7 @@ export default function DashboardLayout() {
                 </div>
               </div>
 
-              {/* Announcement */}
-              {/* <div className="flex items-center gap-2 flex-1 min-w-0">
-                <div
-                  className={`p-1.5 rounded-full flex-shrink-0 ${
-                    darkMode ? "bg-blue-500/20" : "bg-blue-100"
-                  }`}
-                >
-                  <Megaphone
-                    className={`w-5 h-5 ${
-                      darkMode ? "text-blue-400" : "text-blue-600"
-                    }`}
-                  />
-                </div>
-
-                <div
-                  className={`px-3 py-1.5 rounded-full border shadow-sm
-              w-full max-w-full overflow-hidden
-              ${
-                darkMode
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200"
-              }`}
-                >
-                  <AnnouncementTicker darkMode={darkMode} />
-                </div>
-              </div> */}
+             
             </div>
 
             {/* Right Actions */}
@@ -368,48 +250,64 @@ export default function DashboardLayout() {
                 </div>
 
                 {/* Dropdown */}
-                {dropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[105]"
-                      onClick={() => setDropdownOpen(false)}
-                    />
+                {/* Dropdown */}
+{dropdownOpen && (
+  <>
+    {/* Click outside overlay */}
+    <div
+      className="fixed inset-0 z-[100]"
+      onClick={() => setDropdownOpen(false)}
+    />
 
-                    <div
-                      className={`absolute right-0 mt-2 
-                w-64 max-w-[90vw]
-                rounded-xl shadow-2xl ring-1 z-50
-                ${
-                  darkMode
-                    ? "bg-gray-900 ring-white/10 text-gray-200"
-                    : "bg-white ring-black/5 text-gray-700"
-                }`}
-                    >
-                      <div className="px-4 py-3 border-b border-inherit">
-                        <p className="text-xs uppercase opacity-50">
-                          Signed in as
-                        </p>
+    {/* Dropdown menu */}
+    <div
+      className={`absolute right-0 top-full mt-2
+        w-64 max-w-[90vw]
+        rounded-xl shadow-2xl ring-1
+        z-[110]
+        pointer-events-auto
+        ${
+          darkMode
+            ? "bg-gray-900 ring-white/10 text-gray-200"
+            : "bg-white ring-black/5 text-gray-700"
+        }`}
+    >
+      <div className="px-4 py-3 border-b border-inherit">
+        <p className="text-xs uppercase opacity-50">
+          Signed in as
+        </p>
 
-                        <p className="text-sm truncate">{user.email}</p>
-                      </div>
+        <p className="text-sm truncate">
+          {user.email}
+        </p>
+      </div>
 
-                      <div className="p-1.5">
-                        <button
-                          onClick={handleLogout}
-                          className={`flex items-center gap-3 
-                    w-full px-3 py-2 text-sm rounded-lg ${
-                      darkMode
-                        ? "hover:bg-red-900/20 text-red-400"
-                        : "hover:bg-red-50 text-red-600"
-                    }`}
-                        >
-                          <LogOut size={16} />
-                          Sign out
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
+      <div className="p-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleLogout();
+          }}
+          className={`relative z-[120]
+            flex items-center gap-3
+            w-full px-3 py-2
+            text-sm rounded-lg
+            cursor-pointer
+            pointer-events-auto
+            ${
+              darkMode
+                ? "hover:bg-red-900/20 text-red-400"
+                : "hover:bg-red-50 text-red-600"
+            }`}
+        >
+          <LogOut size={16} />
+          Sign out
+        </button>
+      </div>
+    </div>
+  </>
+)}
               </div>
             </div>
           </div>

@@ -416,7 +416,7 @@ const RejectedInventory = () => {
                 >
                   <List className="w-4 h-4" />
                 </button>
-                <button
+                {/* <button
                   onClick={() => setViewMode("list")}
                   className={`px-3 py-1.5 rounded-lg transition text-sm ${
                     viewMode === "list"
@@ -425,7 +425,7 @@ const RejectedInventory = () => {
                   }`}
                 >
                   <LayoutGrid className="w-4 h-4" />
-                </button>
+                </button> */}
               </div>
             </div>
           </div>
@@ -574,7 +574,7 @@ const RejectedInventory = () => {
                   <table className="min-w-[2380px] w-full border-collapse table-fixed text-[11px] text-slate-700">
                     {/* Excel column letters */}
                     <thead className="sticky top-0 z-30">
-                      <tr className="h-6 bg-[#eef3f8] text-center text-[10px] font-semibold text-slate-500">
+                      {/* <tr className="h-6 bg-[#eef3f8] text-center text-[10px] font-semibold text-slate-500">
                         <th className="sticky left-0 z-50 w-12 border border-[#d8e1ec] bg-[#e8eef6]">
                           ▾
                         </th>
@@ -606,7 +606,7 @@ const RejectedInventory = () => {
                         <th className="sticky right-0 z-50 w-24 border border-[#d8e1ec] bg-[#e8eef6]">
                           Q
                         </th>
-                      </tr>
+                      </tr> */}
 
                       {/* Field header row */}
                       <tr className="bg-[#f8fafc] text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
@@ -708,6 +708,7 @@ const RejectedInventory = () => {
                         <th className="w-[190px] border border-[#d8e1ec] px-3 py-2.5">
                           Added By
                         </th>
+                      
 
                         <th className="w-[170px] border border-[#d8e1ec] px-3 py-2.5">
                           Notes
@@ -913,7 +914,7 @@ const RejectedInventory = () => {
             )}
 
             {/* List View */}
-            {viewMode === "list" && (
+            {/* {viewMode === "list" && (
               <div className="space-y-3">
                 {inventory.map((item) => (
                   <div
@@ -980,7 +981,7 @@ const RejectedInventory = () => {
                   </div>
                 ))}
               </div>
-            )}
+            )} */}
 
             {/* Pagination */}
             {totalPages > 1 && (
@@ -1102,7 +1103,7 @@ const InventoryDetailsModal = ({ item, onClose }) => {
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Excel-style Header */}
-        <div className="bg-[] bg-gradient-to-r from-blue-600 rounded-2xl to-indigo-600  px-6 py-3.5 flex justify-between items-center">
+        <div className="bg-[] bg-gradient-to-r from-blue-600  to-indigo-600  px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-white/15 rounded-lg p-1.5">
               <Package className="w-5 h-5 text-white" />
@@ -1112,7 +1113,7 @@ const InventoryDetailsModal = ({ item, onClose }) => {
                 Inventory Details
               </h2>
               <div className="flex items-center gap-2 text-sm text-emerald-100">
-                <span className="font-mono">{item.itemCode || "-"}</span>
+                <span className="font-mono">Item code: {item.itemCode || "-"}</span>
                 <span className="w-1 h-1 rounded-full bg-emerald-300/50" />
                 <span>PO #{item.poNumber || "-"}</span>
               </div>
@@ -1165,7 +1166,7 @@ const InventoryDetailsModal = ({ item, onClose }) => {
             <div className="border border-slate-200 rounded-lg overflow-hidden">
               <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <Info className="w-3.5 h-3.5 text-white" />
+                  <Info className="w-3.5 h-3.5 text-blue-800" />
                   Item Information
                 </h4>
               </div>
@@ -1197,9 +1198,9 @@ const InventoryDetailsModal = ({ item, onClose }) => {
 
             {/* Right Column - Quantity & Location */}
             <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-[#E2EFDA] px-3 py-1.5 border-b border-slate-200">
+              <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <Package className="w-3.5 h-3.5 text-[#217346]" />
+                  <Package className="w-3.5 h-3.5 text-blue-800" />
                   Quantity & Location
                 </h4>
               </div>
@@ -1230,9 +1231,9 @@ const InventoryDetailsModal = ({ item, onClose }) => {
 
           {/* Dates Section - Excel Style */}
           <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
-            <div className="bg-[#E2EFDA] px-3 py-1.5 border-b border-slate-200">
+            <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200">
               <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5 text-[#217346]" />
+                <Calendar className="w-3.5 h-3.5 text-blue-800" />
                 Dates
               </h4>
             </div>
@@ -1283,9 +1284,9 @@ const InventoryDetailsModal = ({ item, onClose }) => {
           {/* Notes Section - Excel Style */}
           {item.notes && (
             <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-[#E2EFDA] px-3 py-1.5 border-b border-slate-200">
+              <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5 text-[#217346]" />
+                  <FileText className="w-3.5 h-3.5 text-blue-800" />
                   Notes
                 </h4>
               </div>
@@ -1298,9 +1299,9 @@ const InventoryDetailsModal = ({ item, onClose }) => {
           {/* Movement History - Excel Style */}
           {item.movementHistory && item.movementHistory.length > 0 && (
             <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-[#E2EFDA] px-3 py-1.5 border-b border-slate-200 flex justify-between items-center">
+              <div className="bg-[#eef4fb] px-3 py-1.5 border-b border-slate-200 flex justify-between items-center">
                 <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-[#217346]" />
+                  <Clock className="w-3.5 h-3.5 text-blue-800" />
                   Movement History
                 </h4>
                 <span className="text-xs text-slate-500">{item.movementHistory.length} entries</span>

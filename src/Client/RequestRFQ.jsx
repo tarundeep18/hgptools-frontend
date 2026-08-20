@@ -118,7 +118,7 @@ const HGPToolsRFQ = () => {
   });
 
   const { user } = useAuth();
-  console.log("User data", user);
+
 
   // Check if user is admin
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
@@ -174,11 +174,7 @@ const HGPToolsRFQ = () => {
         setTotalCount(response.data.totalCount || rfqs.length);
         setCurrentPage(response.data.currentPage || 1);
 
-        console.log("Setting rfqList with:", rfqs.length, "items");
-        console.log(
-          "Total count set to:",
-          response.data.totalCount || rfqs.length,
-        );
+       
       } else {
         toast.error(response.data.message || "Failed to fetch rfq data");
       }
@@ -798,11 +794,11 @@ const HGPToolsRFQ = () => {
   const stats = getStats();
   const hasData = rfqList.length > 0;
 
-  console.log("Render state:", {
-    hasData,
-    rfqListLength: rfqList.length,
-    totalCount,
-  });
+  // console.log("Render state:", {
+  //   hasData,
+  //   rfqListLength: rfqList.length,
+  //   totalCount,
+  // });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
