@@ -253,7 +253,7 @@ const AllPo = () => {
         setTipContent(randomTip);
         setTimeout(
           () => setTipContent({ title: "", message: "", icon: null }),
-          5000
+          5000,
         );
       }
     }, 30000);
@@ -264,7 +264,7 @@ const AllPo = () => {
     setNotification({ show: true, type, message });
     setTimeout(
       () => setNotification({ show: false, type: "", message: "" }),
-      3000
+      3000,
     );
   };
 
@@ -276,7 +276,6 @@ const AllPo = () => {
       });
 
       const data = response.data;
-     
 
       if (data.success) {
         setOrders(data.data);
@@ -285,7 +284,7 @@ const AllPo = () => {
       console.error("Error fetching orders:", error);
       showNotification(
         "error",
-        error.response?.data?.message || "Failed to fetch orders"
+        error.response?.data?.message || "Failed to fetch orders",
       );
     } finally {
       setLoading(false);
@@ -299,7 +298,7 @@ const AllPo = () => {
           `${API_URL}/purchase-orders/${orderId}`,
           {
             withCredentials: true,
-          }
+          },
         );
         const data = response.data;
         if (data.success) {
@@ -324,11 +323,11 @@ const AllPo = () => {
     const totalOrders = orders.length;
     const totalValue = orders.reduce(
       (sum, order) => sum + (order.totalValue || 0),
-      0
+      0,
     );
     const totalItems = orders.reduce(
       (sum, order) => sum + order.items.length,
-      0
+      0,
     );
     const avgOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
     return { totalOrders, totalValue, totalItems, avgOrderValue };
@@ -394,7 +393,7 @@ const AllPo = () => {
       setExtractionStep("upload");
       showNotification(
         "success",
-        "File uploaded successfully! Ready for extraction."
+        "File uploaded successfully! Ready for extraction.",
       );
     }
   };
@@ -442,7 +441,6 @@ const AllPo = () => {
       });
 
       const result = JSON.parse(response.text);
-   
 
       setExtractedData(result);
 
@@ -463,7 +461,7 @@ const AllPo = () => {
         setExtractionStep("extracted");
         showNotification(
           "success",
-          `✨ AI extracted ${result.items.length} items successfully! PO Number: ${extractedOrderNumber}`
+          `✨ AI extracted ${result.items.length} items successfully! PO Number: ${extractedOrderNumber}`,
         );
       } else {
         showNotification("error", "Extraction succeeded but no items found");
@@ -496,7 +494,7 @@ const AllPo = () => {
       formData.append("companyName", companyName || clientProfile.companyName);
       formData.append(
         "poDate",
-        poDate || new Date().toISOString().split("T")[0]
+        poDate || new Date().toISOString().split("T")[0],
       );
       formData.append("items", JSON.stringify(items));
 
@@ -506,17 +504,26 @@ const AllPo = () => {
 
       console.log("Saving payload (FormData):", formData);
 
-      const { data } = await axios.post(`${API_URL}/purchase-orders`, formData, {
-        withCredentials: true,
-        headers: {
-          "Content-Type": "multipart/form-data",
+      const { data } = await axios.post(
+        `${API_URL}/purchase-orders`,
+        formData,
+        {
+          withCredentials: true,
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         },
-      });
+      );
 
       if (data.success) {
+        const pendingSync = data?.data?.pendingSync || data?.pendingSync;
+        const syncSuffix = pendingSync
+          ? ` Pending PO: ${Number(pendingSync.inserted || 0)} inserted, ${Number(pendingSync.updated || 0)} updated${Number(pendingSync.skippedDuplicates || 0) ? `, ${Number(pendingSync.skippedDuplicates)} duplicate line(s) ignored` : ""}.`
+          : "";
+
         showNotification(
           "success",
-          `🎉 Purchase order ${orderNumber} saved successfully!`
+          `🎉 Purchase order ${orderNumber} saved successfully!${syncSuffix}`,
         );
 
         setItems([]);
@@ -535,7 +542,7 @@ const AllPo = () => {
       console.error("Error saving:", error);
       showNotification(
         "error",
-        error.response?.data?.message || "Error saving to database"
+        error.response?.data?.message || "Error saving to database",
       );
     } finally {
       setSaving(false);
@@ -585,10 +592,10 @@ const AllPo = () => {
       const matchesSearch =
         order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.items.some((item) =>
-          item.itemCode?.toLowerCase().includes(searchTerm.toLowerCase())
+          item.itemCode?.toLowerCase().includes(searchTerm.toLowerCase()),
         ) ||
         order.items.some((item) =>
-          item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+          item.description?.toLowerCase().includes(searchTerm.toLowerCase()),
         ) ||
         order.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.submittedBy?.companyName
@@ -626,7 +633,7 @@ const AllPo = () => {
       setCurrentTourStep(0);
       showNotification(
         "success",
-        "🎉 Tour completed! You're ready to manage purchase orders like a pro!"
+        "🎉 Tour completed! You're ready to manage purchase orders like a pro!",
       );
     }
   };
@@ -740,7 +747,8 @@ const AllPo = () => {
                 <div>
                   <p className="font-semibold text-sm">Extract New PO</p>
                   <p className="text-xs text-gray-500">
-                    Upload PDF or images to automatically extract PO data using AI
+                    Upload PDF or images to automatically extract PO data using
+                    AI
                   </p>
                 </div>
               </div>
@@ -810,10 +818,14 @@ const AllPo = () => {
                 <p className="font-semibold text-sm text-gray-900">
                   {tipContent.title}
                 </p>
-                <p className="text-xs text-gray-600 mt-1">{tipContent.message}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {tipContent.message}
+                </p>
               </div>
               <button
-                onClick={() => setTipContent({ title: "", message: "", icon: null })}
+                onClick={() =>
+                  setTipContent({ title: "", message: "", icon: null })
+                }
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X size={14} />
@@ -966,7 +978,9 @@ const AllPo = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleAnimatedNavigation("/generate/pendinglist")}
+                onClick={() =>
+                  handleAnimatedNavigation("/generate/pendinglist")
+                }
                 className={`relative flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl font-semibold transition-all duration-300 overflow-hidden backdrop-blur-sm ${
                   location.pathname === "/pending-purchase-orders"
                     ? "text-white shadow-md shadow-blue-500/20"
@@ -1003,11 +1017,11 @@ const AllPo = () => {
                   />
                 )}
                 <span className="relative flex items-center gap-1 sm:gap-2">
-                  <CircleAlert  size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <CircleAlert size={16} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="text-xs sm:text-sm">Rejection Items</span>
                 </span>
               </motion.button>
-               {/* Dispatch history Button */}
+              {/* Dispatch history Button */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -1150,8 +1164,8 @@ const AllPo = () => {
                           : "Upload your document"}
                       </h3>
                       <p className="text-gray-500 mb-4 max-w-md mx-auto">
-                        Drag & drop or click to upload. Our AI will automatically
-                        extract all purchase order details.
+                        Drag & drop or click to upload. Our AI will
+                        automatically extract all purchase order details.
                       </p>
 
                       {/* Feature badges */}
@@ -1247,21 +1261,27 @@ const AllPo = () => {
                             label: "PO Number",
                             value: orderNumber || "Not extracted",
                             sub: companyName || "Company name not extracted",
-                            icon: <FileText className="text-indigo-600" size={24} />,
+                            icon: (
+                              <FileText className="text-indigo-600" size={24} />
+                            ),
                             bg: "bg-indigo-100",
                           },
                           {
                             label: "PO Date",
                             value: poDate || "Not extracted",
                             sub: `${items.length} items extracted`,
-                            icon: <Calendar className="text-blue-600" size={24} />,
+                            icon: (
+                              <Calendar className="text-blue-600" size={24} />
+                            ),
                             bg: "bg-blue-100",
                           },
                           {
                             label: "Total Items",
                             value: items.length,
                             sub: "Extracted from document",
-                            icon: <Package className="text-green-600" size={24} />,
+                            icon: (
+                              <Package className="text-green-600" size={24} />
+                            ),
                             bg: "bg-green-100",
                           },
                           {
@@ -1270,7 +1290,12 @@ const AllPo = () => {
                               .reduce((sum, item) => sum + (item.value || 0), 0)
                               .toLocaleString()}`,
                             sub: "Including all items",
-                            icon: <DollarSign className="text-purple-600" size={24} />,
+                            icon: (
+                              <DollarSign
+                                className="text-purple-600"
+                                size={24}
+                              />
+                            ),
                             bg: "bg-purple-100",
                           },
                         ].map((card, idx) => (
@@ -1279,20 +1304,32 @@ const AllPo = () => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.1 }}
-                            whileHover={{ scale: 1.02, boxShadow: "0 20px 60px rgba(0,0,0,0.1)" }}
+                            whileHover={{
+                              scale: 1.02,
+                              boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
+                            }}
                             className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 group"
                           >
                             <div className="flex items-center justify-between mb-4">
-                              <div className={`p-3 ${card.bg} rounded-xl group-hover:scale-110 transition-transform`}>
+                              <div
+                                className={`p-3 ${card.bg} rounded-xl group-hover:scale-110 transition-transform`}
+                              >
                                 {card.icon}
                               </div>
-                              <TrendingUp className="text-green-500" size={20} />
+                              <TrendingUp
+                                className="text-green-500"
+                                size={20}
+                              />
                             </div>
-                            <p className="text-gray-500 text-sm mb-1">{card.label}</p>
+                            <p className="text-gray-500 text-sm mb-1">
+                              {card.label}
+                            </p>
                             <p className="text-xl font-bold text-gray-900 truncate">
                               {card.value}
                             </p>
-                            <div className="mt-2 text-xs text-gray-400">{card.sub}</div>
+                            <div className="mt-2 text-xs text-gray-400">
+                              {card.sub}
+                            </div>
                           </motion.div>
                         ))}
                       </div>
@@ -1329,7 +1366,10 @@ const AllPo = () => {
                           <div className="flex items-center justify-between flex-wrap gap-4">
                             <div>
                               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <FileCheck className="text-indigo-600" size={24} />
+                                <FileCheck
+                                  className="text-indigo-600"
+                                  size={24}
+                                />
                                 Extracted Purchase Order Details
                               </h2>
                               <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
@@ -1356,7 +1396,10 @@ const AllPo = () => {
                                 className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
                               >
                                 {saving ? (
-                                  <RefreshCw className="animate-spin" size={18} />
+                                  <RefreshCw
+                                    className="animate-spin"
+                                    size={18}
+                                  />
                                 ) : (
                                   <Save size={18} />
                                 )}
@@ -1458,7 +1501,9 @@ const AllPo = () => {
                       </div>
                       <p className="text-sm opacity-90">Total Orders</p>
                       <p className="text-xs opacity-75 mt-1">
-                        {stats.totalOrders > 0 ? "Active orders" : "No orders yet"}
+                        {stats.totalOrders > 0
+                          ? "Active orders"
+                          : "No orders yet"}
                       </p>
                     </motion.div>
 
@@ -1472,7 +1517,9 @@ const AllPo = () => {
                           {stats.totalItems}
                         </span>
                       </div>
-                      <p className="text-gray-500 text-sm">Total Items Ordered</p>
+                      <p className="text-gray-500 text-sm">
+                        Total Items Ordered
+                      </p>
                       <p className="text-xs text-gray-400 mt-1">
                         Across all purchase orders
                       </p>
@@ -1544,16 +1591,23 @@ const AllPo = () => {
                         disabled={loading}
                         className="px-5 py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-all duration-300 flex items-center gap-2 disabled:opacity-50"
                       >
-                        <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                        <RefreshCw
+                          size={18}
+                          className={loading ? "animate-spin" : ""}
+                        />
                         Refresh
                       </motion.button>
                     </div>
                   </div>
 
                   {/* Active Filters Display */}
-                  {(filterCompany !== "all" || filterStatus !== "all" || searchTerm) && (
+                  {(filterCompany !== "all" ||
+                    filterStatus !== "all" ||
+                    searchTerm) && (
                     <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                      <span className="text-xs text-gray-500">Active Filters:</span>
+                      <span className="text-xs text-gray-500">
+                        Active Filters:
+                      </span>
                       {filterCompany !== "all" && (
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
                           <Building size={12} />
@@ -1609,7 +1663,10 @@ const AllPo = () => {
                   {loading ? (
                     <div className="flex items-center justify-center py-20">
                       <div className="text-center">
-                        <RefreshCw className="animate-spin mx-auto text-indigo-600" size={48} />
+                        <RefreshCw
+                          className="animate-spin mx-auto text-indigo-600"
+                          size={48}
+                        />
                         <p className="mt-4 text-gray-500">Loading orders...</p>
                       </div>
                     </div>
@@ -1626,7 +1683,9 @@ const AllPo = () => {
                         No orders found
                       </h3>
                       <p className="text-gray-500">
-                        {searchTerm || filterStatus !== "all" || filterCompany !== "all"
+                        {searchTerm ||
+                        filterStatus !== "all" ||
+                        filterCompany !== "all"
                           ? "Try adjusting your search or filter criteria"
                           : "Upload a document to extract a new purchase order"}
                       </p>
@@ -1699,7 +1758,9 @@ const AllPo = () => {
                                   </div>
                                   <div className="text-sm text-gray-500">
                                     {order.items.length}{" "}
-                                    {order.items.length === 1 ? "item" : "items"}
+                                    {order.items.length === 1
+                                      ? "item"
+                                      : "items"}
                                   </div>
                                 </div>
                               </td>
@@ -1740,8 +1801,8 @@ const AllPo = () => {
                                     order.status === "approved"
                                       ? "bg-green-100 text-green-700"
                                       : order.status === "submitted"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-gray-100 text-gray-700"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-100 text-gray-700"
                                   }`}
                                 >
                                   {order.status}
@@ -1754,12 +1815,13 @@ const AllPo = () => {
                                       whileHover={{ scale: 1.1 }}
                                       whileTap={{ scale: 0.9 }}
                                       onClick={() => {
-                                        const pdfUrl = order.attachments?.[0]?.url;
+                                        const pdfUrl =
+                                          order.attachments?.[0]?.url;
                                         if (pdfUrl) {
                                           window.open(
                                             pdfUrl,
                                             "_blank",
-                                            "noopener,noreferrer"
+                                            "noopener,noreferrer",
                                           );
                                         }
                                       }}
@@ -1767,7 +1829,10 @@ const AllPo = () => {
                                       title="Download PDF"
                                     >
                                       {downloadingPdf === order._id ? (
-                                        <RefreshCw size={16} className="animate-spin" />
+                                        <RefreshCw
+                                          size={16}
+                                          className="animate-spin"
+                                        />
                                       ) : (
                                         <Download size={16} />
                                       )}
@@ -1845,10 +1910,12 @@ const AllPo = () => {
                     </p>
                     <p className="text-xs text-slate-500 flex items-center gap-1">
                       <User size={12} />
-                      Submitted by: {selectedOrder.submittedBy?.companyName || "N/A"}
+                      Submitted by:{" "}
+                      {selectedOrder.submittedBy?.companyName || "N/A"}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}
+                      Date:{" "}
+                      {new Date(selectedOrder.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -1928,7 +1995,9 @@ const AllPo = () => {
                           {item.quantity}
                         </td>
                         <td className="px-4 py-3 text-xs font-medium text-slate-600">
-                          ₹{item.ratePerUnit?.toLocaleString() || item.ratePerUnit}
+                          ₹
+                          {item.ratePerUnit?.toLocaleString() ||
+                            item.ratePerUnit}
                         </td>
                         <td className="px-4 py-3 text-xs font-semibold text-slate-900">
                           ₹{item.value?.toLocaleString()}

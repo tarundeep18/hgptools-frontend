@@ -128,27 +128,49 @@ const getRecordTimestamp = (item) => {
 };
 
 const deduplicatePOItems = (items = []) => {
-  const uniqueItems = new Map();
+  const uniqueItems = [];
 
-  items.forEach((item, index) => {
-    const companyKey = normalizeMergeKeyPart(item?.company);
-    const poKey =
-      normalizeMergeKeyPart(item?.po) ||
-      `record:${normalizeText(item?._id) || index}`;
+  const sameBusinessLine = (left, right) => {
+    if (normalizeMergeKeyPart(left?.company) !== normalizeMergeKeyPart(right?.company)) {
+      return false;
+    }
+    if (normalizeMergeKeyPart(left?.po) !== normalizeMergeKeyPart(right?.po)) {
+      return false;
+    }
 
-    // One calculation entry for each PO + item.
-    const uniqueKey = [companyKey, poKey, getItemIdentity(item)].join("::");
+    const leftCode = normalizeMergeKeyPart(left?.itemCode);
+    const rightCode = normalizeMergeKeyPart(right?.itemCode);
+    if (leftCode && rightCode && leftCode === rightCode) return true;
 
-    const existing = uniqueItems.get(uniqueKey);
+    const leftItem = normalizeMergeKeyPart(left?.item);
+    const rightItem = normalizeMergeKeyPart(right?.item);
+    if (!leftItem || !rightItem || leftItem !== rightItem) return false;
 
-    // If duplicate documents exist, use the latest document only.
-    if (!existing || getRecordTimestamp(item) > getRecordTimestamp(existing)) {
-      uniqueItems.set(uniqueKey, item);
+    const leftDrawing = normalizeMergeKeyPart(left?.drawing);
+    const rightDrawing = normalizeMergeKeyPart(right?.drawing);
+    return !leftDrawing || !rightDrawing || leftDrawing === rightDrawing;
+  };
+
+  items.forEach((item) => {
+    const existingIndex = uniqueItems.findIndex((existing) =>
+      sameBusinessLine(existing, item),
+    );
+
+    if (existingIndex === -1) {
+      uniqueItems.push(item);
+      return;
+    }
+
+    // If duplicate documents exist (for example from an old Excel/PO sync),
+    // show only the latest copy in the UI. New backend writes now prevent these.
+    if (getRecordTimestamp(item) > getRecordTimestamp(uniqueItems[existingIndex])) {
+      uniqueItems[existingIndex] = item;
     }
   });
 
-  return [...uniqueItems.values()];
+  return uniqueItems;
 };
+
 
 const toFiniteNumber = (value, fallback = 0) => {
   if (typeof value === "string" && value.trim() === "") return fallback;
