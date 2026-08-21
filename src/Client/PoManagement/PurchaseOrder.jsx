@@ -469,8 +469,20 @@ const PurchaseOrderManagement = () => {
 
   const handleCancelOrder = async (order) => {
     if (!order?._id) return;
-    if (order.status === "cancelled") {
+    const normalizedStatus = String(order.status || "")
+      .trim()
+      .toLowerCase();
+
+    if (normalizedStatus === "cancelled") {
       showNotification("error", "This purchase order is already cancelled");
+      return;
+    }
+
+    if (normalizedStatus === "approved") {
+      showNotification(
+        "error",
+        "Approved purchase orders can only be cancelled by an admin",
+      );
       return;
     }
 
@@ -1394,6 +1406,7 @@ const PurchaseOrderManagement = () => {
                     <option value="all">All Status</option>
                     <option value="submitted">Submitted</option>
                     <option value="approved">Approved</option>
+                    <option value="cancelled">Cancelled</option>
                     <option value="draft">Draft</option>
                   </select>
                   <button
@@ -1524,7 +1537,9 @@ const PurchaseOrderManagement = () => {
 
                     {/* Order Footer */}
                     <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex justify-end items-center gap-2 rounded-b-xl">
-                      {order.status !== "cancelled" && (
+                      {["submitted", "pending", "pending_approval"].includes(
+                        String(order.status || "").trim().toLowerCase(),
+                      ) && (
                         <button
                           onClick={() => handleCancelOrder(order)}
                           className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1.5 transition-colors rounded px-2 py-1 hover:bg-red-50"
@@ -1640,7 +1655,23 @@ const PurchaseOrderManagement = () => {
                       </div>
 
                       {/* Footer */}
-                      <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50/50">
+                      <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 bg-slate-50/50">
+                        {["submitted", "pending", "pending_approval"].includes(
+                          String(selectedOrderDetails.status || "")
+                            .trim()
+                            .toLowerCase(),
+                        ) && (
+                          <button
+                            onClick={() =>
+                              handleCancelOrder(selectedOrderDetails)
+                            }
+                            className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/20 flex items-center gap-2"
+                          >
+                            <X size={15} />
+                            Cancel PO
+                          </button>
+                        )}
+
                         <button
                           onClick={() => setShowOrderModal(false)}
                           className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900/20"
