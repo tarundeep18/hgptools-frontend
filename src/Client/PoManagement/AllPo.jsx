@@ -314,6 +314,55 @@ const AllPo = () => {
     }
   };
 
+  const handleApproveOrder = async (order) => {
+    if (!order?._id) return;
+    if (!window.confirm(`Approve PO ${order.orderNumber}? This will activate/sync it to pending PO.`)) return;
+
+    try {
+      const { data } = await axios.patch(
+        `${API_URL}/purchase-orders/${order._id}/approve`,
+        {},
+        { withCredentials: true },
+      );
+      if (data.success) {
+        showNotification("success", `PO ${order.orderNumber} approved successfully`);
+        fetchOrders();
+      } else {
+        showNotification("error", data.message || "Failed to approve PO");
+      }
+    } catch (error) {
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to approve purchase order",
+      );
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    if (!order?._id) return;
+    const reason = window.prompt(`Enter cancellation reason for PO ${order.orderNumber}:`);
+    if (reason === null) return;
+
+    try {
+      const { data } = await axios.patch(
+        `${API_URL}/purchase-orders/${order._id}/cancel`,
+        { reason: reason.trim() || "Cancelled by admin" },
+        { withCredentials: true },
+      );
+      if (data.success) {
+        showNotification("success", `PO ${order.orderNumber} cancelled`);
+        fetchOrders();
+      } else {
+        showNotification("error", data.message || "Failed to cancel PO");
+      }
+    } catch (error) {
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to cancel purchase order",
+      );
+    }
+  };
+
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
     setShowOrderModal(true);
@@ -497,6 +546,7 @@ const AllPo = () => {
         poDate || new Date().toISOString().split("T")[0],
       );
       formData.append("items", JSON.stringify(items));
+      formData.append("submissionType", "admin");
 
       if (file) {
         formData.append("attachments", file);
@@ -516,14 +566,9 @@ const AllPo = () => {
       );
 
       if (data.success) {
-        const pendingSync = data?.data?.pendingSync || data?.pendingSync;
-        const syncSuffix = pendingSync
-          ? ` Pending PO: ${Number(pendingSync.inserted || 0)} inserted, ${Number(pendingSync.updated || 0)} updated${Number(pendingSync.skippedDuplicates || 0) ? `, ${Number(pendingSync.skippedDuplicates)} duplicate line(s) ignored` : ""}.`
-          : "";
-
         showNotification(
           "success",
-          `🎉 Purchase order ${orderNumber} saved successfully!${syncSuffix}`,
+          `Purchase order ${orderNumber} created by admin successfully.`,
         );
 
         setItems([]);
@@ -1126,6 +1171,7 @@ const AllPo = () => {
         >
           <div className="animate-fade-in-up">
             {viewMode === "extract" ? (
+              // Extraction View
               <div id="extraction-area">
                 {/* Hero Upload Section */}
                 <div className="mb-10" id="upload-area">
@@ -1799,12 +1845,16 @@ const AllPo = () => {
                                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                                     order.status === "approved"
                                       ? "bg-green-100 text-green-700"
-                                      : order.status === "submitted"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-gray-100 text-gray-700"
+                                      : ["pending", "pending_approval", "submitted"].includes(order.status)
+                                        ? "bg-amber-100 text-amber-700"
+                                        : order.status === "cancelled"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-gray-100 text-gray-700"
                                   }`}
                                 >
-                                  {order.status}
+                                  {["pending", "pending_approval", "submitted"].includes(order.status)
+                                    ? "Pending Approval"
+                                    : order.status}
                                 </span>
                               </td>
                               <td className="border border-gray-300 px-3 py-2 align-middle text-center">
@@ -1846,6 +1896,28 @@ const AllPo = () => {
                                   >
                                     <Eye size={16} />
                                   </motion.button>
+                                  {["pending", "pending_approval", "submitted"].includes(order.status) && (
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleApproveOrder(order)}
+                                      className="p-2 text-green-600 hover:bg-green-50 rounded"
+                                      title="Approve PO"
+                                    >
+                                      <CheckCircle size={16} />
+                                    </motion.button>
+                                  )}
+                                  {order.status !== "cancelled" && (
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleCancelOrder(order)}
+                                      className="p-2 text-orange-600 hover:bg-orange-50 rounded"
+                                      title="Cancel PO"
+                                    >
+                                      <X size={16} />
+                                    </motion.button>
+                                  )}
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
@@ -2048,7 +2120,7 @@ const AllPo = () => {
               </div>
             </motion.div>
           </motion.div>
-
+          
         )}
       </AnimatePresence>
 

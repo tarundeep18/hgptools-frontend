@@ -161,7 +161,7 @@ const PurchaseOrderManagement = () => {
       icon: <Edit2 className="text-green-400" size={32} />,
     },
     {
-      title: "💾 Save to Database",
+      title: "💾 Submit for Approval",
       description:
         "Save your verified purchase orders to Database. Access them anytime from the order history.",
       target: "save-button",
@@ -400,6 +400,7 @@ const PurchaseOrderManagement = () => {
         poDate || new Date().toISOString().split("T")[0],
       );
       formData.append("items", JSON.stringify(items)); // IMPORTANT
+      formData.append("submissionType", "client");
 
       // 🔹 file (PDF)
       if (file) {
@@ -422,7 +423,7 @@ const PurchaseOrderManagement = () => {
       if (data.success) {
         showNotification(
           "success",
-          `🎉 Purchase order ${orderNumber} saved successfully!`,
+          `Purchase order ${orderNumber} submitted for admin approval.`,
         );
 
         setItems([]);
@@ -463,6 +464,40 @@ const PurchaseOrderManagement = () => {
       } catch (error) {
         showNotification("error", "Error deleting order");
       }
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    if (!order?._id) return;
+    if (order.status === "cancelled") {
+      showNotification("error", "This purchase order is already cancelled");
+      return;
+    }
+
+    const reason = window.prompt(
+      `Enter cancellation reason for PO ${order.orderNumber}:`,
+    );
+    if (reason === null) return;
+
+    try {
+      const { data } = await axios.patch(
+        `${API_URL}/purchase-orders/${order._id}/cancel`,
+        { reason: reason.trim() || "Cancelled by client" },
+        { withCredentials: true },
+      );
+
+      if (data.success) {
+        showNotification("success", `PO ${order.orderNumber} cancelled`);
+        fetchOrders();
+        setShowOrderModal(false);
+      } else {
+        showNotification("error", data.message || "Failed to cancel PO");
+      }
+    } catch (error) {
+      showNotification(
+        "error",
+        error.response?.data?.message || "Failed to cancel purchase order",
+      );
     }
   };
 
@@ -1410,21 +1445,29 @@ const PurchaseOrderManagement = () => {
                               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full border ${
                                 order.status === "approved"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : order.status === "submitted"
-                                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                                    : "bg-slate-50 text-slate-600 border-slate-200"
+                                  : ["pending", "pending_approval", "submitted"].includes(order.status)
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : order.status === "cancelled"
+                                      ? "bg-red-50 text-red-700 border-red-200"
+                                      : "bg-slate-50 text-slate-600 border-slate-200"
                               }`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
                                   order.status === "approved"
                                     ? "bg-emerald-500"
-                                    : order.status === "submitted"
-                                      ? "bg-blue-500"
-                                      : "bg-slate-400"
+                                    : ["pending", "pending_approval", "submitted"].includes(order.status)
+                                      ? "bg-amber-500"
+                                      : order.status === "cancelled"
+                                        ? "bg-red-500"
+                                        : "bg-slate-400"
                                 }`}
                               />
-                              <span className="capitalize">{order.status}</span>
+                              <span className="capitalize">
+                                {["pending", "pending_approval", "submitted"].includes(order.status)
+                                  ? "Pending Approval"
+                                  : order.status}
+                              </span>
                             </span>
                           </div>
 
@@ -1480,7 +1523,16 @@ const PurchaseOrderManagement = () => {
                     </div>
 
                     {/* Order Footer */}
-                    <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex justify-end items-center rounded-b-xl">
+                    <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex justify-end items-center gap-2 rounded-b-xl">
+                      {order.status !== "cancelled" && (
+                        <button
+                          onClick={() => handleCancelOrder(order)}
+                          className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1.5 transition-colors rounded px-2 py-1 hover:bg-red-50"
+                        >
+                          <X size={14} />
+                          Cancel PO
+                        </button>
+                      )}
                       <button
                         onClick={() => handleViewOrder(order)}
                         className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 rounded px-2 py-1"
