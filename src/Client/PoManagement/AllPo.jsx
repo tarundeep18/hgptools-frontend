@@ -1126,7 +1126,6 @@ const AllPo = () => {
         >
           <div className="animate-fade-in-up">
             {viewMode === "extract" ? (
-              // Extraction View
               <div id="extraction-area">
                 {/* Hero Upload Section */}
                 <div className="mb-10" id="upload-area">
@@ -2049,7 +2048,7 @@ const AllPo = () => {
               </div>
             </motion.div>
           </motion.div>
-          
+
         )}
       </AnimatePresence>
 
