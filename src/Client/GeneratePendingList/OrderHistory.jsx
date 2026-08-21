@@ -173,8 +173,7 @@ const OrderHistory = () => {
               new Date(a.createdAt || a.dispatchDate || 0),
           );
 
-        console.log("Raw Dispatch API:", res.data.data);
-        console.log("Formatted Dispatch Rows:", formatted);
+      
 
         // Client can only see its own company
         if (!isAdmin && userCompany) {
