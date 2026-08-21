@@ -768,7 +768,7 @@ const PurchaseOrderManagement = () => {
                 </span>
               </button>
 
-              {/* History */}
+              {/* submitted po*/}
               <button
                 onClick={() => {
                   setViewMode("history");
@@ -818,18 +818,18 @@ const PurchaseOrderManagement = () => {
                 <span className="relative flex items-center gap-2">
                   <CloudUpload size={18} />
                   <span className="hidden sm:inline">
-                    <Link to="/pending-purchase-orders">Pending Orders</Link>
+                    <Link to="/generate/pendinglist">Pending Orders</Link>
                   </span>
                 </span>
               </button>
 
-              {/* Order Tracking */}
+              {/* Order history */}
               <Link
-                to="/order-tracking"
+                to="/order-history"
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-blue-100 bg-white/5 hover:bg-white/10 border border-white/10 transition"
               >
                 <Truck size={18} />
-                <span className="hidden sm:inline">Order Tracking</span>
+                <span className="hidden sm:inline">Order history</span>
               </Link>
 
               {/* Help */}

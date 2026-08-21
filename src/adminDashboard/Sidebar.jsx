@@ -132,20 +132,20 @@ const menuItems = [
     group: "Engineering & Quality",
   },
 
-  {
-    title: "Pending List",
-    icon: <List  size={18} />,
-    path: "/generate/pendinglist",
-    roles: ["client", "admin","qc"],
-    group: "Engineering & Quality",
-  },
-   {
-    title: "Rejected Items",
-    icon: <Ban size={18} />,
-    path: "/rejection-items",
-    roles: ["admin", "client","qc"],
-    group: "Order Management",
-  },
+  // {
+  //   title: "Pending List",
+  //   icon: <List  size={18} />,
+  //   path: "/generate/pendinglist",
+  //   roles: ["client", "admin","qc"],
+  //   group: "Engineering & Quality",
+  // },
+  //  {
+  //   title: "Rejected Items",
+  //   icon: <Ban size={18} />,
+  //   path: "/rejection-items",
+  //   roles: ["admin", "client","qc"],
+  //   group: "Order Management",
+  // },
   {
     title: "Inventory",
     icon: <Warehouse size={18} />,
@@ -153,13 +153,13 @@ const menuItems = [
     roles: ["admin"],
     group: "Production",
   },
-   {
-    title: "Order History",
-    icon: <History size={18} />,
-    path: "/order-history",
-    roles: ["admin","client"],
-    group: "Engineering & Quality",
-  },
+  //  {
+  //   title: "Order History",
+  //   icon: <History size={18} />,
+  //   path: "/order-history",
+  //   roles: ["admin","client"],
+  //   group: "Engineering & Quality",
+  // },
   {
     title: "Production Planning",
     icon: <ClipboardCheck size={18} />,

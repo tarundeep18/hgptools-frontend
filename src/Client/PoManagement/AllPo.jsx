@@ -49,6 +49,7 @@ import {
   List,
   Plus,
   Truck,
+  CircleAlert,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
@@ -893,7 +894,7 @@ const AllPo = () => {
             </div>
 
             {/* Right Section - All Header Options */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 w-full lg:w-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto">
               {/* Extract Button */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -984,7 +985,29 @@ const AllPo = () => {
                 </span>
               </motion.button>
 
-              {/* Order Tracking Button */}
+              {/* Rejection Item Button */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleAnimatedNavigation("/order-history")}
+                className={`relative flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl font-semibold transition-all duration-300 overflow-hidden backdrop-blur-sm ${
+                  location.pathname === "/order-tracking"
+                    ? "text-white shadow-md shadow-blue-500/20"
+                    : "text-blue-100 bg-white/5 hover:bg-white/10 border border-white/10"
+                }`}
+              >
+                {location.pathname === "/rejection-items" && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl"
+                  />
+                )}
+                <span className="relative flex items-center gap-1 sm:gap-2">
+                  <CircleAlert  size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="text-xs sm:text-sm">Rejection Items</span>
+                </span>
+              </motion.button>
+               {/* Dispatch history Button */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
